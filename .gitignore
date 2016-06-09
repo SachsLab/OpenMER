@@ -1,3 +1,5 @@
+QtSerialPort/build*
+
 # Compiled Object files
 *.slo
 *.lo
@@ -27,3 +29,6 @@
 *.exe
 *.out
 *.app
+
+# Build system files
+*.pro.user
