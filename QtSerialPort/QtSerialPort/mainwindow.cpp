@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(mSerialPort,SIGNAL(readyRead()),this,SLOT(ReadMyCom()));
     connect(ui->comboBox,SIGNAL(currentIndexChanged()),this,SLOT(reset_serialPort()));
-    connect(ui->lineEdit,SIGNAL(textChanged(QString)),this,SLOT(send_Messages()));
+//    connect(ui->lineEdit,SIGNAL(textChanged(QString)),this,SLOT(send_Messages()));
 
     QList<QSerialPortInfo> comInfoList = mSerialPortInfo->availablePorts();//get serial port list information
 
@@ -79,7 +79,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::send_Messages()
 {
-    mSerialPort->write(ui->lineEdit->text().toLatin1());
+//    mSerialPort->write(ui->lineEdit->text().toLatin1());
 }
 
 void MainWindow::reset_serialPort()
