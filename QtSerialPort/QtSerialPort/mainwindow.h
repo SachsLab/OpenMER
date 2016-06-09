@@ -25,18 +25,12 @@ public:
     QTextCodec *tc = QTextCodec::codecForName("GBK");//text encoding
 
 private slots:
-
     void ReadMyCom();
-
     void reset_serialPort();
-
-    void send_Messages();
 
 private:
     Ui::MainWindow *ui;
-
     QString showString;
-
     QSerialPort *mSerialPort;//declare serial object
     QSerialPortInfo *mSerialPortInfo;//declare serialinfo object
 };
