@@ -90,7 +90,7 @@ void MainWindow::ReadMyCom()
     }
     //QString str = tc->toUnicode(data_received);
     showString.append(data_received);
-    delete showString;
+
     ui->lcdNumber->setDigitCount(7);
     ui->lcdNumber->display(showString);//double number
     //ui->textBrowser->insertPlainText(str);
