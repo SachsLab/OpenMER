@@ -22,11 +22,16 @@ public:
     ~MainWindow();
 
     QByteArray data_received;//save receiving data
-    QTextCodec *tc = QTextCodec::codecForName("GBK");//text encoding
+    QByteArray data_send;//save sending data
+    QTextCodec *tc = QTextCodec::codecForName("UTF-8");//text encoding
+
+//signals:
+  //  void serialPortReceivedData(QByteArray receivedData);
 
 private slots:
     void ReadMyCom();
     void reset_serialPort();
+    void on_pushButton_clicked();
 
 private:
     Ui::MainWindow *ui;
