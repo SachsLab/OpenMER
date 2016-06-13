@@ -94,6 +94,8 @@ void MainWindow::ReadMyCom()
     ui->lcdNumber->setDigitCount(7);
     ui->lcdNumber->display(showString);//double number
     //ui->textBrowser->insertPlainText(str);
+
+
 }
 
 void MainWindow::on_pushButton_clicked()
