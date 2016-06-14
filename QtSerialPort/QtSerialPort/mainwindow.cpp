@@ -6,6 +6,7 @@
 #include <QString>
 #include <QByteArray>
 #include <iostream>
+#include <string>
 
 using namespace std;
 
@@ -83,26 +84,32 @@ void MainWindow::reset_serialPort()
 
 }
 
+
 void MainWindow::ReadMyCom()
 {
+    //char buffer[7];
     if(mSerialPort->waitForReadyRead(50)){
-    data_received = mSerialPort->readAll();//read data from serial port
+    data_received = mSerialPort->readLine();//read data from serial port
+
     }
-    //QString str = tc->toUnicode(data_received);
-    showString.append(data_received);
+    //QString str = data_received;
 
+    //std::cout<<data_received<<endl;
+    //showString.append(data_received);
+    double nb = data_received.toDouble();
+    if(nb != 0){
+    std::cout<<nb<<endl;
     ui->lcdNumber->setDigitCount(7);
-    ui->lcdNumber->display(showString);//double number
+    ui->lcdNumber->display(nb);//double number
     //ui->textBrowser->insertPlainText(str);
-
-
+    }
 }
 
 void MainWindow::on_pushButton_clicked()
 {
     //QByteArray send_data = ui->lineEdit->text();
     //mSerialPort->write(ui->lineEdit->text());
-    mSerialPort->write(ui->lineEdit->text().toLatin1()+ "\n");
+    mSerialPort->write(ui->lineEdit->text().toUtf8()+ "\n");
     //mSerialPort->write(send_data + "\n");//send data
     ui->lineEdit->clear();
 }
