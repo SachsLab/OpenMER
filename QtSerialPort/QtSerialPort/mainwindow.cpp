@@ -7,6 +7,7 @@
 #include <QByteArray>
 #include <iostream>
 #include <string>
+#include <iomanip>
 
 using namespace std;
 
@@ -98,9 +99,9 @@ void MainWindow::ReadMyCom()
     //showString.append(data_received);
     double nb = data_received.toDouble();
     if(nb != 0){
-    std::cout<<nb<<endl;
+    std::cout<<std::setprecision(5)<<nb<<endl;
     ui->lcdNumber->setDigitCount(7);
-    ui->lcdNumber->display(nb);//double number
+    ui->lcdNumber->display(QString::number(nb,'f',3));//double number
     //ui->textBrowser->insertPlainText(str);
     }
 }
