@@ -32,3 +32,5 @@ QtSerialPort/build*
 
 # Build system files
 *.pro.user
+
+.idea
