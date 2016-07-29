@@ -1,84 +1,23 @@
 from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph as pg
 import numpy as np
-import pyqtgraph.functions as fn
-import weakref
-import pyqtgraph.console
 from cerebus import cbpy
-from pyqtgraph import UIGraphicsItem
+from pyqtgraph import UIGraphicsItem, AxisItem
 import time
-
 from pyqtgraph.dockarea import *
 
 #res, conn_type = cbpy.open(instance = 0, connection = 'default', parameter = conn_params)
 
-class raster(UIGraphicsItem):
-    def __init__(self, xvals=None, yrange=None, pen=None):
-        if yrange is None:
-            yrange = [0, 1]
-        if xvals is None:
-            xvals = []
 
-        UIGraphicsItem.__init__(self)
-
-        if pen is None:
-            pen = (200, 200, 200)
-
-        self.path = QtGui.QGraphicsPathItem()
-        self.ticks = []
-        self.xvals = []
-        self.yrange = [0, 1]
-        self.setPen(pen)
-        self.setYRange(yrange)
-        self.setXVals(xvals)
-
-    def setPen(self, *args, **kwargs):
-        """Set the pen to use for drawing ticks. Can be specified as any arguments valid
-        for :func:`mkPen<pyqtgraph.mkPen>`"""
-        self.pen = fn.mkPen(*args, **kwargs)
-
-    def setXVals(self, vals):
-        self.xvals = vals
-        self.rebuildTicks()
-        # self.valid = False
-
-    def setYRange(self, vals):
-        """Set the y range [low, high] that the ticks are drawn on. 0 is the bottom of
-        the view, 1 is the top."""
-        self.yrange = vals
-        self.rebuildTicks()
-
-    def dataBounds(self, *args, **kargs):
-        return None  ## item should never affect view autoscaling
-
-    def yRange(self):
-        return self.yrange
-
-    def rebuildTicks(self):
-        self.path = QtGui.QPainterPath()
-        yrange = self.yRange()
-        for x in self.xvals:
-            self.path.moveTo(x, 0.)
-            self.path.lineTo(x, 1.)
-
-    def paint(self, p, *args):
-        UIGraphicsItem.paint(self, p, *args)
-
-        br = self.boundingRect()
-        h = br.height()
-        br.setY(br.y() + self.yrange[0] * h)
-        br.setHeight(h - (1.0 - self.yrange[1]) * h)
-        p.translate(0, br.y())
-        p.scale(1.0, br.height())
-        p.setPen(self.pen)
-        p.drawPath(self.path)
 
 class MyGUI(QtGui.QMainWindow):
+    counter = 0
+
     def __init__(self):
         super(MyGUI, self).__init__()
         self.setupUI()
+        self.cbsdkconnect()
         self.show()
-        self.cbSDKconnect()
 
     def setupUI(self):
         self.area = DockArea(self)
@@ -109,37 +48,39 @@ class MyGUI(QtGui.QMainWindow):
 
         #Add widget in each Dock
         self.d1.hideTitleBar()
-        self.w1 = pg.PlotWidget(title="Scrolling Plot")
-        self.vt = raster(xvals=[0.1,0.3,0.4,0.7,0.9],yrange=[0,1])
-        self.w1.addItem(self.vt)
+        self.w1 = pg.LayoutWidget()
+        self.combox = QtGui.QComboBox()
+        self.w1_plot = pg.GraphicsLayoutWidget()
+        self.axisItem = pg.AxisItem('bottom',maxTickLength=-10)
+        self.w1_plot.addItem(self.axisItem)
+        #self.w1.plot.setYRange(0,1)
+        self.w1.addWidget(self.combox, row=0, col=0)
+        self.w1.addWidget(self.w1_plot, row=1, col=0)
+
+        #self.vt = raster(xvals=[0.1,0.3,0.4,0.7,0.9],yrange=[0,1])
+        #self.w1.addItem(self.vt)
         self.d1.addWidget(self.w1)
 
         # Make the raster plot
         self.w21 = pg.PlotWidget()
-        self.vt1 = raster(xvals=np.random.normal(size=100),yrange=[0,1])
-        self.w21.addItem(self.vt1)
 
-        self.w22 = pg.PlotWidget()
-        self.vt2 = raster(xvals=np.random.normal(size=100),yrange=[0,1])
-        self.w22.addItem(self.vt2)
-
-        self.w23 = pg.PlotWidget()
-        self.vt3 = raster(xvals=np.random.normal(size=100),yrange=[0,1])
-        self.w23.addItem(self.vt3)
-
-        self.w24 = pg.PlotWidget()
-        self.vt4 = raster(xvals=np.random.normal(size=100),yrange=[0,1])
-        self.w24.addItem(self.vt4)
-
-        self.w25 = pg.PlotWidget()
-        self.vt5 = raster(xvals=np.random.normal(size=100),yrange=[0,1])
-        self.w25.addItem(self.vt5)
-
+        # self.w21_p1 = pg.AxisItem('bottom', maxTickLength=-20)
+        # self.w21.addItem(self.w21_p1, row=0, col=0)
+        # self.w21_p2 = pg.AxisItem('bottom', maxTickLength=-20)
+        # self.w21_p2.setRange(mn=0, mx=100000)
+        # self.w21_p2.setStyle(tickTextOffset= 10, tickTextHeight= 20)
+        # self.w21.addItem(self.w21_p2, row=3, col=0)
+        # self.w21_p3 = pg.AxisItem('bottom', maxTickLength=-10)
+        # self.w21.addItem(self.w21_p3, row=5, col=0)
+        # self.w21_p4 = pg.AxisItem('bottom', maxTickLength=-10)
+        # self.w21.addItem(self.w21_p4, row=7, col=0)
+        # self.w21_p5 = pg.AxisItem('bottom', maxTickLength=-10)
+        # self.w21.addItem(self.w21_p5, row=9, col=0)
+        # self.w21_p6 = pg.AxisItem('bottom', maxTickLength=-10)
+        # self.w21.addItem(self.w21_p6, row=10, col=0)
+        # self.w21_p7 = pg.AxisItem('bottom', maxTickLength=-10)
+        # self.w21.addItem(self.w21_p7, row=12, col=0)
         self.d2.addWidget(self.w21)
-        self.d2.addWidget(self.w22)
-        self.d2.addWidget(self.w23)
-        self.d2.addWidget(self.w24)
-        self.d2.addWidget(self.w25)
 
         self.d3.hideTitleBar()
         self.w3 = pg.PlotWidget()
@@ -148,39 +89,115 @@ class MyGUI(QtGui.QMainWindow):
         self.curve1 = self.w3.plot(self.data1)
         self.ptr1 = 0
 
+    ## This is the main function of receiving data from NSP and show it on the each type of plot
+    def cbsdkconnect(self):
+        conn_params = { 'inst-addr': '192.168.137.128',
+                        'inst-port': 51001,
+                        'client-addr': '255.255.255.255',
+                        'client-port': 51002,
+                        'receive-buffer-size': (4096 * 1536)}
+
+        res, con_type = cbpy.open(instance=0, connection='default', parameter=conn_params)
+        if res < 0:
+            self.statusBar().showMessage('connection open faild, error %d' % self.res)
+        else:
+            self.nsp_isopen = True
+
+        config_res, config_reset = cbpy.trial_config(instance=0, reset=True, buffer_parameter={'absolute': True})
+        if config_res == 0:
+            self.nsp_config = True
+        else:
+            self.nsp_config = False
+
+        self.event_res, self.event_trial = cbpy.trial_event(instance=0,reset=True)
+        if self.event_res == 0:
+            self.nsp_trial = True
+        else:
+            self.nsp_trial = False
+
+
     ## update1 function: show scrolling plot
     def update1(self):
         self.data1[:-1] = self.data1[1:]  # shift data in the array one sample left
         self.data1[-1] = np.random.normal()
-        self.curve1.setData(self.data1)
         self.ptr1 += 1
+        self.curve1.setData(self.data1)
+        self.curve1.setPos(self.ptr1, 0)
 
-    ## This is the main function of receiving data from NSP and show it on the each type of plot
-    def cbSDKconnect(self):
-        conn_params = {'inst-addr': '192.168.137.128',
-                       'inst-port': 51001,
-                       'client-addr': '255.255.255.255',
-                       'client-port': 51002,
-                       'receive-buffer-size': (4096 * 1536)}
+    def update2(self):
+        if not (self.nsp_isopen and self.nsp_config):
 
-        #res, conType = cbpy.open(instance = 0, connection = 'default', parameter = conn_params)
-        #version_res, ver_dict = cbpy.version(instance = 0)
-        connection = cbpy.get_connection_type(instance=0)
-        #config_res, config_reset = cbpy.trial_config(instance = 0, reset = True,)
-        #event_res, event_trial = cbpy.trial_event(instance = 0)
-        # if res < 0:
-        #     self.statusBar().showMessage('connection open faild, error %d' % res)
+            conn_params = {'inst-addr': '192.168.137.128',
+                           'inst-port': 51001,
+                           'client-addr': '255.255.255.255',
+                           'client-port': 51002,
+                           'receive-buffer-size': (4096 * 1536)}
 
-        self.w5 = QtGui.QLabel(str(connection))
-        self.d5.addWidget(self.w5)
+            # buff_params = {'absolute': True}
+
+            res, con_type = cbpy.open(instance=0, connection='default', parameter=conn_params)
+            config_res, config_reset = cbpy.trial_config(instance=0, reset=True, buffer_parameter={'absolute': True})
+            res, self.nsp_reset_time = cbpy.time()
+            result, event_trial = cbpy.trial_event(reset=True)
+
+            timestamps = [event_trial[ch_ix][1]['timestamps'][0] for ch_ix in range(len(event_trial))]
+
+            # TODO: Get list of all channels
+            for ch_ix in range(len(event_trial)):
+                self.combox.addItem("Channel ", timestamps[ch_ix][0])
+
+            self.spike_times = [np.asarray([]) for x in range(len(event_trial))]  # TODO: Replace 64 with len(channel_list)
+            self.nsp_isopen = True
+            self.event_trial = event_trial
+            self.nsp_config = True
+
+        event_trial = self.event_trial
+        print('calling cbpy.trial_event()')
+        #res, event_trial = cbpy.trial_event(reset=True)
+        for ch_event in event_trial:
+            ch_id = ch_event[0]
+            ch_timestamps = ch_event[1]['timestamps'][0] #TODO: Fix for online sorting
+            self.spike_times[ch_id] = np.concatenate((self.spike_times[ch_id], ch_timestamps))
+            self.spike_times[ch_id] = self.spike_times[ch_id][(self.spike_times[ch_id]-self.nsp_reset_time) < (30000*5)]
+
+        # print('nsp.time: %d' % nsp_time)
+
+        #self.nsp_reset_time
+
+        # for i in range(len(trial)):
+        #     print('samples:', trial[i][1]['timestamps'][0])
+
+        temp = (self.spike_times[5] - self.nsp_reset_time) / 30000
+        positions = np.empty((0, 2))  # return a new array of given shape and type
+        joins = np.empty((0, 2), dtype=int)
+
+        for start_time in range(5):
+            interval_mask = np.logical_and(temp >= start_time, temp < start_time + 1)
+            xvals = temp[interval_mask] - start_time
+            this_ymax = (5 - start_time) / 5.0
+            for x in xvals:
+                positions = np.concatenate((positions, np.atleast_2d([x, this_ymax - 0.1])))
+
+        # print 'calling cbpy.time()'
+        # result, nsp_time = cbpy.time()
+        # print('result:', result)
+        # print('time:', nsp_time)
+        # print('')
+
+        mypen = pg.mkPen(cosmetic=False, width=0.5)
+        # mybrush = pg.mkBrush(QtGui.QBrush(QtGui.QColor(QtCore.Qt.blue), style=QtCore.Qt.VerPattern))
+        self.w21.clear()
+        self.gi = pg.GraphItem(pos=positions, symbolPen=mypen, symbolBrush=None)  # , adj=joins)
+        self.w21.addItem(self.gi)
+
+    def __del__(self):
+        res = cbpy.close(instance=0)
 
 #res, reset = cbpy.trial_config(instance=0, reset=True)
 
-        # def update():
-        #     update1()
-        # timer = pg.QtCore.QTimer()
-        # timer.timeout.connect(update)
-        # timer.start(50)
+    def update(self):
+        self.update1()
+        self.update2()
 
 ## Start Qt event loop unless running in interactive mode.
 if __name__ == '__main__':
@@ -189,10 +206,12 @@ if __name__ == '__main__':
     qapp = QtGui.QApplication(sys.argv)
     aw = MyGUI()
 
-    #res, conn_type = cbpy.open(instance = 0, connection = 'default', parameter = conn_params)
-    timer = pg.QtCore.QTimer()
-    timer.timeout.connect(aw.update1)
-    timer.start(50)
+    if aw.nsp_isopen and aw.nsp_config:
+        time.sleep(1)
+        timer = pg.QtCore.QTimer()
+        timer.timeout.connect(aw.update)
+        timer.start(1000)
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+        aw.__del__()
         QtGui.QApplication.instance().exec_()
