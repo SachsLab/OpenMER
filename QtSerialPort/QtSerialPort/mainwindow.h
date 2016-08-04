@@ -7,6 +7,7 @@
 #include <QSerialPortInfo>
 #include <QTextCodec>
 #include <QString>
+#include <QTime>
 
 namespace Ui {
 class MainWindow;
@@ -25,15 +26,14 @@ public:
     QByteArray data_send;//save sending data
     QTextCodec *tc = QTextCodec::codecForName("UTF-8");//text encoding
 
-//signals:
-  //  void serialPortReceivedData(QByteArray receivedData);
-
 private slots:
     void ReadMyCom();
     void reset_serialPort();
     void on_pushButton_clicked();
 
 private:
+    double a;
+    QTime myTime;
     Ui::MainWindow *ui;
     QString showString;
     QSerialPort *mSerialPort;//declare serial object
