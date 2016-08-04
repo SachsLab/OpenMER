@@ -7,9 +7,15 @@
 #include <QByteArray>
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <iomanip>
+#define NO_AFX
+#include "cbsdk.h"
 
 using namespace std;
+
+#define INST 0
+#define SENDTIMEOUT 4000
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -21,6 +27,7 @@ MainWindow::MainWindow(QWidget *parent) :
     mSerialPortInfo = new QSerialPortInfo;
     //Connect QIODevice readyRead signal to our ReadMyCom: http://doc.qt.io/qt-5/qiodevice.html#readyRead
     connect(mSerialPort, SIGNAL(readyRead()), this, SLOT(ReadMyCom()));
+    //connect(mSerialPort, SIGNAL(readyRead()), this, SLOT(on_pushButton_clicked()));
     // Changing comboBox value triggers our reset_serialPort()
     connect(ui->comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(reset_serialPort()));
 
@@ -36,7 +43,7 @@ MainWindow::MainWindow(QWidget *parent) :
             ui->comboBox->addItem(comInfoList[i].portName());
         }
     }
-
+    myTime.start();
     reset_serialPort();
 }
 
@@ -66,14 +73,6 @@ void MainWindow::reset_serialPort()
 
         //data_received = mSerialPort->readLine();//read data from serial port
        // QString str = tc->toUnicode(data_received);//change format of received data
-        //double a = str.toDouble();
-        //double b = -29.456;
-        //QString c = "-29.0";
-        /*QwtText qText = str;
-        QFont qfont = qText.font();
-        qfont.setBold(true);
-        qfont.setPointSize(40);
-        qText.setFont(qfont);*/
 
         //ui->textBrowser->insertPlainText(str);//show received data
        // ui->lcdNumber->setDigitCount(7);
@@ -98,19 +97,67 @@ void MainWindow::ReadMyCom()
     //std::cout<<data_received<<endl;
     //showString.append(data_received);
     double nb = data_received.toDouble();
-    if(nb != 0){
-    std::cout<<std::setprecision(5)<<nb<<endl;
-    ui->lcdNumber->setDigitCount(7);
-    ui->lcdNumber->display(QString::number(nb,'f',3));//double number
-    //ui->textBrowser->insertPlainText(str);
+
+    if(nb != 0)
+    {
+        //std::cout<<std::setprecision(5)<<nb<<endl;
+        ui->lcdNumber->setDigitCount(7);
+        ui->lcdNumber->display(QString::number(nb,'f',3));//double number
+        //ui->textBrowser->insertPlainText(str);
+
+        if((nb != a) || (myTime.elapsed() > SENDTIMEOUT))
+        {
+            std::ostringstream strs;
+            strs << nb << endl;
+            std::string str = strs.str();
+            str.insert(0,"DTT: ");
+            const char* sds = str.c_str();
+
+            if(strlen(sds)!=13)
+                str.insert(12,"0");
+
+            cbSdkResult res = cbSdkSetComment(INST, 255, 1, sds);
+            cout<<sds<<endl;
+            if (res > 0)
+            {
+                ui->lineEdit->setPlaceholderText("Cannot communicate with NSP!");
+            }else
+            {
+                ui->lineEdit->setPlaceholderText("the deepth measurement is sending to NSP!");
+            }
+            a = nb;
+            myTime.restart();
+        }
     }
 }
 
 void MainWindow::on_pushButton_clicked()
 {
-    //QByteArray send_data = ui->lineEdit->text();
-    //mSerialPort->write(ui->lineEdit->text());
-    mSerialPort->write(ui->lineEdit->text().toUtf8()+ "\n");
-    //mSerialPort->write(send_data + "\n");//send data
-    ui->lineEdit->clear();
+
+//    if(mSerialPort->isOpen())
+//    {
+
+//       // if(mSerialPort->waitForReadyRead(50)){
+//        data_received = mSerialPort->readLine();//read data from serial port
+//        cout<<"jhkhkj"<<endl;
+//        //}
+
+//        double nb = data_received.toDouble();
+//        if(nb != 0)
+//        {
+//            std::cout<<std::setprecision(5)<<nb<<endl;
+//            cout<<"ssfsfdfsd"<<endl;
+//            //const char* a = ConvertDoubleToString(nb);
+//            cbSdkResult res = cbSdkSetComment(INST, 255, 1, "test");
+//            if (res > 0)
+//            {
+//                ui->lineEdit->setPlaceholderText("Cannot communicate with NSP!");
+//            }else
+//            {
+//                ui->lineEdit->setPlaceholderText("the deepth measurement is sending to NSP!");
+//            }
+//        }
+//    }
+//    ui->lineEdit->setPlaceholderText("the deepth measurement is sending to NSP!");
 }
+
