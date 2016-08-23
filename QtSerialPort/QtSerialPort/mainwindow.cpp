@@ -2,7 +2,6 @@
 #include "ui_mainwindow.h"
 #include <QMessageBox>
 #include <QLabel>
-//#include <QFont>
 #include <QString>
 #include <QByteArray>
 #include <iostream>
@@ -71,12 +70,6 @@ void MainWindow::reset_serialPort()
         mSerialPort->setStopBits(QSerialPort::OneStop);
         mSerialPort->setParity(QSerialPort::NoParity);
 
-        //data_received = mSerialPort->readLine();//read data from serial port
-       // QString str = tc->toUnicode(data_received);//change format of received data
-
-        //ui->textBrowser->insertPlainText(str);//show received data
-       // ui->lcdNumber->setDigitCount(7);
-        //ui->lcdNumber->display(str.trimmed());//double number
     }
     catch(...){
         QMessageBox::warning(this,"ERROR!","Cannot open the serialport!");
@@ -92,18 +85,13 @@ void MainWindow::ReadMyCom()
     data_received = mSerialPort->readLine();//read data from serial port
 
     }
-    //QString str = data_received;
 
-    //std::cout<<data_received<<endl;
-    //showString.append(data_received);
     double nb = data_received.toDouble();
 
     if(nb != 0)
     {
-        //std::cout<<std::setprecision(5)<<nb<<endl;
         ui->lcdNumber->setDigitCount(7);
         ui->lcdNumber->display(QString::number(nb,'f',3));//double number
-        //ui->textBrowser->insertPlainText(str);
 
         if((nb != a) || (myTime.elapsed() > SENDTIMEOUT))
         {
@@ -134,30 +122,5 @@ void MainWindow::ReadMyCom()
 void MainWindow::on_pushButton_clicked()
 {
 
-//    if(mSerialPort->isOpen())
-//    {
-
-//       // if(mSerialPort->waitForReadyRead(50)){
-//        data_received = mSerialPort->readLine();//read data from serial port
-//        cout<<"jhkhkj"<<endl;
-//        //}
-
-//        double nb = data_received.toDouble();
-//        if(nb != 0)
-//        {
-//            std::cout<<std::setprecision(5)<<nb<<endl;
-//            cout<<"ssfsfdfsd"<<endl;
-//            //const char* a = ConvertDoubleToString(nb);
-//            cbSdkResult res = cbSdkSetComment(INST, 255, 1, "test");
-//            if (res > 0)
-//            {
-//                ui->lineEdit->setPlaceholderText("Cannot communicate with NSP!");
-//            }else
-//            {
-//                ui->lineEdit->setPlaceholderText("the deepth measurement is sending to NSP!");
-//            }
-//        }
-//    }
-//    ui->lineEdit->setPlaceholderText("the deepth measurement is sending to NSP!");
 }
 
