@@ -5,6 +5,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 from collections import namedtuple
 from cerebus import cbpy
 from pyqtgraph.dockarea import *
+from cbsdkConnection import cbsdkConnection
 
 SpikeEventData = namedtuple("SpikeEventData",
                             ["chan", "unit", "ts", "arrival_ts"])
@@ -16,7 +17,6 @@ NUNITS = 6  # Units per channel
 
 
 class MyGUI(QtGui.QMainWindow):
-    counter = 0
 
     def __init__(self):
         super(MyGUI, self).__init__()
@@ -36,7 +36,7 @@ class MyGUI(QtGui.QMainWindow):
         self.resize(1200, 621)
         # Set menubar & whole widget appearance
         self.myMenubar = QtGui.QMenuBar(self)
-        self.myMenubar.setGeometry(0,0,1200,21)
+        self.myMenubar.setGeometry(0, 0, 1200, 21)
         self.myMenubar.setObjectName("MenuBar")
         fileMenu = self.myMenubar.addMenu('File')
         addChannelAction = QtGui.QAction('Add a channel',self)
@@ -44,6 +44,7 @@ class MyGUI(QtGui.QMainWindow):
         fileMenu.addAction(addChannelAction)
         channelList = fileMenu.addMenu('Channel List')
         addChannelAction.triggered.connect(self.AddChannelToPlot)
+        #addChannelAction.triggered.connect(self.get_dock_info)
         self.ChannelList = QtGui.QComboBox()
         for ch_id in range(NCHANNELS):
             self.ChannelList.addItem("{}".format(ch_id+1))
@@ -71,14 +72,11 @@ class MyGUI(QtGui.QMainWindow):
         #self.line = QtCore.QLineF(0,0,0,1)
         #self.painter.fillPath(self.ticks, QColor=(255,0,0))
 
-        # Setting spikes, raw and raster data buffers
-        # self.my_spks = []
-        # self.my_raws = []
-        # self.my_rasters = []
-        #self.n_chans_to_plot = 1
         self.spk_buffer = np.empty((0, 0))
         self.raw_buffer = np.empty((0, 0))
-        self.raster_buffer = [np.empty((1,)), ]
+        self.raster_buffer = []
+        self.dock_info = []
+        self.my_rasters = []
 
     def AddChannelToPlot(self):
         totalNumber = self.dock_area.findAll()
@@ -118,23 +116,32 @@ class MyGUI(QtGui.QMainWindow):
         raster_plot.addItem(raster_item)
         raster_layout.addWidget(raster_plot)
         raster_dock.addWidget(raster_layout)
+        self.my_rasters.append(raster_item)
         self.dock_area.addDock(raster_dock, position='right', relativeTo=continuous_dock)
         self.raster_buffer.append(np.empty((1,)))
+        self.get_dock_info()
 
-    def setupNeuroport(self):
-        self.cbsdkConn = cbsdkConnection()
-
-    def update(self):
-
+    def get_dock_info(self):
         dock_info = []
         for dock_key in self.dock_area.docks.keys():
             dock_type, dock_num = dock_key.split(' ')
             this_dock = self.dock_area.docks[dock_key]
             combo_box = this_dock.findChild(QtGui.QComboBox)
             chan_ix = int(combo_box.currentText())
-            dockplot = this_dock.findChild(name="RASTER" if dock_type == 'Raster' else "SPK")  #?
-            #TODO: Search for children with name == "RASTER" or name == "SPK", set to dockplot
+            if dock_type == 'Raster':
+                dockplot = this_dock.findChild(pg.PlotWidget)
+            else:
+                dockplot = this_dock.findChild(pg.PlotWidget)
+            #dockplot = this_dock.findChild(name="RASTER" if dock_type == 'Raster' else "SPK")  # ?
+            # TODO: Search for children with name == "RASTER" or name == "SPK", set to dockplot
             dock_info.append({'type': dock_type, 'num': int(dock_num), 'chan': chan_ix, 'plot': dockplot})
+        # self.dock_infomation = dock_info
+        self.dock_info = dock_info
+
+    def setupNeuroport(self):
+        self.cbsdkConn = cbsdkConnection()
+
+    def update(self):
 
         # Get event timestamps
         timestamps, ts_time = self.cbsdkConn.get_event_data()
@@ -148,179 +155,66 @@ class MyGUI(QtGui.QMainWindow):
         self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((self.spk_buffer.shape[0], n_samples_to_add),
                                                                           dtype=first_dat.dtype)), axis=1)
         # Add relevant data to spk_buffer
-        spk_index = -1
-        gi_index = -1  # FIXME
-        for dinf in dock_info:
-            if dinf['type'] == 'Continuous':
-                try:
-                    buf_ix = dinf['num']
-                    dat_ix = dinf['chan']
-                    self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(dat_ix)][1]
-                    tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
+        if len(self.dock_info) is not 0:
+            for dinf in self.dock_info:
+                if dinf['type'] == 'Continuous':
+                    try:
+                        buf_ix = dinf['num']
+                        dat_ix = dinf['chan']
+                        this_plot = dinf['plot']
+                        this_dock = this_plot.parent()
+                        combo_box = this_dock.findChild(QtGui.QComboBox)
+                        chan_ix = int(combo_box.currentText())
+                        if chan_ix != dat_ix:
+                            dat_ix = chan_ix
+                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(dat_ix)][1]
+                        tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
 
-                    # Shrink spk_buffer to time >= -1
-                    sample_mask = tvec >= -1
-                    tvec = tvec[sample_mask]
-                    self.spk_buffer = self.spk_buffer[:, sample_mask]
+                        # Shrink spk_buffer to time >= -1
+                        sample_mask = tvec >= -1
+                        tvec = tvec[sample_mask]
+                        self.spk_buffer = self.spk_buffer[:, sample_mask]
 
-                    pi = dinf['plot'].getPlotItem()
-                    dataItems = pi.listDataItems()
-                    dataItems[0].setData(self.spk_buffer[dinf['num']-1, :].ravel(), x=tvec)
-                except ValueError:
-                    pass
+                        pi = dinf['plot'].getPlotItem()
+                        dataItems = pi.listDataItems()
+                        dataItems[0].setData(self.spk_buffer[buf_ix-1].ravel(), x=tvec)
+                    except ValueError:
+                        pass
 
-            elif dinf['type'] == 'Raster':
-                try:
-                    this_ix = timestamp_chans.index(dinf['chan'])
-                    this_timestamps = timestamps[this_ix][1]['timestamps']
-                    raster_buf_ix = dinf['num']
-                    raster_dat_ix = dinf['chan']
-                except ValueError:
-                    this_timestamps = [[]]
+                elif dinf['type'] == 'Raster':
+                    try:
+                        raster_buf_ix = dinf['num']
+                        raster_dat_ix = dinf['chan']
+                        this_raster_plot = dinf['plot']
+                        this_raster_dock = this_raster_plot.parent()
+                        raster_combo_box = this_raster_dock.findChild(QtGui.QComboBox)
+                        raster_chan_ix = int(raster_combo_box.currentText())
+                        if raster_chan_ix != raster_dat_ix:
+                            raster_dat_ix = raster_chan_ix
 
-                #self.raster_buffer[raster_buf_ix-1] = np.append(self.raster_buffer[gi_index], this_timestamps[unit_ix])
-                self.raster_buffer[raster_buf_ix-1] = this_timestamps[0]
-                ts = (self.raster_buffer[raster_buf_ix-1] - ts_time) / SAMPLERATE
+                        this_ix = timestamp_chans.index(raster_dat_ix)
+                        this_timestamps = timestamps[this_ix][1]['timestamps']
+                    except ValueError:
+                        this_timestamps = [[]]
 
-                # Only keep last 5 seconds
-                keep_mask = ts > -5
-                self.raster_buffer[raster_buf_ix-1] = self.raster_buffer[raster_buf_ix-1][keep_mask]  # Trim buffer (samples)
-                ts = ts[keep_mask]  # Trim timestamps (seconds)
+                    #self.raster_buffer[raster_buf_ix-1] = np.append(self.raster_buffer[gi_index], this_timestamps[unit_ix])
+                    self.raster_buffer[raster_buf_ix-1] = np.append(self.raster_buffer[raster_buf_ix-1], this_timestamps[0])
+                    ts = (self.raster_buffer[raster_buf_ix-1] - ts_time) / SAMPLERATE
 
-                xpos = np.mod(ts, 1)
-                ypos = -np.ceil(ts) / 5 + 0.1
-                positions = np.vstack((xpos, ypos)).T
+                    # Only keep last 5 seconds
+                    keep_mask = ts > -5
+                    self.raster_buffer[raster_buf_ix-1] = self.raster_buffer[raster_buf_ix-1][keep_mask]  # Trim buffer (samples)
+                    ts = ts[keep_mask]  # Trim timestamps (seconds)
 
-                dinf['plot'].setData(pos=positions, symbolPen=self.mypens[0])
+                    xpos = np.mod(ts, 1)
+                    ypos = -np.ceil(ts) / 5 + 0.1
+                    positions = np.vstack((xpos, ypos)).T
 
-
-class cbsdkConnection(object):
-
-    def __init__(self, inst_addr='192.168.137.128', inst_port=51001, client_port=51002,
-                 client_addr='192.168.137.255' if sys.platform == 'linux2' else '255.255.255.255',
-                 receive_buffer_size=(4096 * 1536) if sys.platform == 'win32' else (4096 * 1536)):
-        #TODO: Find the correct buffer size and client_addr for all platforms.
-        #linux buffer size might be 8388608
-
-        self._cbsdk_config = {'instance': 0, 'buffer_parameter': {'absolute': True},
-                              'range_parameter': {}, 'get_events': True, 'get_continuous': True}
-        self.cbsdk_last_config_time = None
-
-        self.parameters = {'inst-addr': inst_addr, 'inst-port': inst_port, 'client-port': client_port,
-                           'client-addr': client_addr, 'receive-buffer-size': receive_buffer_size}
-        #self.parameters = kwargs
-        self.connect()
-
-    def __del__(self):
-        self.disconnect()
-
-    def connect(self):
-        # Open the interface to the NSP #
-        print('calling cbpy.open in cerelink.connect()')
-        result, return_dict = cbpy.open(connection='default', parameter=self.parameters)
-        print("cbpy.open returned result: {}; return_dict: {}".format(result, return_dict))
-
-        self.cbsdk_config = {'buffer_parameter': {'absolute': True}}
-
-    def disconnect(self):
-        # Close the interface to the NSP (or nPlay). #
-        print('calling cbpy.close in cerelink.disconnect()')
-        result = cbpy.close()
-        print("result: {}".format(result))
-
-    @property
-    def cbsdk_config(self):
-        return self._cbsdk_config
-
-    @cbsdk_config.setter
-    def cbsdk_config(self, indict):
-        if not isinstance(indict, dict):
-            try:
-                indict = dict(indict)
-            except TypeError:
-                print("Value passed to cbsdk_config must be a dictionary")
-
-        if 'buffer_parameter' in indict:
-            indict['buffer_parameter'] = {**self._cbsdk_config['buffer_parameter'], **indict['buffer_parameter']}
-        if 'range_parameter' in indict:
-            indict['range_parameter'] = {**self._cbsdk_config['range_parameter'], **indict['range_parameter']}
-
-        self._cbsdk_config = {**self._cbsdk_config, **indict}
-        self._do_cbsdk_config(**self._cbsdk_config)
-
-    @property
-    def is_running(self):
-        return self.cbsdk_last_config_time is not None
-
-    def _do_cbsdk_config(self, instance=0, reset=True, buffer_parameter={}, range_parameter={}, get_events=True, get_continuous=True):
-        """
-        :param instance:
-        :param reset: True to clear buffer and start acquisition, False to stop acquisition
-        :param buffer_parameter - (optional) dictionary with following keys (all optional)
-               'double': boolean, if specified, the data is in double precision format
-               'absolute': boolean, if specified event timing is absolute (new polling will not reset time for events)
-               'continuous_length': set the number of continuous data to be cached
-               'event_length': set the number of events to be cached
-               'comment_length': set number of comments to be cached
-               'tracking_length': set the number of video tracking events to be cached
-        :param range_parameter - (optional) dictionary with following keys (all optional)
-               'begin_channel': integer, channel to start polling if certain value seen
-               'begin_mask': integer, channel mask to start polling if certain value seen
-               'begin_value': value to start polling
-               'end_channel': channel to end polling if certain value seen
-               'end_mask': channel mask to end polling if certain value seen
-               'end_value': value to end polling
-        :param noevent: equivalent of setting 'event_length' to 0
-        :param nocontinuous: equivalent of setting 'continuous_length' to 0
-        :return:
-        """
-        res, was_reset = cbpy.trial_config(instance=instance, reset=reset, buffer_parameter=buffer_parameter,
-                                      range_parameter=range_parameter, noevent=int(not get_events),
-                                      nocontinuous=int(not get_continuous))
-
-        res, self.cbsdk_last_config_time = cbpy.time(instance=instance)
-
-    def start_data(self):
-        # Start the buffering of data. #
-        self._do_cbsdk_config(**self._cbsdk_config)
-
-    def stop_data(self):
-        # Stop the buffering of data. #
-        cbpy.trial_config(reset=False)
-        self.cbsdk_last_config_time = None
-
-    def get_event_data(self):
-        # Spike event data. #
-        if self.cbsdk_last_config_time:
-            result, trial = cbpy.trial_event(instance=self.cbsdk_config['instance'], reset=True)
-            if result != 0:
-                print('failed to get trial event data. Error (%d)' % result)
-                return False, False
-            else:
-                return trial, cbpy.time(instance=self.cbsdk_config['instance'])[1]
+                    #gi = self.raster_buffer[raster_buf_ix-1]
+                    gi = self.my_rasters[raster_buf_ix-1]
+                    gi.setData(pos=positions, symbolPen=self.mypens[0])
         else:
-            return False, False
-
-    def get_continuous_data(self):
-        result, trial = cbpy.trial_continuous(instance=self.cbsdk_config['instance'], reset=True)
-        return trial, cbpy.time(instance=self.cbsdk_config['instance'])[1]
-
-
-class Spikes:
-
-    update_freq = 30000.
-
-    def __init__(self, channels):
-        self.conn = cbsdkConnection()
-        self.conn.connect()
-        self.conn.select_channels(channels)
-
-    def start(self):
-        self.conn.start_data()
-        self.conn.get_event_data()
-
-    def stop(self):
-        self.conn.stop_data()
+            pass
 
 
 if __name__ == '__main__':
