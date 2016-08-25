@@ -38,14 +38,9 @@ class MyGUI(QtGui.QMainWindow):
         self.myMenubar.setObjectName("MenuBar")
         fileMenu = self.myMenubar.addMenu('File')
         addChannelAction = QtGui.QAction('Add a channel',self)
-        #selectChannelAction = QtGui.QAction('Select Channel',self)
+        #TODO: Add a continuous channel, AND Add a raster channel
         fileMenu.addAction(addChannelAction)
-        channelList = fileMenu.addMenu('Channel List')
         addChannelAction.triggered.connect(self.AddChannelToPlot)
-        #addChannelAction.triggered.connect(self.get_dock_info)
-        self.ChannelList = QtGui.QComboBox()
-        for ch_id in range(NCHANNELS):
-            self.ChannelList.addItem("{}".format(ch_id+1))
 
         self.setWindowTitle('Neuroport DBS')
         self.statusBar().showMessage('Ready...')
@@ -73,26 +68,28 @@ class MyGUI(QtGui.QMainWindow):
         self.raw_buffer = np.empty((0, 0))
         self.raster_buffer = []
         self.dock_info = []
-        self.my_rasters = []
+        self.my_rasters = []  # A list of the GraphItems for plotting rasters.
 
     def AddChannelToPlot(self):
         totalNumber = self.dock_area.findAll()
         dock_index = len(totalNumber[0])
         if len(totalNumber[0]) is 0:
             dock_index = 1
-        continuous_dock = Dock("Continuous " + str(dock_index), size=(900, 200))
+        continuous_dock = Dock("Continuous " + str(dock_index), size=(900, 200))  # TODO: DockArea or Dock?
 
         continuous_layout = pg.LayoutWidget()
         combobox = QtGui.QComboBox()
         for ch_id in range(NCHANNELS):
             combobox.addItem("{}".format(ch_id+1))
+        # TODO: combobox.?action.connect(self.get_dock_info)
+        # TODO: Embed each of spk_plot and raw_plot in their own DockArea (or Dock?).
         spk_plot = pg.PlotWidget(name="SPK")
         spk_plot.plotItem.plot([])
         raw_plot = pg.PlotWidget(name="RAW")
         raw_plot.plotItem.plot([])
         continuous_layout.addWidget(combobox)
-        continuous_layout.addWidget(spk_plot)
-        continuous_layout.addWidget(raw_plot)
+        continuous_layout.addWidget(spk_plot)  # TODO: Add spk_dock
+        continuous_layout.addWidget(raw_plot)  # TODO: Add raw_dock
         continuous_dock.addWidget(continuous_layout)
         self.dock_area.addDock(continuous_dock, position='bottom')
         self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((1,self.spk_buffer.shape[1]))), axis=0)
@@ -155,14 +152,14 @@ class MyGUI(QtGui.QMainWindow):
                 if dinf['type'] == 'Continuous':
                     try:
                         buf_ix = dinf['num']
-                        dat_ix = dinf['chan']
+                        # dat_ix = dinf['chan']
                         this_plot = dinf['plot']
                         this_dock = this_plot.parent()
                         combo_box = this_dock.findChild(QtGui.QComboBox)
                         chan_ix = int(combo_box.currentText())
-                        if chan_ix != dat_ix:
-                            dat_ix = chan_ix
-                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(dat_ix)][1]
+                        # if chan_ix != dat_ix:
+                        #     dat_ix = chan_ix
+                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(chan_ix)][1]
                         tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
 
                         # Shrink spk_buffer to time >= -1
