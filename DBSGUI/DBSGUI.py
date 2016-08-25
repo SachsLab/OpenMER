@@ -14,7 +14,8 @@ ContinuousData = namedtuple("ContinuousData",
 SAMPLERATE = 30000
 NCHANNELS = 64
 NUNITS = 6  # Units per channel
-
+KEEP_SECONDS_RASTERS = 5
+SPK_SHRINK_TIME = -1
 
 class MyGUI(QtGui.QMainWindow):
 
@@ -28,11 +29,8 @@ class MyGUI(QtGui.QMainWindow):
         res = cbpy.close(instance=0)
 
     def setupUI(self):
-
         self.dock_area = DockArea(self)
-
         self.setCentralWidget(self.dock_area)
-
         self.resize(1200, 621)
         # Set menubar & whole widget appearance
         self.myMenubar = QtGui.QMenuBar(self)
@@ -62,7 +60,6 @@ class MyGUI(QtGui.QMainWindow):
         #self.painter.setPen()
         #poly = QtGui.QPolygonF([QtCore.QPoint(0, 0), QtCore.QPoint(0, 1)])
 
-
         self.ticks = QtGui.QPainterPath()
         #self.ticks.addPolygon(poly)
         self.ticks.moveTo(0.0, 0.0)
@@ -81,7 +78,6 @@ class MyGUI(QtGui.QMainWindow):
     def AddChannelToPlot(self):
         totalNumber = self.dock_area.findAll()
         dock_index = len(totalNumber[0])
-        print(totalNumber[0])
         if len(totalNumber[0]) is 0:
             dock_index = 1
         continuous_dock = Dock("Continuous " + str(dock_index), size=(900, 200))
@@ -142,7 +138,6 @@ class MyGUI(QtGui.QMainWindow):
         self.cbsdkConn = cbsdkConnection()
 
     def update(self):
-
         # Get event timestamps
         timestamps, ts_time = self.cbsdkConn.get_event_data()
         timestamp_chans = [x[0] for x in timestamps]
@@ -171,7 +166,7 @@ class MyGUI(QtGui.QMainWindow):
                         tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
 
                         # Shrink spk_buffer to time >= -1
-                        sample_mask = tvec >= -1
+                        sample_mask = tvec >= SPK_SHRINK_TIME
                         tvec = tvec[sample_mask]
                         self.spk_buffer = self.spk_buffer[:, sample_mask]
 
@@ -202,7 +197,7 @@ class MyGUI(QtGui.QMainWindow):
                     ts = (self.raster_buffer[raster_buf_ix-1] - ts_time) / SAMPLERATE
 
                     # Only keep last 5 seconds
-                    keep_mask = ts > -5
+                    keep_mask = ts > -KEEP_SECONDS_RASTERS
                     self.raster_buffer[raster_buf_ix-1] = self.raster_buffer[raster_buf_ix-1][keep_mask]  # Trim buffer (samples)
                     ts = ts[keep_mask]  # Trim timestamps (seconds)
 
