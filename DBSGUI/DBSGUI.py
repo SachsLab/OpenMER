@@ -29,23 +29,31 @@ class MyGUI(QtGui.QMainWindow):
         res = cbpy.close(instance=0)
 
     def setupUI(self):
-        self.dock_area = DockArea(self)
-        self.setCentralWidget(self.dock_area)
+        self.layout = pg.LayoutWidget(self)
+        self.setCentralWidget(self.layout)
+
+        self.dock_area1 = DockArea(self)
+        self.dock_area2 = DockArea(self)
+        self.dock_area3 = DockArea(self)
+
+        self.layout.addWidget(self.dock_area1)
+        self.layout.addWidget(self.dock_area2)
+        self.layout.addWidget(self.dock_area3)
+
         self.resize(1200, 621)
         # Set menubar & whole widget appearance
         self.myMenubar = QtGui.QMenuBar(self)
-        self.myMenubar.setGeometry(0, 0, 1200, 21)
+        self.myMenubar.setGeometry(0, 0, 40, 21)
         self.myMenubar.setObjectName("MenuBar")
         fileMenu = self.myMenubar.addMenu('File')
-        addChannelAction = QtGui.QAction('Add a channel',self)
-        #selectChannelAction = QtGui.QAction('Select Channel',self)
-        fileMenu.addAction(addChannelAction)
-        channelList = fileMenu.addMenu('Channel List')
-        addChannelAction.triggered.connect(self.AddChannelToPlot)
-        #addChannelAction.triggered.connect(self.get_dock_info)
-        self.ChannelList = QtGui.QComboBox()
-        for ch_id in range(NCHANNELS):
-            self.ChannelList.addItem("{}".format(ch_id+1))
+
+        add_Continuous_ChannelAction = QtGui.QAction('Add a Continous Channel',self)
+        fileMenu.addAction(add_Continuous_ChannelAction)
+        add_Continuous_ChannelAction.triggered.connect(self.Add_Continuous_Channel)
+
+        add_Raster_ChannelAction = QtGui.QAction('Add a Raster Channel', self)
+        fileMenu.addAction(add_Raster_ChannelAction)
+        add_Raster_ChannelAction.triggered.connect(self.Add_Raster_Channel)
 
         self.setWindowTitle('Neuroport DBS')
         self.statusBar().showMessage('Ready...')
@@ -73,31 +81,50 @@ class MyGUI(QtGui.QMainWindow):
         self.raw_buffer = np.empty((0, 0))
         self.raster_buffer = []
         self.dock_info = []
-        self.my_rasters = []
+        self.my_rasters = []  # A list of the GraphItems for plotting rasters.
+        self.continuous_counter = 0
+        self.raster_counter = 0
 
-    def AddChannelToPlot(self):
-        totalNumber = self.dock_area.findAll()
-        dock_index = len(totalNumber[0])
-        if len(totalNumber[0]) is 0:
-            dock_index = 1
-        continuous_dock = Dock("Continuous " + str(dock_index), size=(900, 200))
-
+    def Add_Continuous_Channel(self):
+        # totalNumber = self.dock_area.findAll()
+        # print(totalNumber)
+        # dock_index = len(totalNumber[0])
+        # if len(totalNumber[0]) is 0:
+        #     dock_index = 1
+        self.continuous_counter = self.continuous_counter + 1
+        continuous_dock = Dock("Continuous " + str(self.continuous_counter))  # TODO: DockArea or Dock?
+        raw_dock = Dock("Raw " + str(self.continuous_counter))
         continuous_layout = pg.LayoutWidget()
+        raw_layout = pg.LayoutWidget()
+
         combobox = QtGui.QComboBox()
         for ch_id in range(NCHANNELS):
             combobox.addItem("{}".format(ch_id+1))
+        # TODO: combobox.?action.connect(self.get_dock_info)
         spk_plot = pg.PlotWidget(name="SPK")
         spk_plot.plotItem.plot([])
         raw_plot = pg.PlotWidget(name="RAW")
         raw_plot.plotItem.plot([])
-        continuous_layout.addWidget(combobox)
-        continuous_layout.addWidget(spk_plot)
-        continuous_layout.addWidget(raw_plot)
-        continuous_dock.addWidget(continuous_layout)
-        self.dock_area.addDock(continuous_dock, position='bottom')
-        self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((1,self.spk_buffer.shape[1]))), axis=0)
 
-        raster_dock = Dock("Raster " + str(dock_index), size=(300, 200)) #Figure out how to show the current index of raster
+        continuous_layout.addWidget(combobox)
+        continuous_layout.addWidget(spk_plot)  # TODO: Add spk_dock
+        raw_layout.addWidget(raw_plot)  # TODO: Add raw_dock
+
+        continuous_dock.addWidget(continuous_layout)
+        self.dock_area1.addDock(continuous_dock, position='bottom')
+        raw_dock.addWidget(raw_layout)
+        self.dock_area2.addDock(raw_dock, position='bottom')
+        self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((1,self.spk_buffer.shape[1]))), axis=0)
+        self.get_dock_info()
+
+    def Add_Raster_Channel(self):
+        # totalNumber = self.dock_area.findAll()
+        # print(totalNumber)
+        # dock_index = len(totalNumber[0])
+        # if len(totalNumber[0]) is 0:
+        #     dock_index = 1
+        self.raster_counter = self.raster_counter + 1
+        raster_dock = Dock("Raster " + str(self.raster_counter)) #Figure out how to show the current index of raster
         raster_layout = pg.LayoutWidget()
         combo2 = QtGui.QComboBox()
         for ch_id in range(NCHANNELS):
@@ -113,25 +140,39 @@ class MyGUI(QtGui.QMainWindow):
         raster_layout.addWidget(raster_plot)
         raster_dock.addWidget(raster_layout)
         self.my_rasters.append(raster_item)
-        self.dock_area.addDock(raster_dock, position='right', relativeTo=continuous_dock)
+        self.dock_area3.addDock(raster_dock, position='bottom')
+
         self.raster_buffer.append(np.empty((1,)))
         self.get_dock_info()
 
     def get_dock_info(self):
         dock_info = []
-        for dock_key in self.dock_area.docks.keys():
+        for dock_key in self.dock_area1.docks.keys():
             dock_type, dock_num = dock_key.split(' ')
-            this_dock = self.dock_area.docks[dock_key]
+            this_dock = self.dock_area1.docks[dock_key]
             combo_box = this_dock.findChild(QtGui.QComboBox)
             chan_ix = int(combo_box.currentText())
-            if dock_type == 'Raster':
-                dockplot = this_dock.findChild(pg.PlotWidget)
-            else:
-                dockplot = this_dock.findChild(pg.PlotWidget)
-            #dockplot = this_dock.findChild(name="RASTER" if dock_type == 'Raster' else "SPK")  # ?
-            # TODO: Search for children with name == "RASTER" or name == "SPK", set to dockplot
+            dockplot = this_dock.findChild(pg.PlotWidget)
+            # if dock_type =='Raw':
+            #     pass
+            #     #dockplot = this_dock.findChild(pg.PlotWidget)
+            # else:
+            #     combo_box = this_dock.findChild(QtGui.QComboBox)
+            #     chan_ix = int(combo_box.currentText())
+            #     if dock_type == 'Raster':
+            #         dockplot = this_dock.findChild(pg.PlotWidget)
+            #     elif dock_type == 'Continuous':
+            #         dockplot = this_dock.findChild(pg.PlotWidget)
+            # # TODO: Search for children with name == "RASTER" or name == "SPK", set to dockplot
             dock_info.append({'type': dock_type, 'num': int(dock_num), 'chan': chan_ix, 'plot': dockplot})
-        # self.dock_infomation = dock_info
+        for dock_key in self.dock_area3.docks.keys():
+            dock_type, dock_num = dock_key.split(' ')
+            this_dock = self.dock_area3.docks[dock_key]
+            combo_box = this_dock.findChild(QtGui.QComboBox)
+            chan_ix = int(combo_box.currentText())
+            dockplot = this_dock.findChild(pg.PlotWidget)
+            dock_info.append({'type': dock_type, 'num': int(dock_num), 'chan': chan_ix, 'plot': dockplot})
+
         self.dock_info = dock_info
 
     def setupNeuroport(self):
@@ -155,14 +196,14 @@ class MyGUI(QtGui.QMainWindow):
                 if dinf['type'] == 'Continuous':
                     try:
                         buf_ix = dinf['num']
-                        dat_ix = dinf['chan']
+                        # dat_ix = dinf['chan']
                         this_plot = dinf['plot']
                         this_dock = this_plot.parent()
                         combo_box = this_dock.findChild(QtGui.QComboBox)
                         chan_ix = int(combo_box.currentText())
-                        if chan_ix != dat_ix:
-                            dat_ix = chan_ix
-                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(dat_ix)][1]
+                        # if chan_ix != dat_ix:
+                        #     dat_ix = chan_ix
+                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(chan_ix)][1]
                         tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
 
                         # Shrink spk_buffer to time >= -1
@@ -208,6 +249,8 @@ class MyGUI(QtGui.QMainWindow):
                     #gi = self.raster_buffer[raster_buf_ix-1]
                     gi = self.my_rasters[raster_buf_ix-1]
                     gi.setData(pos=positions, symbolPen=self.mypens[0])
+                else:
+                    pass
         else:
             pass
 
