@@ -46,7 +46,6 @@ class MyGUI(QtGui.QMainWindow):
         self.myMenubar.setGeometry(0, 0, 40, 21)
         self.myMenubar.setObjectName("MenuBar")
         fileMenu = self.myMenubar.addMenu('File')
-<<<<<<< HEAD
 
         add_Continuous_ChannelAction = QtGui.QAction('Add a Continous Channel',self)
         fileMenu.addAction(add_Continuous_ChannelAction)
@@ -55,12 +54,6 @@ class MyGUI(QtGui.QMainWindow):
         add_Raster_ChannelAction = QtGui.QAction('Add a Raster Channel', self)
         fileMenu.addAction(add_Raster_ChannelAction)
         add_Raster_ChannelAction.triggered.connect(self.Add_Raster_Channel)
-=======
-        addChannelAction = QtGui.QAction('Add a channel',self)
-        #TODO: Add a continuous channel, AND Add a raster channel
-        fileMenu.addAction(addChannelAction)
-        addChannelAction.triggered.connect(self.AddChannelToPlot)
->>>>>>> 013e89b57b1a682686f660797d7d586ff1354bba
 
         self.setWindowTitle('Neuroport DBS')
         self.statusBar().showMessage('Ready...')
@@ -89,7 +82,6 @@ class MyGUI(QtGui.QMainWindow):
         self.raster_buffer = []
         self.dock_info = []
         self.my_rasters = []  # A list of the GraphItems for plotting rasters.
-<<<<<<< HEAD
         self.continuous_counter = 0
         self.raster_counter = 0
 
@@ -102,16 +94,6 @@ class MyGUI(QtGui.QMainWindow):
         self.continuous_counter = self.continuous_counter + 1
         continuous_dock = Dock("Continuous " + str(self.continuous_counter))  # TODO: DockArea or Dock?
         raw_dock = Dock("Raw " + str(self.continuous_counter))
-=======
-
-    def AddChannelToPlot(self):
-        totalNumber = self.dock_area.findAll()
-        dock_index = len(totalNumber[0])
-        if len(totalNumber[0]) is 0:
-            dock_index = 1
-        continuous_dock = Dock("Continuous " + str(dock_index), size=(900, 200))  # TODO: DockArea or Dock?
-
->>>>>>> 013e89b57b1a682686f660797d7d586ff1354bba
         continuous_layout = pg.LayoutWidget()
         raw_layout = pg.LayoutWidget()
 
@@ -119,10 +101,6 @@ class MyGUI(QtGui.QMainWindow):
         for ch_id in range(NCHANNELS):
             combobox.addItem("{}".format(ch_id+1))
         # TODO: combobox.?action.connect(self.get_dock_info)
-<<<<<<< HEAD
-=======
-        # TODO: Embed each of spk_plot and raw_plot in their own DockArea (or Dock?).
->>>>>>> 013e89b57b1a682686f660797d7d586ff1354bba
         spk_plot = pg.PlotWidget(name="SPK")
         spk_plot.plotItem.plot([])
         raw_plot = pg.PlotWidget(name="RAW")
@@ -130,12 +108,8 @@ class MyGUI(QtGui.QMainWindow):
 
         continuous_layout.addWidget(combobox)
         continuous_layout.addWidget(spk_plot)  # TODO: Add spk_dock
-<<<<<<< HEAD
         raw_layout.addWidget(raw_plot)  # TODO: Add raw_dock
 
-=======
-        continuous_layout.addWidget(raw_plot)  # TODO: Add raw_dock
->>>>>>> 013e89b57b1a682686f660797d7d586ff1354bba
         continuous_dock.addWidget(continuous_layout)
         self.dock_area1.addDock(continuous_dock, position='bottom')
         raw_dock.addWidget(raw_layout)
