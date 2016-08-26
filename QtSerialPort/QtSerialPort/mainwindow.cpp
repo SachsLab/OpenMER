@@ -1,7 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QMessageBox>
-#include <QLabel>
 #include <QString>
 #include <QByteArray>
 #include <iostream>
@@ -27,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent) :
     //Connect QIODevice readyRead signal to our ReadMyCom: http://doc.qt.io/qt-5/qiodevice.html#readyRead
     connect(mSerialPort, SIGNAL(readyRead()), this, SLOT(ReadMyCom()));
     //connect(mSerialPort, SIGNAL(readyRead()), this, SLOT(on_pushButton_clicked()));
-    // Changing comboBox value triggers our reset_serialPort()
+    //Changing comboBox value triggers our reset_serialPort()
     connect(ui->comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(reset_serialPort()));
 
     QList<QSerialPortInfo> comInfoList = mSerialPortInfo->availablePorts();//get serial port list information
@@ -76,7 +75,6 @@ void MainWindow::reset_serialPort()
     }
 
 }
-
 
 void MainWindow::ReadMyCom()
 {
