@@ -1,40 +1,52 @@
 import sys
 from cerebus import cbpy
 
+GENRATE = 30000  # TODO: Get this from cbsdk
 
-class cbsdkConnection(object):
+def singleton(cls):
+    instances = {}
+    def getinstance():
+        if cls not in instances:
+            instances[cls] = cls()
+        return instances[cls]
+    return getinstance
 
-    def __init__(self, inst_addr='192.168.137.128', inst_port=51001, client_port=51002,
-                 client_addr='192.168.137.255' if sys.platform == 'linux2' else '255.255.255.255',
-                 receive_buffer_size=(4096 * 1536) if sys.platform == 'win32' else (4096 * 1536)):
-        #TODO: Find the correct buffer size and client_addr for all platforms.
-        #linux buffer size might be 8388608
-
-        self._cbsdk_config = {'instance': 0, 'buffer_parameter': {'absolute': True},
-                              'range_parameter': {}, 'get_events': True, 'get_continuous': True}
+@singleton
+class CbSdkConnection(object):
+    def __init__(self, instance=0, con_params={}):
+        self.instance = instance
+        self.con_params = {**cbpy.defaultConParams(), **con_params}
         self.cbsdk_last_config_time = None
-
-        self.parameters = {'inst-addr': inst_addr, 'inst-port': inst_port, 'client-port': client_port,
-                           'client-addr': client_addr, 'receive-buffer-size': receive_buffer_size}
-        #self.parameters = kwargs
-        self.connect()
+        self.is_connected = False
+        self._cbsdk_config = {
+            'instance': 0,
+            'buffer_parameter': {'absolute': True},
+            'range_parameter': {},
+            'get_events': True,
+            'get_continuous': True
+        }  # See _do_cbsdk_config below.
 
     def __del__(self):
         self.disconnect()
 
     def connect(self):
         # Open the interface to the NSP #
-        print('calling cbpy.open in cerelink.connect()')
-        result, return_dict = cbpy.open(connection='default', parameter=self.parameters)
-        print("cbpy.open returned result: {}; return_dict: {}".format(result, return_dict))
+        try:
+            result, connect_info = cbpy.open(instance=self.instance, connection='default', parameter=self.con_params)
+            self.is_connected = (result == 0)
+            print("cbpy.open returned result: {}; connect_info: {}".format(result, connect_info))
+            self.cbsdk_config = {'buffer_parameter': {'absolute': True}}  # TODO: Does this need to be updated?
+        except RuntimeError as e:
+            result = int(e.split(",")[0])
+            self.is_connected = False
+            connect_info = None
+            print(e)
 
-        self.cbsdk_config = {'buffer_parameter': {'absolute': True}}
+        return result
 
     def disconnect(self):
         # Close the interface to the NSP (or nPlay). #
-        print('calling cbpy.close in cerelink.disconnect()')
         result = cbpy.close()
-        print("result: {}".format(result))
 
     @property
     def cbsdk_config(self):
@@ -60,7 +72,8 @@ class cbsdkConnection(object):
     def is_running(self):
         return self.cbsdk_last_config_time is not None
 
-    def _do_cbsdk_config(self, instance=0, reset=True, buffer_parameter={}, range_parameter={}, get_events=True, get_continuous=True):
+    def _do_cbsdk_config(self, instance=0, reset=True, buffer_parameter={}, range_parameter={},
+                         get_events=True, get_continuous=True):
         """
         :param instance:
         :param reset: True to clear buffer and start acquisition, False to stop acquisition
@@ -82,10 +95,13 @@ class cbsdkConnection(object):
         :param nocontinuous: equivalent of setting 'continuous_length' to 0
         :return:
         """
-        res, was_reset = cbpy.trial_config(instance=instance, reset=reset, buffer_parameter=buffer_parameter,
-                                      range_parameter=range_parameter, noevent=int(not get_events),
-                                      nocontinuous=int(not get_continuous))
-
+        res, was_reset = cbpy.trial_config(
+            instance=instance, reset=reset,
+            buffer_parameter=buffer_parameter,
+            range_parameter=range_parameter,
+            noevent=int(not get_events),
+            nocontinuous=int(not get_continuous)
+        )
         res, self.cbsdk_last_config_time = cbpy.time(instance=instance)
 
     def start_data(self):

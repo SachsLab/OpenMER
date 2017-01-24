@@ -1,268 +1,329 @@
 import sys
 import numpy as np
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtGui, QtCore
-from collections import namedtuple
-from cerebus import cbpy
-from pyqtgraph.dockarea import *
-from cbsdkConnection import cbsdkConnection
+import time
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtChart import *
+from cbsdkConnection import CbSdkConnection
 
-SpikeEventData = namedtuple("SpikeEventData",
-                            ["chan", "unit", "ts", "arrival_ts"])
-ContinuousData = namedtuple("ContinuousData",
-                            ["chan", "samples", "arrival_ts"])
-SAMPLERATE = 30000
-NCHANNELS = 64
-NUNITS = 6  # Units per channel
-KEEP_SECONDS_RASTERS = 5
-SPK_SHRINK_TIME = -1
+# TODO: Make these settings configurable via UI elements
+RAWDURATION = 1.0
+HPDURATION = 1.0
 
-class MyGUI(QtGui.QMainWindow):
+
+class MyGUI(QMainWindow):
 
     def __init__(self):
         super(MyGUI, self).__init__()
-        self.setupUI()
-        self.setupNeuroport()
+
+        self.source = CbSdkSource()
+        self.actions = {}
+
+        self.setup_ui()
+        self.indicate_connection_state()
         self.show()
 
     def __del__(self):
-        res = cbpy.close(instance=0)
+        # CbSdkConnection().disconnect() No need to disconnect because the instance will do so automatically.
+        pass
 
-    def setupUI(self):
-        self.layout = pg.LayoutWidget(self)
-        self.setCentralWidget(self.layout)
-
-        self.dock_area1 = DockArea(self)
-        self.dock_area2 = DockArea(self)
-        self.dock_area3 = DockArea(self)
-
-        self.layout.addWidget(self.dock_area1)
-        self.layout.addWidget(self.dock_area2)
-        self.layout.addWidget(self.dock_area3)
-
+    def setup_ui(self):
         self.resize(1200, 621)
-        # Set menubar & whole widget appearance
-        self.myMenubar = QtGui.QMenuBar(self)
-        self.myMenubar.setGeometry(0, 0, 40, 21)
-        self.myMenubar.setObjectName("MenuBar")
-        fileMenu = self.myMenubar.addMenu('File')
-
-        add_Continuous_ChannelAction = QtGui.QAction('Add a Continous Channel',self)
-        fileMenu.addAction(add_Continuous_ChannelAction)
-        add_Continuous_ChannelAction.triggered.connect(self.Add_Continuous_Channel)
-
-        add_Raster_ChannelAction = QtGui.QAction('Add a Raster Channel', self)
-        fileMenu.addAction(add_Raster_ChannelAction)
-        add_Raster_ChannelAction.triggered.connect(self.Add_Raster_Channel)
-
         self.setWindowTitle('Neuroport DBS')
-        self.statusBar().showMessage('Ready...')
+        # self.setCentralWidget(QtWidgets.QWidget(self))  # This squeezes out the docks.
+        self.create_actions()  # TODO: Do I need to maintain a list of actions? If not then combine funcs for menu/tool
+        self.create_menus()
+        self.create_toolbars()
 
-        #TODO: Create NUNITS pens
-        self.mypens = [pg.mkPen( width=0, color='y')]
-        #self.mypens[0] = pg.mkPen(color='y')
-        # mybrush = pg.mkBrush(QtGui.QBrush(QtGui.QColor(QtCore.Qt.blue), style=QtCore.Qt.VerPattern))
-        self.mybrush = None
+    def create_actions(self):
+        # Actions
+        self.actions = {
+            "Connect": QAction("Connect", self),
+            "AddChan": QAction("Add Chan", self)
+        }
+        self.actions["Connect"].triggered.connect(self.on_action_connect_triggered)
+        self.actions["AddChan"].triggered.connect(self.on_action_add_chan_triggered)
+        # self.actions["Quit"] = QtWidgets.QAction("Quit", self)
+        # self.actions["Quit"].triggered.connect(QtWidgets.qApp.quit)
 
-        self.painter = QtGui.QPainter()
-        #self.painter.setPen()
-        #poly = QtGui.QPolygonF([QtCore.QPoint(0, 0), QtCore.QPoint(0, 1)])
+        # TODO: Icons, tooltips, shortcuts, etc.
+        # TODO: QActionGroup if many actions need to be grouped.
 
-        self.ticks = QtGui.QPainterPath()
-        #self.ticks.addPolygon(poly)
-        self.ticks.moveTo(0.0, 0.0)
-        self.ticks.lineTo(0.0, 1.0)
-        self.ticks.closeSubpath()
+    def create_menus(self):
+        # Menus
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu('&File')
+        file_menu.addAction(self.actions["Connect"])
 
-        #self.line = QtCore.QLineF(0,0,0,1)
-        #self.painter.fillPath(self.ticks, QColor=(255,0,0))
+    def create_toolbars(self):
+        # Toolbars
+        for k, v in self.actions.items():
+            toolbar_item = QToolBar(k)
+            toolbar_item.addAction(v)
+            self.addToolBar(Qt.LeftToolBarArea, toolbar_item)
 
-        self.spk_buffer = np.empty((0, 0))
-        self.raw_buffer = np.empty((0, 0))
-        self.raster_buffer = []
-        self.dock_info = []
-        self.my_rasters = []  # A list of the GraphItems for plotting rasters.
-        self.continuous_counter = 0
-        self.raster_counter = 0
+    def indicate_connection_state(self):
+        if self.source.cbSdkConn.is_connected:
+            self.statusBar().showMessage('Connected.')
+            # TODO: Disable connect menu/toolbar
+        else:
+            self.statusBar().showMessage('Not connected.')
+            # TODO: Enable connect menu/toolbar
 
-    def Add_Continuous_Channel(self):
-        # totalNumber = self.dock_area.findAll()
-        # print(totalNumber)
-        # dock_index = len(totalNumber[0])
-        # if len(totalNumber[0]) is 0:
-        #     dock_index = 1
-        self.continuous_counter = self.continuous_counter + 1
-        continuous_dock = Dock("Continuous " + str(self.continuous_counter))  # TODO: DockArea or Dock?
-        raw_dock = Dock("Raw " + str(self.continuous_counter))
-        continuous_layout = pg.LayoutWidget()
-        raw_layout = pg.LayoutWidget()
+    def on_action_connect_triggered(self):
+        result = ConnectDialog.do_connect_dialog()
+        if result == -1:
+            print("Connection canceled.")
+        self.indicate_connection_state()
 
-        combobox = QtGui.QComboBox()
-        for ch_id in range(NCHANNELS):
-            combobox.addItem("{}".format(ch_id+1))
-        # TODO: combobox.?action.connect(self.get_dock_info)
-        spk_plot = pg.PlotWidget(name="SPK")
-        spk_plot.plotItem.plot([])
-        raw_plot = pg.PlotWidget(name="RAW")
-        raw_plot.plotItem.plot([])
+    def on_action_add_chan_triggered(self):
+        # TODO: Launch dialog window to select channel + parameters.
+        dock_widget = MERDockWidget("My MER Dock Widget", parent=self)  # TODO: Replace name with channel label.
+        # dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea |
+        #                           Qt.RightDockWidgetArea)
+        self.addDockWidget(Qt.LeftDockWidgetArea, dock_widget)
+        # Seems to add top first, then bottom
 
-        continuous_layout.addWidget(combobox)
-        continuous_layout.addWidget(spk_plot)  # TODO: Add spk_dock
-        raw_layout.addWidget(raw_plot)  # TODO: Add raw_dock
-
-        continuous_dock.addWidget(continuous_layout)
-        self.dock_area1.addDock(continuous_dock, position='bottom')
-        raw_dock.addWidget(raw_layout)
-        self.dock_area2.addDock(raw_dock, position='bottom')
-        self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((1,self.spk_buffer.shape[1]))), axis=0)
-        self.get_dock_info()
-
-    def Add_Raster_Channel(self):
-        # totalNumber = self.dock_area.findAll()
-        # print(totalNumber)
-        # dock_index = len(totalNumber[0])
-        # if len(totalNumber[0]) is 0:
-        #     dock_index = 1
-        self.raster_counter = self.raster_counter + 1
-        raster_dock = Dock("Raster " + str(self.raster_counter)) #Figure out how to show the current index of raster
-        raster_layout = pg.LayoutWidget()
-        combo2 = QtGui.QComboBox()
-        for ch_id in range(NCHANNELS):
-            combo2.addItem("{}".format(ch_id+1))
-        raster_layout.addWidget(combo2)
-
-        raster_item = pg.GraphItem(symbolPen=self.mypens[0], symbolBrush=self.mybrush, symbol='s')
-
-        raster_plot = pg.PlotWidget(name="RASTER")
-        raster_plot.setLimits(xMin=0, xMax=1, yMin=0, yMax=1, minXRange=1.0, maxXRange=1.0, minYRange=1.0,
-                              maxYRange=1.0)
-        raster_plot.addItem(raster_item)
-        raster_layout.addWidget(raster_plot)
-        raster_dock.addWidget(raster_layout)
-        self.my_rasters.append(raster_item)
-        self.dock_area3.addDock(raster_dock, position='bottom')
-
-        self.raster_buffer.append(np.empty((1,)))
-        self.get_dock_info()
-
-    def get_dock_info(self):
-        dock_info = []
-        for dock_key in self.dock_area1.docks.keys():
-            dock_type, dock_num = dock_key.split(' ')
-            this_dock = self.dock_area1.docks[dock_key]
-            combo_box = this_dock.findChild(QtGui.QComboBox)
-            chan_ix = int(combo_box.currentText())
-            dockplot = this_dock.findChild(pg.PlotWidget)
-            # if dock_type =='Raw':
-            #     pass
-            #     #dockplot = this_dock.findChild(pg.PlotWidget)
-            # else:
-            #     combo_box = this_dock.findChild(QtGui.QComboBox)
-            #     chan_ix = int(combo_box.currentText())
-            #     if dock_type == 'Raster':
-            #         dockplot = this_dock.findChild(pg.PlotWidget)
-            #     elif dock_type == 'Continuous':
-            #         dockplot = this_dock.findChild(pg.PlotWidget)
-            # # TODO: Search for children with name == "RASTER" or name == "SPK", set to dockplot
-            dock_info.append({'type': dock_type, 'num': int(dock_num), 'chan': chan_ix, 'plot': dockplot})
-        for dock_key in self.dock_area3.docks.keys():
-            dock_type, dock_num = dock_key.split(' ')
-            this_dock = self.dock_area3.docks[dock_key]
-            combo_box = this_dock.findChild(QtGui.QComboBox)
-            chan_ix = int(combo_box.currentText())
-            dockplot = this_dock.findChild(pg.PlotWidget)
-            dock_info.append({'type': dock_type, 'num': int(dock_num), 'chan': chan_ix, 'plot': dockplot})
-
-        self.dock_info = dock_info
-
-    def setupNeuroport(self):
-        self.cbsdkConn = cbsdkConnection()
+        # self.viewMenu.addAction(dock.toggleViewAction())
 
     def update(self):
-        # Get event timestamps
-        timestamps, ts_time = self.cbsdkConn.get_event_data()
-        timestamp_chans = [x[0] for x in timestamps]
+        self.source.update()
 
-        # Get continuous
-        contdat, cont_time = self.cbsdkConn.get_continuous_data()
-        cont_chans = [x[0] for x in contdat]
-        first_dat = contdat[0][1]
-        n_samples_to_add = first_dat.size
-        self.spk_buffer = np.concatenate((self.spk_buffer, np.nan*np.ones((self.spk_buffer.shape[0], n_samples_to_add),
-                                                                          dtype=first_dat.dtype)), axis=1)
-        # Add relevant data to spk_buffer
-        if len(self.dock_info) is not 0:
-            for dinf in self.dock_info:
-                if dinf['type'] == 'Continuous':
-                    try:
-                        buf_ix = dinf['num']
-                        # dat_ix = dinf['chan']
-                        this_plot = dinf['plot']
-                        this_dock = this_plot.parent()
-                        combo_box = this_dock.findChild(QtGui.QComboBox)
-                        chan_ix = int(combo_box.currentText())
-                        # if chan_ix != dat_ix:
-                        #     dat_ix = chan_ix
-                        self.spk_buffer[buf_ix-1, -n_samples_to_add:] = contdat[cont_chans.index(chan_ix)][1]
-                        tvec = np.arange(-self.spk_buffer.shape[1], 0) / SAMPLERATE
+        # Update the docks
+        my_docks = self.findChildren(MERDockWidget)
+        for ix in range(len(my_docks)):
+            if ix < len(self.source.raw_buffers):
+                my_docks[ix].raw.series()[0].replace(self.source.raw_buffers[ix])
 
-                        # Shrink spk_buffer to time >= -1
-                        sample_mask = tvec >= SPK_SHRINK_TIME
-                        tvec = tvec[sample_mask]
-                        self.spk_buffer = self.spk_buffer[:, sample_mask]
 
-                        pi = dinf['plot'].getPlotItem()
-                        dataItems = pi.listDataItems()
-                        dataItems[0].setData(self.spk_buffer[buf_ix-1].ravel(), x=tvec)
-                    except ValueError:
-                        pass
+class ConnectDialog(QDialog):
+    """
+    A modal dialog window with widgets for modifying connection parameters.
+    Changes + OK will change the parameters in the CbSdkConnection singleton,
+    but will not actually connect.
+    """
+    def __init__(self, parent=None):
+        super(ConnectDialog, self).__init__(parent)
+        # Get access to the CbSdkConnection instance, but don't connect yet.
+        self.cbsdkConn = CbSdkConnection()
 
-                elif dinf['type'] == 'Raster':
-                    try:
-                        raster_buf_ix = dinf['num']
-                        raster_dat_ix = dinf['chan']
-                        this_raster_plot = dinf['plot']
-                        this_raster_dock = this_raster_plot.parent()
-                        raster_combo_box = this_raster_dock.findChild(QtGui.QComboBox)
-                        raster_chan_ix = int(raster_combo_box.currentText())
-                        if raster_chan_ix != raster_dat_ix:
-                            raster_dat_ix = raster_chan_ix
+        # Widgets to show/edit connection parameters.
+        layout = QVBoxLayout(self)
 
-                        this_ix = timestamp_chans.index(raster_dat_ix)
-                        this_timestamps = timestamps[this_ix][1]['timestamps']
-                    except ValueError:
-                        this_timestamps = [[]]
+        # client-addr ip
+        client_addr_layout = QHBoxLayout()
+        client_addr_layout.addWidget(QLabel("client-addr"))
+        self.clientIpEdit = QLineEdit(self.cbsdkConn.con_params['client-addr'])
+        self.clientIpEdit.setInputMask("000.000.000.000;_")
+        client_addr_layout.addWidget(self.clientIpEdit)
+        layout.addLayout(client_addr_layout)
 
-                    #self.raster_buffer[raster_buf_ix-1] = np.append(self.raster_buffer[gi_index], this_timestamps[unit_ix])
-                    self.raster_buffer[raster_buf_ix-1] = np.append(self.raster_buffer[raster_buf_ix-1], this_timestamps[0])
-                    ts = (self.raster_buffer[raster_buf_ix-1] - ts_time) / SAMPLERATE
+        # client-port int
+        client_port_layout = QHBoxLayout()
+        client_port_layout.addWidget(QLabel("client-port"))
+        self.clientPortSpin = QSpinBox()
+        self.clientPortSpin.setMinimum(0)
+        self.clientPortSpin.setMaximum(99999)
+        self.clientPortSpin.setSingleStep(1)
+        self.clientPortSpin.setValue(self.cbsdkConn.con_params['client-port'])
+        client_port_layout.addWidget(self.clientPortSpin)
+        layout.addLayout(client_port_layout)
 
-                    # Only keep last 5 seconds
-                    keep_mask = ts > -KEEP_SECONDS_RASTERS
-                    self.raster_buffer[raster_buf_ix-1] = self.raster_buffer[raster_buf_ix-1][keep_mask]  # Trim buffer (samples)
-                    ts = ts[keep_mask]  # Trim timestamps (seconds)
+        # inst-addr ip
+        inst_addr_layout = QHBoxLayout()
+        inst_addr_layout.addWidget(QLabel("inst-addr"))
+        self.instIpEdit = QLineEdit(self.cbsdkConn.con_params['inst-addr'])
+        self.instIpEdit.setInputMask("000.000.000.000;_")
+        inst_addr_layout.addWidget(self.instIpEdit)
+        layout.addLayout(inst_addr_layout)
 
-                    xpos = np.mod(ts, 1)
-                    ypos = -np.ceil(ts) / 5 + 0.1
-                    positions = np.vstack((xpos, ypos)).T
+        # inst-port int
+        inst_port_layout = QHBoxLayout()
+        inst_port_layout.addWidget(QLabel("inst-port"))
+        self.instPortSpin = QSpinBox()
+        self.instPortSpin.setMinimum(0)
+        self.instPortSpin.setMaximum(99999)
+        self.instPortSpin.setSingleStep(1)
+        self.instPortSpin.setValue(self.cbsdkConn.con_params['inst-port'])
+        inst_port_layout.addWidget(self.instPortSpin)
+        layout.addLayout(inst_port_layout)
 
-                    #gi = self.raster_buffer[raster_buf_ix-1]
-                    gi = self.my_rasters[raster_buf_ix-1]
-                    gi.setData(pos=positions, symbolPen=self.mypens[0])
-                else:
-                    pass
+        # receive-buffer-size int
+        rec_buff_layout = QHBoxLayout()
+        rec_buff_layout.addWidget(QLabel("receive-buffer-size"))
+        self.recBuffSpin = QSpinBox()
+        self.recBuffSpin.setMinimum(6*1024*1024)
+        self.recBuffSpin.setMaximum(8*1024*1024)
+        self.recBuffSpin.setSingleStep(1024*1024)
+        self.recBuffSpin.setValue(self.cbsdkConn.con_params['receive-buffer-size'])
+        rec_buff_layout.addWidget(self.recBuffSpin)
+        layout.addLayout(rec_buff_layout)
+
+        # OK and Cancel buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            Qt.Horizontal, self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    @staticmethod
+    def do_connect_dialog(parent=None):
+        dialog = ConnectDialog(parent)
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
+            dialog.cbsdkConn.disconnect()
+            # Collect values from widgets and set them on dialog.cbsdkConn
+            new_params = {
+                'client-addr': dialog.clientIpEdit.text(),
+                'client-port': dialog.clientPortSpin.value(),
+                'inst-addr': dialog.instIpEdit.text(),
+                'inst-port': dialog.instPortSpin.value(),
+                'receive-buffer-size': dialog.recBuffSpin.value()
+            }
+            dialog.cbsdkConn.con_params = new_params
+            return dialog.cbsdkConn.connect()
+        return -1
+
+
+class MERDockWidget(QDockWidget):
+    def __init__(self, name="MERDockWidget", parent=None):
+        super(MERDockWidget, self).__init__(name, parent)
+
+        # colors = ["red", "green", "blue"]
+
+        # Chart container
+        dock_widget = QWidget()
+        dock_layout = QGridLayout()
+        dock_layout.setContentsMargins(0, 0, 0, 0)
+        dock_layout.setSpacing(0)
+        dock_widget.setLayout(dock_layout)
+
+        # Raw chart
+        self.raw = QChart()
+        self.raw.legend().hide()
+        self.raw.addAxis(QValueAxis(), Qt.AlignBottom)
+        self.raw.addAxis(QValueAxis(), Qt.AlignLeft)
+        # self.raw.axisX().setRange(0, 30000)
+        self.raw.axisY().setRange(-10000, 10000)
+        raw_series = QLineSeries()
+        # pen = QPen()
+        # pen.setColor(QColor(colors[0]))
+        # raw_series.setPen(pen)
+        raw_series.setUseOpenGL(True)  # Causes crash when moving dock around.
+        self.raw.addSeries(raw_series)
+        # self.raw.createDefaultAxes()
+        raw_series.attachAxis(self.raw.axisX())
+        raw_series.attachAxis(self.raw.axisY())
+        raw_view = QChartView(self.raw)
+        dock_layout.addWidget(raw_view, 0, 0, 2, 1)
+
+        # Highpass chart
+        self.highpass = QChart()
+        highpass_view = QChartView(self.highpass)
+        dock_layout.addWidget(highpass_view, 0, 1, 2, 1)
+
+        # Raster
+        self.raster = QChart()
+        raster_view = QChartView(self.raster)
+        dock_layout.addWidget(raster_view, 0, 2, 1, 1)
+
+        # Waveforms
+        self.waveForms = QChart()
+        waveform_view = QChartView(self.waveForms)
+        dock_layout.addWidget(waveform_view, 1, 2, 1, 1)
+
+        self.setWidget(dock_widget)
+
+
+class CbSdkSource(object):
+    """
+    A wrapper around the cbsdk connection.
+    Here we can make some assumptions about the data, and keep a local buffer.
+    """
+    default_rate = 30000.0
+    dtype = np.float
+
+    def __init__(self, buffer_duration=1.0, n_channels=6):
+        self.last_time = time.time()
+        self.raw_buffers = []
+        self.raw_arrays = []
+        self.new_cont_for_chans = []
+        self.new_events_for_chans = []
+
+        self.cbSdkConn = CbSdkConnection()
+        self.reset_buffers(buffer_duration, self.default_rate, n_channels)
+
+    def reset_buffers(self, buffer_duration, sampling_rate, n_channels):
+        self.last_time = time.time()
+        n_samples = int(buffer_duration * sampling_rate)
+
+        # Default x-axis, zeros for y-axis
+        xdata = np.linspace(1. / sampling_rate, buffer_duration, n_samples)
+        # xdata = np.arange(n_samples, dtype=self.dtype)
+        ydata = np.zeros(xdata.shape, dtype=self.dtype)
+
+        # For PyQt5.Chart, plot data will be replaced with our QPolygon, backed by np buffer
+        bytes_per_sample = np.finfo(self.dtype).dtype.itemsize
+        self.raw_buffers = []
+        self.raw_arrays = []
+        for ix in range(n_channels):
+            poly = QPolygonF(n_samples)
+            pointer = poly.data()
+            pointer.setsize(2 * poly.size() * bytes_per_sample)
+            raw_mem = np.frombuffer(pointer, self.dtype)
+            raw_mem[:(n_samples-1) * 2 + 1:2] = xdata
+            raw_mem[1:(n_samples-1) * 2 + 2:2] = ydata
+            self.raw_arrays.append(raw_mem)
+            self.raw_buffers.append(poly)
+
+    def update(self):
+        if self.cbSdkConn.is_connected:
+            contdat, cont_time = self.cbSdkConn.get_continuous_data()
+            self.new_cont_for_chans = [x[0] for x in contdat]
+
+            timestamps, ts_time = self.cbSdkConn.get_event_data()
+            self.new_events_for_chans = [x[0] for x in timestamps]
         else:
-            pass
+            # Generate fake continuous data
+            cont_time = time.time()
+            time_elapsed = cont_time - self.last_time
+            n_samples = int(time_elapsed * self.default_rate)
+            contdat = [(ix, 10000*(np.random.rand(n_samples)-0.5))
+                       for ix in range(len(self.raw_arrays))]
+            self.last_time = cont_time
 
+            # TODO: Generate fake event data
+
+        # Operate on continuous data
+        if cont_time:
+            for x in contdat:
+                cont_chan = x[0]
+                new_ydata = x[1]
+                n_old = int(self.raw_arrays[cont_chan].shape[0] / 2)
+                old_ydata = self.raw_arrays[cont_chan][1::2]
+                n_keep = old_ydata.shape[0] - new_ydata.shape[0]
+                if n_keep < 0:
+                    new_ydata = new_ydata[-n_old:]
+                    n_keep = 0
+                if n_keep > 0:
+                    # Shift old samples
+                    old_ydata[:n_keep] = old_ydata[-n_keep:]
+                # Overwrite with new samples
+                # This updates the buffer and therefore the polygon it is backing.
+                old_ydata[n_keep:] = new_ydata
+
+        # TODO: Put spiking data somewhere.
 
 if __name__ == '__main__':
 
-    qapp = QtGui.QApplication(sys.argv)
+    qapp = QApplication(sys.argv)
     aw = MyGUI()
 
-    timer = pg.QtCore.QTimer()
+    timer = QTimer()
     timer.timeout.connect(aw.update)
-    timer.start(50)
+    timer.start(30)
 
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
+        QApplication.instance().exec_()
