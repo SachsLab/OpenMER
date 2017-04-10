@@ -371,15 +371,16 @@ class SweepWidget(MyWidget):
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
         cntrl_layout.addWidget(QLabel("Monitor: "))
-        self.monitor_group = QButtonGroup(parent=self)
+        monitor_group = QButtonGroup(parent=self)
         none_button = QRadioButton("None")
         none_button.setChecked(True)
-        self.monitor_group.addButton(none_button)
+        monitor_group.addButton(none_button)
+        cntrl_layout.addWidget(none_button)
         for chan_ix in range(len(self.group_info)):
             new_button = QRadioButton(self.group_info[chan_ix]['label'])
-            self.monitor_group.addButton(new_button)
-            # self.monitor_group.setId(new_button, chan_ix)
-        cntrl_layout.addWidget(self.monitor_group)
+            monitor_group.addButton(new_button)
+            # monitor_group.setId(new_button, chan_ix)
+            cntrl_layout.addWidget(new_button)
 
         # Add control panel and chart to widget
         self.layout().addLayout(cntrl_layout)
