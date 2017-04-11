@@ -147,7 +147,7 @@ class CbSdkConnection(object):
         self._do_cbsdk_config(**self._cbsdk_config)  # Use the parameters.
 
     def _do_cbsdk_config(self, instance=0, reset=True, buffer_parameter=None, range_parameter=None,
-                         get_events=False, get_continuous=False):
+                         get_events=False, get_continuous=False, get_comments=False):
         """
         :param instance:
         :param reset: True to clear buffer and start acquisition, False to stop acquisition
@@ -165,8 +165,9 @@ class CbSdkConnection(object):
                'end_channel': channel to end polling if certain value seen
                'end_mask': channel mask to end polling if certain value seen
                'end_value': value to end polling
-        :param get_events:
-        :param get_continuous:
+        :param 'get_events': If False, equivalent of setting buffer_parameter['event_length'] to 0
+        :param 'get_continuous': If False, equivalent of setting buffer_parameter['continuous_length'] to 0
+        :param 'get_comments': If False, equivalent of setting buffer_parameter['comment_length'] to 0
         :return:
         """
         if buffer_parameter is None:
@@ -179,7 +180,8 @@ class CbSdkConnection(object):
                 buffer_parameter=buffer_parameter,
                 range_parameter=range_parameter,
                 noevent=int(not get_events),
-                nocontinuous=int(not get_continuous)
+                nocontinuous=int(not get_continuous),
+                nocomment=int(not get_comments)
             )
         if self.is_simulating:
             for key in self.sig_gens:
@@ -234,6 +236,15 @@ class CbSdkConnection(object):
                 return data
         return None
 
+    def get_comments(self):
+        if self.is_connected and self.cbsdk_config['get_comments']:
+            result, comments = cbpy.trial_comment(instance=self.cbsdk_config['instance'], reset=True)
+            if result == 0:
+                return comments
+            else:
+                print('Failed to get trial comments. Error (%d)' % result)
+        return None
+
     def get_group_config(self, group_ix):
         if self.is_connected:
             result, group_info = cbpy.get_sample_group(group_ix, instance=self.cbsdk_config['instance'])
@@ -264,3 +275,7 @@ class CbSdkConnection(object):
             return time
         else:
             return None
+
+    def monitor_chan(self, chan_ix):
+        if self.is_connected:
+            cbpy.analog_out(149, chan_ix, track_last=True, spike_only=False, instance=self.cbsdk_config['instance'])

@@ -17,6 +17,8 @@ RAWDURATION = 1.0
 HPDURATION = 1.0
 XRANGE = 1.0  # seconds
 YRANGE = 2000  # y-axis range per channel, use +- this value.
+RASTDURATION = 0.5
+RASTROWS = 6
 FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
@@ -28,7 +30,7 @@ THEMES = {
         'axiswidth': 1
     }
 }
-SIMOK = True  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
 def get_now_time():
@@ -367,6 +369,7 @@ class SweepWidget(MyWidget):
         cntrl_layout = QHBoxLayout()
         cntrl_layout.addWidget(QLabel("+/-"))
         self.range_edit = QLineEdit("{:.2f}".format(self.chart.y_range))
+        self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
         cntrl_layout.addWidget(self.range_edit)
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
@@ -375,37 +378,54 @@ class SweepWidget(MyWidget):
         none_button = QRadioButton("None")
         none_button.setChecked(True)
         monitor_group.addButton(none_button)
+        monitor_group.setId(none_button, 0)
         cntrl_layout.addWidget(none_button)
         for chan_ix in range(len(self.group_info)):
             new_button = QRadioButton(self.group_info[chan_ix]['label'])
             monitor_group.addButton(new_button)
-            # monitor_group.setId(new_button, chan_ix)
+            monitor_group.setId(new_button, chan_ix+1)
             cntrl_layout.addWidget(new_button)
+        monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
 
         # Add control panel and chart to widget
         self.layout().addLayout(cntrl_layout)
         self.layout().addWidget(QChartView(self.chart))
+
+    def on_range_edit_editingFinished(self):
+        self.chart.y_range = float(self.range_edit.text())
+        self.chart.refresh_axes()
+
+    def on_monitor_group_clicked(self, button_id):
+        if button_id == 0:
+            chan_ix = None
+        else:
+            chan_ix = self.group_info[button_id-1]['chan']
+        CbSdkConnection().monitor_chan(chan_ix)
 
 
 class RasterWidget(MyWidget):
     def __init__(self, *args, **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
 
-        self.chart = RasterChart()
-        self.chart.frate_changed.connect(self.handle_frate_change)
-        label_layout = QVBoxLayout()
+        self.chart = RasterChart(sampling_rate=self.samplingRate)
+
         for chan_ix in range(len(self.group_info)):
             label_string = self.group_info[chan_ix]['label']
             self.chart.add_series(line_label=label_string)
-            self.labels[label_string] = QLabel(label_string)
-            label_layout.addWidget(self.labels[label_string])
-        self.layout().addLayout(label_layout)
+        self.chart.refresh_axes()
+
+        # TODO: Control panel to change row duration, number of rows, clear button
+        cntrl_layout = QHBoxLayout()
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.on_clear_button_clicked)
+        cntrl_layout.addWidget(clear_button)
+        self.layout().addLayout(cntrl_layout)
+
         new_chart_view = QChartView(self.chart)
         self.layout().addWidget(new_chart_view)
 
-    def handle_frate_change(self, label, new_frate):
-        frate_str = "{:6.1f}".format(new_frate)
-        self.labels[label].setText(frate_str)
+    def on_clear_button_clicked(self):
+        self.chart.clear()
 
 
 class MyChart(QChart):
@@ -536,7 +556,7 @@ class SegmentedChart(MyChart):
         if my_filter:
             data, my_filter['zi'] = signal.sosfilt(my_filter['sos'], data, zi=my_filter['zi'])
 
-        y_offset = ss_info['line_ix'] * 2 * self.y_range
+        y_offset = int(ss_info['line_ix'] * 2 * self.y_range)
         data -= y_offset
 
         sample_indices = ss_info['last_sample_ix'] + np.arange(n_samples, dtype=np.int32)
@@ -588,23 +608,49 @@ class RasterChart(MyChart):
     """
 
     """
-    x_lim = 30000   # Sampling points
-    n_hist = 8      # Number of lines of raster history per channel
     frate_changed = pyqtSignal(str, float)
 
-    def __init__(self, **kwargs):
+    def __init__(self, row_duration=RASTDURATION, sampling_rate=None, n_rows=RASTROWS, **kwargs):
         super(RasterChart, self).__init__(**kwargs)
-
-        axes = [self.axisX(), self.axisY()]
-        for ax in axes:
-            ax.setLabelsVisible(False)
-            ax.setLineVisible(False)
-            # ax.setLinePen(QPen(QColor(THEMES[self.theme]['labelcolor'])))
-        self.axisX().setGridLineVisible(False)
-        self.axisX().setRange(-0.5, self.x_lim+0.5)
-        self.axisY().setTickCount(6)
-        # self.axisY().setLabelsPosition(QCategoryAxis.AxisLabelsPositionCenter)
+        self.config = {
+            'row_duration': row_duration,
+            'sampling_rate': sampling_rate,
+            'n_rows': n_rows
+        }
         self.scatter_series = {}
+        self.refresh_axes()
+
+    def refresh_axes(self):
+        # Remove all existing labels
+        for label in self.axisX().categoriesLabels():
+            self.axisX().remove(label)
+        for label in self.axisY().categoriesLabels():
+            self.axisY().remove(label)
+
+        # Add X-axis labels.
+        self.x_lim = self.config['row_duration'] * self.config['sampling_rate']
+        self.axisX().setRange(0, self.x_lim)  # self.axisX().setRange(-0.5, self.x_lim + 0.5)
+        self.axisX().setLabelsPosition(QCategoryAxis.AxisLabelsPositionOnValue)
+        self.axisX().append("0", 0)
+        self.axisX().append("{:.1f}".format(self.config['row_duration']), self.x_lim)
+
+        # Add Y-axis labels. Note, categories have to be added in ascending order.
+        min_y = 1 - len(self.scatter_series)
+        self.axisY().setRange(min_y, 1)
+        self.axisY().setStartValue(min_y)
+        # Sort self.segmented_series according to -line_ix
+        series_list = sorted(self.scatter_series.items(), key=lambda x: x[1]['chan_ix'], reverse=True)
+        label_ix = 0
+        for kv_tup in series_list:
+            ss_info = self.scatter_series[kv_tup[0]]
+            y_max = 1 - ss_info['chan_ix']
+            self.axisY().append(kv_tup[0], y_max)
+            self.scatter_series[kv_tup[0]]['label_ix'] = label_ix
+            label_ix += 1
+
+        # Display settings
+        for ax in [self.axisX(), self.axisY()]:
+            ax.setLineVisible(False)
 
     def add_series(self, line_label="new line"):
         self.color_iterator = (self.color_iterator + 1) % len(THEMES[self.theme]['pencolors'])
@@ -625,10 +671,6 @@ class RasterChart(MyChart):
             new_series.setUseOpenGL(True)
             my_series.append(new_series)
 
-        y_offset = -len(self.scatter_series)
-        # self.axisY().append(line_label, y_offset)
-        self.axisY().setRange(y_offset, 1)
-
         self.scatter_series[line_label] = {
             'old': my_series[0],
             'latest': my_series[1],
@@ -644,9 +686,16 @@ class RasterChart(MyChart):
             ss['old'].clear()
             ss['latest'].clear()
             ss['last_sample_ix'] = 0
-            ss['frate'] = 0
             ss['hist_dur'] = 0.0
-            self.frate_changed.emit(key, ss['frate'])
+            self.modify_frate(key, 0)
+
+    def modify_frate(self, ss_key, new_frate):
+        ss = self.scatter_series[ss_key]
+        ss['frate'] = new_frate
+        old_label = self.axisY().categoriesLabels()[ss['label_ix']]
+        new_label = "{0:.0f}.{1:d}".format(new_frate, ss['label_ix'])
+        self.axisY().replaceLabel(old_label, new_label)
+        self.frate_changed.emit(ss_key, new_frate)
 
     def update(self, line_label, data):
         """
@@ -668,7 +717,7 @@ class RasterChart(MyChart):
         if data[0] > ss_info['last_sample_ix']:
             add_bool = data < self.x_lim
             for spk in data[add_bool]:
-                latest.append(spk, y_offset + 1.0/(self.n_hist + 1))
+                latest.append(spk, y_offset + 1.0/(self.config['n_rows'] + 1))
             data = data[np.logical_not(add_bool)]  # Remove from data
 
         # Remaining spike times should be added to a new line and old spike times shifted up.
@@ -678,7 +727,7 @@ class RasterChart(MyChart):
             # Shift old points up 1
             old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
             if old_points.count() > 0:
-                old_points.translate(0, 1.0/(self.n_hist + 1))  # Move them up 1
+                old_points.translate(0, 1.0/(self.config['n_rows'] + 1))  # Move them up 1
                 # Remove out of range points.
                 while old_points.first().y() >= (1 + y_offset):
                     old_points.remove(0)
@@ -686,18 +735,21 @@ class RasterChart(MyChart):
 
             # Shift new->old points up 1
             transfer_points = QPolygonF(latest.pointsVector())
-            transfer_points.translate(0, 1.0/(self.n_hist + 1))
+            transfer_points.translate(0, 1.0/(self.config['n_rows'] + 1))
             old.append(transfer_points)
 
             latest.clear()
             for spk in data:
-                latest.append(spk - self.x_lim, y_offset + 1.0/(self.n_hist + 1))
+                latest.append(spk - self.x_lim, y_offset + 1.0/(self.config['n_rows'] + 1))
 
             # Calculate firing rate from old
-            hist_dur = min(self.scatter_series[line_label]['hist_dur'] + 1, self.n_hist - 1)
+            hist_dur = min(self.scatter_series[line_label]['hist_dur'] + 1, self.config['n_rows'] - 1)
             self.scatter_series[line_label]['hist_dur'] = hist_dur
-            self.scatter_series[line_label]['frate'] = old.count() / hist_dur
-            self.frate_changed.emit(line_label, self.scatter_series[line_label]['frate'])
+            new_frate = old.count() / hist_dur
+            self.scatter_series[line_label]['frate'] = new_frate
+
+            # Update labels
+            self.modify_frate(line_label, new_frate)
 
         latest_points = latest.pointsVector()
         if len(latest_points) > 0:
