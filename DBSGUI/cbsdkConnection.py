@@ -1,16 +1,16 @@
 from cerebus import cbpy
 import numpy as np
-import time
-import os
-import sys
-if "__file__" in locals():
-    nsp_path = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                             '..', '..', 'ExperimentSystem', 'SigProc', 'neurosigproc'))
-else:
-    nsp_path = os.path.realpath(os.path.join(os.getcwd(),
-                                             '..', '..', 'ExperimentSystem', 'SigProc', 'neurosigproc'))
-sys.path.append(nsp_path)
-from neurosigproc.generators.siggen import SignalGenerator
+# import time
+# import os
+# import sys
+# if "__file__" in locals():
+#     nsp_path = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+#                                              '..', '..', 'ExperimentSystem', 'SigProc', 'neurosigproc'))
+# else:
+#     nsp_path = os.path.realpath(os.path.join(os.getcwd(),
+#                                              '..', '..', 'ExperimentSystem', 'SigProc', 'neurosigproc'))
+# sys.path.append(nsp_path)
+# from neurosigproc.generators.siggen import SignalGenerator
 
 DBS_CHANS = 5
 SIM_SUS = [np.random.randint(5) for ix in range(DBS_CHANS)]
@@ -106,17 +106,17 @@ class CbSdkConnection(object):
             self.is_connected = False
             print(e)
 
-        if self.is_simulating:
-            self.is_simulating = not self.is_connected
-            result = 0
-
-        if self.is_simulating:
-            self.sig_gens = {}
-            for key in SIMULATION_CONFIG:
-                sig_params = SIMULATION_CONFIG[key].copy()
-                sig_params.pop('chan_ids', None)
-                sig_params.pop('chan_labels', None)
-                self.sig_gens[key] = SignalGenerator(**sig_params)
+        # if self.is_simulating:
+        #     self.is_simulating = not self.is_connected
+        #     result = 0
+        #
+        # if self.is_simulating:
+        #     self.sig_gens = {}
+        #     for key in SIMULATION_CONFIG:
+        #         sig_params = SIMULATION_CONFIG[key].copy()
+        #         sig_params.pop('chan_ids', None)
+        #         sig_params.pop('chan_labels', None)
+        #         self.sig_gens[key] = SignalGenerator(**sig_params)
 
         return result
 
@@ -183,9 +183,9 @@ class CbSdkConnection(object):
                 nocontinuous=int(not get_continuous),
                 nocomment=int(not get_comments)
             )
-        if self.is_simulating:
-            for key in self.sig_gens:
-                self.sig_gens[key].last_time = time.time()
+        # if self.is_simulating:
+        #     for key in self.sig_gens:
+        #         self.sig_gens[key].last_time = time.time()
 
     def get_event_data(self):
         # Spike event data. #
@@ -196,22 +196,22 @@ class CbSdkConnection(object):
                     return data
                 else:
                     print('failed to get trial event data. Error (%d)' % result)
-            elif self.is_simulating:
-                data = []
-                for key in self.sig_gens:
-                    sg_parms = SIMULATION_CONFIG[key]
-                    data.extend(
-                        [
-                            [
-                                sg_parms['chan_ids'][chan_ix],
-                                {
-                                    'events': [],
-                                    'timestamps': [np.array(), np.array(), np.array()]  # TODO: get array per unit
-                                }
-                            ] for chan_ix in range(len(sg_parms['chan_ids']))
-                        ]
-                    )
-                return data
+            # elif self.is_simulating:
+            #     data = []
+            #     for key in self.sig_gens:
+            #         sg_parms = SIMULATION_CONFIG[key]
+            #         data.extend(
+            #             [
+            #                 [
+            #                     sg_parms['chan_ids'][chan_ix],
+            #                     {
+            #                         'events': [],
+            #                         'timestamps': [np.array(), np.array(), np.array()]  # TODO: get array per unit
+            #                     }
+            #                 ] for chan_ix in range(len(sg_parms['chan_ids']))
+            #             ]
+            #         )
+            #     return data
         return None
 
     def get_continuous_data(self):
@@ -222,18 +222,18 @@ class CbSdkConnection(object):
                     return data
                 else:
                     print('failed to get trial continuous data. Error (%d)' % result)
-            elif self.is_simulating:
-                data = []
-                for key in self.sig_gens:
-                    signal = self.sig_gens[key].generate()
-                    signal = signal.astype(np.int16)
-                    sg_parms = SIMULATION_CONFIG[key]
-                    data.extend(
-                        [
-                            [sg_parms['chan_ids'][chan_ix], signal[:, chan_ix]] for chan_ix in range(signal.shape[1])
-                        ]
-                    )
-                return data
+            # elif self.is_simulating:
+            #     data = []
+            #     for key in self.sig_gens:
+            #         signal = self.sig_gens[key].generate()
+            #         signal = signal.astype(np.int16)
+            #         sg_parms = SIMULATION_CONFIG[key]
+            #         data.extend(
+            #             [
+            #                 [sg_parms['chan_ids'][chan_ix], signal[:, chan_ix]] for chan_ix in range(signal.shape[1])
+            #             ]
+            #         )
+            #     return data
         return None
 
     def get_comments(self):
@@ -252,21 +252,21 @@ class CbSdkConnection(object):
                 return group_info
             else:
                 print('failed to get trial continuous data. Error (%d)' % result)
-        elif self.is_simulating:
-            # TODO: group_ix specific channel info
-            group_info = [
-                {
-                    'chid': 32768,
-                    'chan': SIMULATION_CONFIG[group_ix]['chan_ids'][ch_ix],
-                    'proc': 1,
-                    'bank': 1,
-                    'term': SIMULATION_CONFIG[group_ix]['chan_ids'][ch_ix],
-                    'gain': 0.25,
-                    'label': SIMULATION_CONFIG[group_ix]['chan_labels'][ch_ix],
-                    'unit': b'uV'
-                } for ch_ix in range(len(SIMULATION_CONFIG[group_ix]['chan_ids']))
-            ]
-            return group_info
+        # elif self.is_simulating:
+        #     # TODO: group_ix specific channel info
+        #     group_info = [
+        #         {
+        #             'chid': 32768,
+        #             'chan': SIMULATION_CONFIG[group_ix]['chan_ids'][ch_ix],
+        #             'proc': 1,
+        #             'bank': 1,
+        #             'term': SIMULATION_CONFIG[group_ix]['chan_ids'][ch_ix],
+        #             'gain': 0.25,
+        #             'label': SIMULATION_CONFIG[group_ix]['chan_labels'][ch_ix],
+        #             'unit': b'uV'
+        #         } for ch_ix in range(len(SIMULATION_CONFIG[group_ix]['chan_ids']))
+        #     ]
+        #     return group_info
         return None
 
     def time(self):

@@ -31,7 +31,7 @@ THEMES = {
         'axiswidth': 1
     }
 }
-SIMOK = True  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
 def get_now_time():
@@ -130,6 +130,9 @@ class MyGUI(QMainWindow):
         self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': True}
 
         group_info = self.cbsdk_conn.get_group_config(group_ix)
+
+        if group_info is None:
+            raise ValueError("No group info retrieved from cbsdk. Are you connected?")
 
         for gi_item in group_info:
             gi_item['label'] = gi_item['label'].decode('utf-8')
