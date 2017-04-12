@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 import sys
-import numpy as np
-import time
 import serial
 import serial.tools.list_ports
 import PyQt5
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtChart import *
 from cerebus import cbpy
+# from pympler import tracker
 
 
 class MyGUI(QMainWindow):
@@ -26,6 +24,7 @@ class MyGUI(QMainWindow):
         self.actions = {}
         self.setup_ui()
         self.show()
+        # self.tr = tracker.SummaryTracker()
 
     def __del__(self):
         cbpy.close()
@@ -80,6 +79,11 @@ class MyGUI(QMainWindow):
         self.cb_button = QPushButton("Send")
         self.cb_button.clicked.connect(self.connect_to_cbpy)
         cntrl_layout.addWidget(self.cb_button)
+        #
+        # tracker_button = QPushButton("tracker")
+        # tracker_button.clicked.connect(self.print_tracker)
+        # cntrl_layout.addWidget(tracker_button)
+        #
         self.centralWidget().layout().addLayout(cntrl_layout)
 
         self.lcd = QLCDNumber()
@@ -99,6 +103,9 @@ class MyGUI(QMainWindow):
 
     def create_toolbars(self):
         pass
+
+    # def print_tracker(self):
+    #     self.tr.print_diff()
 
     def update(self):
         super(MyGUI, self).update()
