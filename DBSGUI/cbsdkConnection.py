@@ -206,7 +206,7 @@ class CbSdkConnection(object):
                                 sg_parms['chan_ids'][chan_ix],
                                 {
                                     'events': [],
-                                    'timestamps': [np.array(), np.array(), np.array()]  # TODO: get array per unit from self.sig_gens
+                                    'timestamps': [np.array(), np.array(), np.array()]  # TODO: get array per unit
                                 }
                             ] for chan_ix in range(len(sg_parms['chan_ids']))
                         ]
