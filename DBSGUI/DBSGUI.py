@@ -6,6 +6,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtChart import *
+import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
 from scipy import signal
 
@@ -30,7 +31,7 @@ THEMES = {
         'axiswidth': 1
     }
 }
-SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+SIMOK = True  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
 def get_now_time():
@@ -46,7 +47,7 @@ def get_now_time():
 class MyGUI(QMainWindow):
     """
     This application is for monitoring activity from the Blackrock NSP.
-    
+
     """
 
     def __init__(self):
@@ -177,7 +178,7 @@ class MyGUI(QMainWindow):
                         for chan_id in match_chans:
                             data = cont_data[cont_chan_ids.index(chan_id)][1]
                             label = self.sweep_widgets[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
-                            self.sweep_widgets[sweep_key].chart.update(label, data)
+                            self.sweep_widgets[sweep_key].update(label, data)
 
             if self.raster_widget:
                 ev_timestamps = self.cbsdk_conn.get_event_data()
@@ -196,6 +197,7 @@ class ConnectDialog(QDialog):
     Changes + OK will change the parameters in the CbSdkConnection singleton,
     but will not actually connect.
     """
+
     def __init__(self, parent=None):
         super(ConnectDialog, self).__init__(parent)
         # Get access to the CbSdkConnection instance, but don't connect yet.
@@ -246,9 +248,9 @@ class ConnectDialog(QDialog):
         rec_buff_layout = QHBoxLayout()
         rec_buff_layout.addWidget(QLabel("receive-buffer-size"))
         self.recBuffSpin = QSpinBox()
-        self.recBuffSpin.setMinimum(6*1024*1024)
-        self.recBuffSpin.setMaximum(8*1024*1024)
-        self.recBuffSpin.setSingleStep(1024*1024)
+        self.recBuffSpin.setMinimum(6 * 1024 * 1024)
+        self.recBuffSpin.setMaximum(8 * 1024 * 1024)
+        self.recBuffSpin.setSingleStep(1024 * 1024)
         self.recBuffSpin.setValue(self.cbsdkConn.con_params['receive-buffer-size'])
         rec_buff_layout.addWidget(self.recBuffSpin)
         layout.addLayout(rec_buff_layout)
@@ -284,6 +286,7 @@ class AddSamplingGroupDialog(QDialog):
     """
     A modal dialog window with widgets to select the channel group to add.
     """
+
     def __init__(self, parent=None):
         super(AddSamplingGroupDialog, self).__init__(parent)
 
@@ -355,22 +358,19 @@ class MyWidget(QWidget):
 
 
 class SweepWidget(MyWidget):
-    def __init__(self, *args, do_filter=False, **kwargs):
+    def __init__(self, *args, do_filter=False, theme='dark', **kwargs):
         super(SweepWidget, self).__init__(*args, **kwargs)
+        self.setup_control_panel()
+        self.setup_plot_widget(do_filter=do_filter, theme=theme)
+        self.refresh_axes()
+        self.refresh_axes()  # Twice on purpose.
 
-        # Initialize chart
-        self.chart = SegmentedChart(sampling_rate=self.samplingRate)
-        for chan_ix in range(len(self.group_info)):
-            label_string = self.group_info[chan_ix]['label']
-            self.chart.add_series(line_label=label_string,
-                                  do_filter=do_filter)
-        self.chart.refresh_axes()
-
+    def setup_control_panel(self):
         # Create control panel
         # +/- range
         cntrl_layout = QHBoxLayout()
         cntrl_layout.addWidget(QLabel("+/-"))
-        self.range_edit = QLineEdit("{:.2f}".format(self.chart.y_range))
+        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
         cntrl_layout.addWidget(self.range_edit)
         # buttons for audio monitoring
@@ -385,24 +385,158 @@ class SweepWidget(MyWidget):
         for chan_ix in range(len(self.group_info)):
             new_button = QRadioButton(self.group_info[chan_ix]['label'])
             monitor_group.addButton(new_button)
-            monitor_group.setId(new_button, chan_ix+1)
+            monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
         monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
-
-        # Add control panel and chart to widget
         self.layout().addLayout(cntrl_layout)
-        self.layout().addWidget(QChartView(self.chart))
+
+    def setup_plot_widget(self, do_filter=False, theme='dark'):
+        # Create and add PlotWidget
+        self.plotWidget = pg.PlotWidget()
+        self.plotWidget.useOpenGL(True)
+        self.layout().addWidget(self.plotWidget)
+
+        # Configure the PlotWidget
+        self.plot_config = {
+            'x_range': XRANGE,
+            'y_range': YRANGE,
+            'duration': RAWDURATION,
+            'n_segments': NPLOTSEGMENTS,
+            'do_filter': do_filter,
+            'theme': theme,
+            'color_iterator': -1
+        }
+
+        self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
+        for chan_ix in range(len(self.group_info)):
+            label_string = self.group_info[chan_ix]['label']
+            self.add_series(sampling_rate=self.samplingRate, line_label=label_string, do_filter=do_filter)
 
     def on_range_edit_editingFinished(self):
-        self.chart.y_range = float(self.range_edit.text())
-        self.chart.refresh_axes()
+        self.plot_config['y_range'] = float(self.range_edit.text())
+        self.refresh_axes()
 
     def on_monitor_group_clicked(self, button_id):
         if button_id == 0:
             chan_ix = None
         else:
-            chan_ix = self.group_info[button_id-1]['chan']
+            chan_ix = self.group_info[button_id - 1]['chan']
         CbSdkConnection().monitor_chan(chan_ix)
+
+    def add_series(self, sampling_rate=30000, line_label="new line", do_filter=False):
+        my_theme = THEMES[self.plot_config['theme']]
+        self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
+        pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        n_samples = int(self.plot_config['duration'] * sampling_rate)
+        xdata = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
+        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
+        curve_segments = []
+        for ix in range(self.plot_config['n_segments']):
+            ix_offset = ix * samples_per_segment
+            this_x = xdata[ix_offset:ix_offset + samples_per_segment]  # Last segment might not be full length.
+            c = pg.PlotCurveItem(pen=pen_color)
+            self.plotWidget.addItem(c)
+            c.setData(y=np.zeros(this_x.shape))  # Pre-fill. Use zeros because we do not know offset.
+            curve_segments.append(c)
+
+        if do_filter:
+            sos = signal.butter(FILTERCONFIG['order'], 2 * FILTERCONFIG['cutoff'] / sampling_rate,
+                                btype=FILTERCONFIG['type'], output=FILTERCONFIG['output'])
+            my_filter = {'sos': sos, 'zi': signal.sosfilt_zi(sos)}
+        else:
+            my_filter = None
+
+        # Attempt to synchronize different series using machine time.
+        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['duration']) * sampling_rate)
+
+        self.segmented_series[line_label] = {
+            'segments': curve_segments,
+            'sampling_rate': sampling_rate,  # Per-line sampling_rate not supported at this time.
+            'filter': my_filter,
+            'last_sample_ix': last_sample_ix,
+            'line_ix': len(self.segmented_series)
+        }
+
+    def refresh_axes(self):
+        n_samples = self.plot_config['duration'] * self.samplingRate
+
+        # X-axis
+        x_ax_item = self.plotWidget.getPlotItem().getAxis('bottom')
+        x_ax_item.setTicks([
+            [(0, "0"), (n_samples, "{0:.2f}".format(n_samples / self.samplingRate))],
+        ])
+        x_ax_item.setLabel(name="Time", unit="s")
+        self.plotWidget.setXRange(0, n_samples, padding=0)
+
+        # Y-axis
+        min_y = (1 - 2 * len(self.segmented_series)) * self.plot_config['y_range']
+        self.plotWidget.setYRange(min_y, self.plot_config['y_range'])
+        new_y_ticks = []
+        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
+        for line_label in self.segmented_series:
+            ss_info = self.segmented_series[line_label]
+            y_offset = int(-ss_info['line_ix'] * 2 * self.plot_config['y_range'])
+            new_y_ticks.append((y_offset, line_label))
+            for ix in range(len(ss_info['segments'])):
+                x_offset = ix * samples_per_segment
+                ss_info['segments'][ix].setPos(x_offset, y_offset)
+        y_ax_item = self.plotWidget.getPlotItem().getAxis('left')
+        y_ax_item.setTicks([new_y_ticks])
+
+    def update(self, line_label, data):
+        """
+
+        :param line_label: Label of the segmented series
+        :param data: Replace data in the segmented series with these data
+        :return:
+        """
+        ss_info = self.segmented_series[line_label]
+        n_in = data.shape[0]
+
+        my_filter = ss_info['filter']
+        if my_filter:
+            data, my_filter['zi'] = signal.sosfilt(my_filter['sos'], data, zi=my_filter['zi'])
+
+        sample_indices = ss_info['last_sample_ix'] + np.arange(n_in, dtype=np.int32)
+        max_ind = np.int32(ss_info['sampling_rate'] * self.plot_config['duration'])
+        sample_indices = np.int32(np.mod(sample_indices, max_ind))
+
+        # If the data is longer than one sweep (e.g., process sleeping while off-screen),
+        # then the indices will overlap. So we take only the samples that will be plotted..
+        if sample_indices.size > max_ind:
+            sample_indices = sample_indices[-max_ind:]
+            data = data[-max_ind:]
+
+        # Get the sample-offset for each segment.
+        n_samples = int(self.plot_config['duration'] * ss_info['sampling_rate'])
+        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
+        x_offsets = np.asarray([ix * samples_per_segment for ix in range(self.plot_config['n_segments'])])
+
+        # Find the segment that includes the last sample that was updated.
+        last_segment_ix = np.where(sample_indices[-1] >= x_offsets)[0][-1]
+
+        all_x = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
+        for seg_ix in range(self.plot_config['n_segments']):
+            x_off = x_offsets[seg_ix]
+            seg_x = all_x[x_off:x_off + samples_per_segment]
+            data_bool = np.in1d(sample_indices, seg_x, assume_unique=True)
+            if np.any(data_bool):
+                seg_bool = np.in1d(seg_x, sample_indices, assume_unique=True)
+                # Get old yData
+                pci = ss_info['segments'][seg_ix]  # PlotCurveItem
+                old_y = pci.yData
+                old_y[seg_bool] = data[data_bool]
+
+                # Clear out the rest of last_segment_ix
+                if seg_ix == last_segment_ix:
+                    clear_bool = np.logical_and(seg_x > sample_indices[-1],
+                                                seg_x < sample_indices[-1] + 10)
+                    old_y[clear_bool] = np.zeros((np.sum(clear_bool),), dtype=np.int32)
+
+                # pci yData has been changed, but setData does more than just modify the data.
+                pci.setData(old_y)
+
+        self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
 
 
 class RasterWidget(MyWidget):
@@ -460,139 +594,6 @@ class MyChart(QChart):
         # self.axisY().setGridLineVisible(False)
         self.axisY().setGridLinePen(axis_pen)
         self.color_iterator = -1
-
-
-class SegmentedChart(MyChart):
-    """
-    High-performance chart.
-    Each series is an array of BufferSeries segments.
-    Updates to the chart data will update only the necessary segments.
-    """
-    def __init__(self, total_duration=RAWDURATION, n_segments=NPLOTSEGMENTS, sampling_rate=None, **kwargs):
-        super(SegmentedChart, self).__init__(**kwargs)
-        self.x_range = XRANGE
-        self.y_range = YRANGE
-        self.segments_config = {
-            'duration': total_duration,
-            'sampling_rate': sampling_rate,
-            'n_segments': n_segments,
-        }
-        self.segmented_series = {}  # Will contain one array of BufferSeries for each line/channel.
-        self.refresh_axes()
-
-    def refresh_axes(self):
-        # Remove all existing labels
-        for label in self.axisX().categoriesLabels():
-            self.axisX().remove(label)
-        for label in self.axisY().categoriesLabels():
-            self.axisY().remove(label)
-
-        # Add X-axis labels.
-        n_samples = self.segments_config['duration'] * self.segments_config['sampling_rate']
-        self.axisX().setRange(0, n_samples)
-        self.axisX().setLabelsPosition(QCategoryAxis.AxisLabelsPositionOnValue)
-        self.axisX().append("0", 0)
-        self.axisX().append("{:.1f}".format(self.segments_config['duration']), n_samples)
-
-        # Add Y-axis labels. Note, categories have to be added in ascending order.
-        min_y = (1 - 2 * len(self.segmented_series)) * self.y_range
-        self.axisY().setRange(min_y, self.y_range)
-        self.axisY().setStartValue(min_y)
-        # Sort self.segmented_series according to -line_ix
-        seg_series_list = sorted(self.segmented_series.items(), key=lambda x: x[1]['line_ix'], reverse=True)
-        for kv_tup in seg_series_list:
-            ss_info = self.segmented_series[kv_tup[0]]
-            y_max = self.y_range - ss_info['line_ix'] * 2 * self.y_range
-            self.axisY().append(kv_tup[0], y_max)
-
-    def add_series(self, sampling_rate=30000, line_label="new line", do_filter=False):
-        self.color_iterator = (self.color_iterator + 1) % len(THEMES[self.theme]['pencolors'])
-        pen_color = THEMES[self.theme]['pencolors'][self.color_iterator]
-        n_samples = int(self.segments_config['duration'] * sampling_rate)
-        # zeros for y-axis
-        # xdata = np.linspace(1. / sampling_rate, self.segments_config['duration'], n_samples)  # Time x-axis in s
-        xdata = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
-        samples_per_segment = int(np.ceil(n_samples / self.segments_config['n_segments']))
-        series_segments = []
-        # TODO: Duplicate last sample in previous sequence as first in next to make line continuous
-        for ix in range(self.segments_config['n_segments']):
-            ix_offset = ix*samples_per_segment
-            this_x = xdata[ix_offset:ix_offset+samples_per_segment]  # Last segment might not be full length.
-            series_segment = BufferSeries(xdata=this_x, sample_offset=ix_offset, pen_color=pen_color)
-            self.addSeries(series_segment)
-            series_segment.attachAxis(self.axisX())
-            series_segment.attachAxis(self.axisY())
-            series_segments.append(series_segment)
-
-        if do_filter:
-            sos = signal.butter(FILTERCONFIG['order'], 2 * FILTERCONFIG['cutoff'] / sampling_rate,
-                                btype=FILTERCONFIG['type'], output=FILTERCONFIG['output'])
-            my_filter = {'sos': sos, 'zi': signal.sosfilt_zi(sos)}
-        else:
-            my_filter = None
-
-        # Attempt to synchronize different series using machine time.
-        last_sample_ix = int(np.mod(get_now_time(), self.segments_config['duration']) * sampling_rate)
-
-        self.segmented_series[line_label] = {
-            'segments': series_segments,
-            'sampling_rate': sampling_rate,
-            'filter': my_filter,
-            'last_sample_ix': last_sample_ix,
-            'line_ix': len(self.segmented_series)
-        }
-        # TODO: Per series y-scaling.
-
-    def update(self, line_label, data):
-        """
-
-        :param line_label: Label of the segmented series
-        :param data: Replace data in the segmented series with these data
-        :return:
-        """
-        ss_info = self.segmented_series[line_label]
-        fs = ss_info['sampling_rate']
-        n_samples = data.shape[0]
-
-        my_filter = ss_info['filter']
-        if my_filter:
-            data, my_filter['zi'] = signal.sosfilt(my_filter['sos'], data, zi=my_filter['zi'])
-
-        y_offset = int(ss_info['line_ix'] * 2 * self.y_range)
-        data -= y_offset
-
-        sample_indices = ss_info['last_sample_ix'] + np.arange(n_samples, dtype=np.int32)
-        max_ind = np.int32(fs * self.segments_config['duration'])
-        sample_indices = np.int32(np.mod(sample_indices, max_ind))
-
-        # If the data is longer than one sweep (e.g., was process sleeping while off-screen),
-        # then the indices will overlap. So we find the last ones.
-        if sample_indices.size > max_ind:
-            sample_indices = sample_indices[-max_ind:]
-            data = data[-max_ind:]
-
-        seg_series = ss_info['segments']
-
-        ss_offsets = np.asarray([ss.sample_offset for ss in seg_series])
-        # Find the segment that includes the last sample that was updated.
-        last_segment_ix = np.where(sample_indices[-1] >= ss_offsets)[0][-1]
-
-        for seg_ix in range(len(seg_series)):
-            ss = seg_series[seg_ix]
-            seg_sample_indices = ss.sample_offset + np.arange(ss.count())
-            data_bool = np.in1d(sample_indices, seg_sample_indices, assume_unique=True)
-            if np.any(data_bool):
-                seg_bool = np.in1d(seg_sample_indices, sample_indices, assume_unique=True)
-                ss.replace_data(data[data_bool], sample_bool=seg_bool)
-
-                # Clear out the rest of last_segment_ix
-                if seg_ix == last_segment_ix:
-                    clear_bool = np.logical_and(seg_sample_indices > sample_indices[-1],
-                                                seg_sample_indices < sample_indices[-1]+10)
-                    clear_dat = -y_offset * np.ones((np.sum(clear_bool), ), dtype=np.int32)
-                    ss.replace_data(clear_dat, sample_bool=clear_bool)
-
-        self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
 
 
 class RasterChart(MyChart):
@@ -708,7 +709,7 @@ class RasterChart(MyChart):
         if data[0] > ss_info['last_sample_ix']:
             add_bool = data < self.x_lim
             for spk in data[add_bool]:
-                latest.append(spk, y_offset + 1.0/(self.config['n_rows'] + 1))
+                latest.append(spk, y_offset + 1.0 / (self.config['n_rows'] + 1))
             data = data[np.logical_not(add_bool)]  # Remove from data
 
         # Remaining spike times should be added to a new line and old spike times shifted up.
@@ -718,7 +719,7 @@ class RasterChart(MyChart):
             # Shift old points up 1
             old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
             if old_points.count() > 0:
-                old_points.translate(0, 1.0/(self.config['n_rows'] + 1))  # Move them up 1
+                old_points.translate(0, 1.0 / (self.config['n_rows'] + 1))  # Move them up 1
                 # Remove out of range points.
                 while old_points.first().y() >= (1 + y_offset):
                     old_points.remove(0)
@@ -726,12 +727,12 @@ class RasterChart(MyChart):
 
             # Shift new->old points up 1
             transfer_points = QPolygonF(latest.pointsVector())
-            transfer_points.translate(0, 1.0/(self.config['n_rows'] + 1))
+            transfer_points.translate(0, 1.0 / (self.config['n_rows'] + 1))
             old.append(transfer_points)
 
             latest.clear()
             for spk in data:
-                latest.append(spk - self.x_lim, y_offset + 1.0/(self.config['n_rows'] + 1))
+                latest.append(spk - self.x_lim, y_offset + 1.0 / (self.config['n_rows'] + 1))
 
             # Calculate firing rate from old
             hist_dur = min(self.scatter_series[line_label]['hist_dur'] + 1, self.config['n_rows'] - 1)
