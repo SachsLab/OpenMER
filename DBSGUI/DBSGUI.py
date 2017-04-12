@@ -66,7 +66,8 @@ class MyGUI(QMainWindow):
     def setup_ui(self):
         self.resize(200, 150)
         self.setWindowTitle('Neuroport DBS')
-        # self.setCentralWidget(QtWidgets.QWidget(self))  # This squeezes out docks.
+        # self.setCentralWidget(QWidget(self))  # This squeezes out docks.
+        # self.centralWidget().setLayout(QVBoxLayout())
         self.create_actions()
         self.create_menus()
         self.create_toolbars()
@@ -168,14 +169,15 @@ class MyGUI(QMainWindow):
         if self.cbsdk_conn.is_connected or self.cbsdk_conn.is_simulating:
             if self.sweep_widgets:
                 cont_data = self.cbsdk_conn.get_continuous_data()
-                cont_chan_ids = [x[0] for x in cont_data]
-                for sweep_key in self.sweep_widgets:
-                    chart_chan_ids = [x['chan'] for x in self.sweep_widgets[sweep_key].group_info]
-                    match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
-                    for chan_id in match_chans:
-                        data = cont_data[cont_chan_ids.index(chan_id)][1]
-                        label = self.sweep_widgets[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
-                        self.sweep_widgets[sweep_key].chart.update(label, data)
+                if cont_data is not None:
+                    cont_chan_ids = [x[0] for x in cont_data]
+                    for sweep_key in self.sweep_widgets:
+                        chart_chan_ids = [x['chan'] for x in self.sweep_widgets[sweep_key].group_info]
+                        match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
+                        for chan_id in match_chans:
+                            data = cont_data[cont_chan_ids.index(chan_id)][1]
+                            label = self.sweep_widgets[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
+                            self.sweep_widgets[sweep_key].chart.update(label, data)
 
             if self.raster_widget:
                 ev_timestamps = self.cbsdk_conn.get_event_data()
@@ -574,18 +576,14 @@ class SegmentedChart(MyChart):
         ss_offsets = np.asarray([ss.sample_offset for ss in seg_series])
         # Find the segment that includes the last sample that was updated.
         last_segment_ix = np.where(sample_indices[-1] >= ss_offsets)[0][-1]
-        # Its next segment will be cleared
-        # clear_segment_ix = (last_segment_ix + 1) % len(seg_series)
 
-        was_replaced = []
         for seg_ix in range(len(seg_series)):
             ss = seg_series[seg_ix]
             seg_sample_indices = ss.sample_offset + np.arange(ss.count())
             data_bool = np.in1d(sample_indices, seg_sample_indices, assume_unique=True)
             if np.any(data_bool):
                 seg_bool = np.in1d(seg_sample_indices, sample_indices, assume_unique=True)
-                result = ss.replace_data(data[data_bool], sample_bool=seg_bool)
-                was_replaced.append(result)
+                ss.replace_data(data[data_bool], sample_bool=seg_bool)
 
                 # Clear out the rest of last_segment_ix
                 if seg_ix == last_segment_ix:
@@ -593,13 +591,6 @@ class SegmentedChart(MyChart):
                                                 seg_sample_indices < sample_indices[-1]+10)
                     clear_dat = -y_offset * np.ones((np.sum(clear_bool), ), dtype=np.int32)
                     ss.replace_data(clear_dat, sample_bool=clear_bool)
-
-            else:
-                was_replaced.append(False)
-
-        # # Clear out all of clear_segment_ix
-        # clear_dat = -y_offset * np.ones((np.sum(clear_bool), ), dtype=np.int32)
-        # seg_series[clear_segment_ix].replace_data(clear_dat)
 
         self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
 
@@ -783,7 +774,7 @@ class BufferSeries(QLineSeries):
 
     def reset_data(self, xdata=None):
         """
-        :param xdata: Will fill up the x-values of (QPolygonF) self.qpoly. Also used to determine size.
+        :param xdata: Will fill up the x-values of (QPolygon) self.qpoly. Also used to determine size.
         :return: no return
         """
         xdata = xdata if xdata is not None else np.asarray([])
@@ -808,7 +799,7 @@ class BufferSeries(QLineSeries):
         if np.any(sample_bool):
             old_ydata[sample_bool] = ydata
             # old_ydata[np.logical_not(sample_bool)] = 0.
-            self.replace(self.qpoly)
+            self.replace(self.qpoly)  # Big memory leak
             return True
         else:
             return False
