@@ -96,7 +96,7 @@ class CbSdkConnection(object):
         # Open the interface to the NSP #
         try:
             result, connect_info = cbpy.open(instance=self.instance, connection='default', parameter=self.con_params)
-            self.is_connected = (result == 0)
+            self.is_connected = (result == 0 or result == 1)
             print("cbpy.open returned result: {}; connect_info: {}".format(result, connect_info))
             self.cbsdk_config = {
                 'buffer_parameter': {'absolute': True}
