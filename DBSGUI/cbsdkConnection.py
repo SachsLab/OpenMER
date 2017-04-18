@@ -251,7 +251,7 @@ class CbSdkConnection(object):
             if result == 0:
                 return group_info
             else:
-                print('failed to get trial continuous data. Error (%d)' % result)
+                print('failed to get trial group config. Error (%d)' % result)
         # elif self.is_simulating:
         #     # TODO: group_ix specific channel info
         #     group_info = [
@@ -268,6 +268,19 @@ class CbSdkConnection(object):
         #     ]
         #     return group_info
         return None
+
+    def get_channel_info(self, chan_id):
+        if self.is_connected:
+            result, chan_info = cbpy.get_channel_config(chan_id, instance=self.cbsdk_config['instance'])
+            if result == 0:
+                return chan_info
+            else:
+                print('Failed to get channel info. Error (%d)' % result)
+        return None
+
+    def set_channel_info(self, chan_id, new_info):
+        if self.is_connected:
+            result = cbpy.set_channel_config(chan_id, chaninfo=new_info)
 
     def time(self):
         if self.is_connected:

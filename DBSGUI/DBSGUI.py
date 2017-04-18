@@ -412,8 +412,7 @@ class SweepWidget(MyWidget):
 
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
         for chan_ix in range(len(self.group_info)):
-            label_string = self.group_info[chan_ix]['label']
-            self.add_series(sampling_rate=self.samplingRate, line_label=label_string, do_filter=do_filter)
+            self.add_series(self.group_info[chan_ix], sampling_rate=self.samplingRate, do_filter=do_filter)
 
     def on_range_edit_editingFinished(self):
         self.plot_config['y_range'] = float(self.range_edit.text())
@@ -431,13 +430,16 @@ class SweepWidget(MyWidget):
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
                 new_thresh = int(inf_line.getYPos() - ss_info['y_offset'])
-                print(new_thresh)
-                # TODO: set channel config
+                cbsdkconn = CbSdkConnection()
+                cbsdkconn.set_channel_info(ss_info['chan_id'], {'spkthrlevel': new_thresh})
 
-    def add_series(self, sampling_rate=30000, line_label="new line", do_filter=False):
+    def add_series(self, chan_info, sampling_rate=30000, do_filter=False):
+        # Appearance settings
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
         pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+
+        # Prepare plot data
         n_samples = int(self.plot_config['duration'] * sampling_rate)
         xdata = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
         samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
@@ -464,13 +466,14 @@ class SweepWidget(MyWidget):
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
         self.plotWidget.addItem(thresh_line)
 
-        self.segmented_series[line_label] = {
+        self.segmented_series[chan_info['label']] = {
             'segments': curve_segments,
             'sampling_rate': sampling_rate,  # Per-line sampling_rate not supported at this time.
             'filter': my_filter,
             'last_sample_ix': last_sample_ix,
             'line_ix': len(self.segmented_series),
-            'thresh_line': thresh_line
+            'thresh_line': thresh_line,
+            'chan_id': chan_info['chan']
         }
 
     def refresh_axes(self):
@@ -497,7 +500,12 @@ class SweepWidget(MyWidget):
             for ix in range(len(ss_info['segments'])):
                 x_offset = ix * samples_per_segment
                 ss_info['segments'][ix].setPos(x_offset, y_offset)
-            ss_info['thresh_line'].setValue(y_offset)
+
+            # Get channel info from cbpy to determine threshold
+            cbsdkconn = CbSdkConnection()
+            full_info = cbsdkconn.get_channel_info(ss_info['chan_id'])
+            ss_info['thresh_line'].setValue(y_offset + full_info['spkthrlevel'])
+
         y_ax_item = self.plotWidget.getPlotItem().getAxis('left')
         y_ax_item.setTicks([new_y_ticks])
 
