@@ -12,8 +12,8 @@ from cbsdkConnection import CbSdkConnection
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
 PLOTHEIGHT = 800
-RASTDURATION = 1.0
-RASTROWS = 4
+RASTDURATION = 0.5
+RASTROWS = 8
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
     'dark': {
@@ -24,6 +24,7 @@ THEMES = {
         'axiswidth': 1
     }
 }
+LABEL_FONT_POINT_SIZE = 24
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
@@ -111,7 +112,12 @@ class MyGUI(QMainWindow):
         self.indicate_connection_state()
 
     def on_action_add_raster_triggered(self):
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': True}
+        self.cbsdk_conn.cbsdk_config ={
+            'reset': True, 'get_events': True, 'get_comments': True,
+            'buffer_parameter': {
+                'comment_length': 10
+            }
+        }
         group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))  # TODO: Or RAW, never both
         for gi_item in group_info:
             gi_item['label'] = gi_item['label'].decode('utf-8')
@@ -121,7 +127,7 @@ class MyGUI(QMainWindow):
 
     def on_raster_closed(self):
         self.raster_widget = None
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False}
+        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
 
     def update(self):
         super(MyGUI, self).update()
@@ -136,6 +142,11 @@ class MyGUI(QMainWindow):
                     data = ev_timestamps[ev_chan_ids.index(chan_id)][1]['timestamps']
                     label = self.raster_widget.group_info[chart_chan_ids.index(chan_id)]['label']
                     self.raster_widget.chart.update(label, data)
+
+                comments = self.cbsdk_conn.get_comments()
+                if comments:
+                    self.raster_widget.chart.parse_comments(comments)
+
 
 
 class ConnectDialog(QDialog):
@@ -272,6 +283,7 @@ class RasterWidget(MyWidget):
             label_string = self.group_info[chan_ix]['label']
             self.chart.add_series(line_label=label_string)
         self.chart.refresh_axes()
+        self.chart.clear()
 
         # TODO: Control panel to change row duration, number of rows, clear button
         cntrl_layout = QHBoxLayout()
@@ -333,6 +345,7 @@ class RasterChart(MyChart):
             'n_rows': n_rows
         }
         self.scatter_series = {}
+        self.DTT = None
         self.refresh_axes()
 
     def refresh_axes(self):
@@ -366,6 +379,9 @@ class RasterChart(MyChart):
         # Display settings
         for ax in [self.axisX(), self.axisY()]:
             ax.setLineVisible(False)
+        yfont = self.axisY().labelsFont()
+        yfont.setPointSize(LABEL_FONT_POINT_SIZE)
+        self.axisY().setLabelsFont(yfont)
 
     def add_series(self, line_label="new line"):
         self.color_iterator = (self.color_iterator + 1) % len(THEMES[self.theme]['pencolors'])
@@ -386,31 +402,48 @@ class RasterChart(MyChart):
             new_series.setUseOpenGL(True)
             my_series.append(new_series)
 
+        start_time = int(get_now_time())
         self.scatter_series[line_label] = {
             'old': my_series[0],
             'latest': my_series[1],
-            'last_sample_ix': 0,
             'chan_ix': len(self.scatter_series),  # To offset on y-axis
+            'count': 0,
             'frate': 0,
-            'hist_dur': 0.0
+            'start_time': start_time,
+            'last_spike_time': start_time
         }
 
     def clear(self):
+        start_time = int(get_now_time())
         for key in self.scatter_series:
             ss = self.scatter_series[key]
             ss['old'].clear()
             ss['latest'].clear()
-            ss['last_sample_ix'] = 0
-            ss['hist_dur'] = 0.0
+            ss['count'] = 0
+            ss['start_time'] = start_time
+            ss['last_spike_time'] = start_time
             self.modify_frate(key, 0)
 
     def modify_frate(self, ss_key, new_frate):
         ss = self.scatter_series[ss_key]
         ss['frate'] = new_frate
         old_label = self.axisY().categoriesLabels()[ss['label_ix']]
-        new_label = "{0:.0f}.{1:d}".format(new_frate, ss['label_ix'])
+        new_label = "{0:3.0f}.{1:d}".format(new_frate, ss['label_ix'])
         self.axisY().replaceLabel(old_label, new_label)
         self.frate_changed.emit(ss_key, new_frate)
+
+    def parse_comments(self, comments):
+        # comments is a list of lists: [[timestamp, string, rgba],]
+        comment_strings = [x[1] for x in comments]
+        dtts = []
+        for comm_str in comment_strings:
+            if 'DTT:' in comm_str:
+                dtts.append(float(comm_str[4:]))
+        if len(dtts) > 0:
+            new_dtt = dtts[-1]
+            if not self.DTT or self.DTT != new_dtt:
+                self.clear()
+                self.DTT = new_dtt
 
     def update(self, line_label, data):
         """
@@ -420,55 +453,56 @@ class RasterChart(MyChart):
         """
         data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
         data.sort()
-        offset = data[0] - np.mod(data[0], self.x_lim)
-        data = data - offset
 
         ss_info = self.scatter_series[line_label]
+        last_spike_time = ss_info['last_spike_time']
+        data = data[data > last_spike_time]
 
-        y_offset = -ss_info['chan_ix']
-
-        # Take spike times that should be added to the latest line.
-        latest = ss_info['latest']
-        if data[0] > ss_info['last_sample_ix']:
-            add_bool = data < self.x_lim
-            for spk in data[add_bool]:
-                latest.append(spk, y_offset + 1.0 / (self.config['n_rows'] + 1))
-            data = data[np.logical_not(add_bool)]  # Remove from data
-
-        # Remaining spike times should be added to a new line and old spike times shifted up.
+        # Process remaining spikes
         if data.shape[0] > 0:
-            old = ss_info['old']
+            y_offset = -ss_info['chan_ix']
 
-            # Shift old points up 1
-            old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
-            if old_points.count() > 0:
-                old_points.translate(0, 1.0 / (self.config['n_rows'] + 1))  # Move them up 1
-                # Remove out of range points.
-                while old_points.first().y() >= (1 + y_offset):
-                    old_points.remove(0)
-                old.replace(old_points)
+            latest = ss_info['latest']  # QScatterSeries for most recent line
+            old = ss_info['old']  # QScatterSeries for everything except most recent line
 
-            # Shift new->old points up 1
-            transfer_points = QPolygonF(latest.pointsVector())
-            transfer_points.translate(0, 1.0 / (self.config['n_rows'] + 1))
-            old.append(transfer_points)
+            # Add every spike, one by one
+            for spk_x in data:
+                spk_int = spk_x - last_spike_time  # num samples elapsed since last spike
+                last_x_coord = last_spike_time % self.x_lim
+                if (last_x_coord + spk_int) > self.x_lim:
+                    # This spike goes on a new row.
+                    # Move old points up
+                    y_shift_old = np.floor((last_x_coord + spk_int) / self.x_lim)  # how many rows
+                    old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
+                    if old_points.count() > 0:
+                        old_points.translate(0, y_shift_old / (self.config['n_rows'] + 1))  # Move them up
+                        old.replace(old_points)
 
-            latest.clear()
-            for spk in data:
-                latest.append(spk - self.x_lim, y_offset + 1.0 / (self.config['n_rows'] + 1))
+                    # Transfer latest to old
+                    transfer_points = QPolygonF(latest.pointsVector())
+                    transfer_points.translate(0, y_shift_old / (self.config['n_rows'] + 1))
+                    old.append(transfer_points)
+                    latest.clear()
 
-            # Calculate firing rate from old
-            hist_dur = min(self.scatter_series[line_label]['hist_dur'] + 1, self.config['n_rows'] - 1)
-            self.scatter_series[line_label]['hist_dur'] = hist_dur
-            new_frate = old.count() / hist_dur
-            self.scatter_series[line_label]['frate'] = new_frate
+                    # Remove out of range points.
+                    old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
+                    while old_points.count() > 0 \
+                            and old_points.first().y() >= (y_offset + self.config['n_rows'] / (self.config['n_rows'] + 1)):
+                        old_points.remove(0)
+                    old.replace(old_points)
 
-            # Update labels
-            self.modify_frate(line_label, new_frate)
+                latest.append(spk_x % self.x_lim,
+                              y_offset + 1.0 / (self.config['n_rows'] + 1))
+                last_spike_time = spk_x
 
-        latest_points = latest.pointsVector()
-        if len(latest_points) > 0:
-            self.scatter_series[line_label]['last_sample_ix'] = latest_points[-1].x()
+            # Calculate and display firing rate. TODO: Slow down.
+            new_count = ss_info['count'] + data.shape[0]
+            new_frate = self.config['sampling_rate'] * new_count / (data[-1] - ss_info['start_time'])
+            self.modify_frate(line_label, new_frate)  # Update labels
+
+            # Store results
+            self.scatter_series[line_label]['count'] = new_count
+            self.scatter_series[line_label]['last_spike_time'] = data[-1]
 
 
 if __name__ == '__main__':
