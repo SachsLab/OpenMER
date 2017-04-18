@@ -1,6 +1,8 @@
 import sys
-import numpy as np
 import time
+import numpy as np
+from scipy import signal
+import pyaudio
 import PyQt5
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -8,7 +10,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtChart import *
 import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
-from scipy import signal
+
 
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
@@ -20,7 +22,7 @@ XRANGE = 1.0  # seconds
 YRANGE = 800  # y-axis range per channel, use +- this value.
 RASTDURATION = 1.0
 RASTROWS = 4
-FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
+FILTERCONFIG = {'order': 6, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
     'dark': {
@@ -307,6 +309,7 @@ class AddSamplingGroupDialog(QDialog):
 
         # Do filter
         self.filter_checkbox = QCheckBox("250 Hz hp filter")
+        self.filter_checkbox.setChecked(True)
         layout.addWidget(self.filter_checkbox)
 
         # OK and Cancel buttons
@@ -363,10 +366,22 @@ class MyWidget(QWidget):
 class SweepWidget(MyWidget):
     def __init__(self, *args, do_filter=False, theme='dark', **kwargs):
         super(SweepWidget, self).__init__(*args, **kwargs)
+        self.pya_manager = pyaudio.PyAudio()
+        self.pya_stream = None
         self.setup_control_panel()
         self.setup_plot_widget(do_filter=do_filter, theme=theme)
         self.refresh_axes()
         self.refresh_axes()  # Twice on purpose.
+        self.audio = {}
+        self.reset_audio()
+
+    def closeEvent(self, evnt):
+        if self.pya_stream:
+            if self.pya_stream.is_active():
+                self.pya_stream.stop_stream()
+            self.pya_stream.close()
+        self.pya_manager.terminate()
+        super(SweepWidget, self).closeEvent(evnt)
 
     def setup_control_panel(self):
         # Create control panel
@@ -391,6 +406,7 @@ class SweepWidget(MyWidget):
             monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
         monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
+        self.monitor_chan_label = None
         self.layout().addLayout(cntrl_layout)
 
     def setup_plot_widget(self, do_filter=False, theme='dark'):
@@ -419,11 +435,14 @@ class SweepWidget(MyWidget):
         self.refresh_axes()
 
     def on_monitor_group_clicked(self, button_id):
+        self.reset_audio()
         if button_id == 0:
-            chan_ix = None
+            self.audio['chan_label'] = 'silence'
+            monitor_chan_id = 0
         else:
-            chan_ix = self.group_info[button_id - 1]['chan']
-        CbSdkConnection().monitor_chan(chan_ix)
+            self.audio['chan_label'] = self.group_info[button_id - 1]['label']
+            monitor_chan_id = self.group_info[button_id - 1]['chan']
+        CbSdkConnection().monitor_chan(monitor_chan_id)
 
     def on_thresh_line_moved(self, inf_line):
         for line_label in self.segmented_series:
@@ -476,6 +495,34 @@ class SweepWidget(MyWidget):
             'chan_id': chan_info['chan']
         }
 
+    def reset_audio(self):
+        if self.pya_stream:
+            if self.pya_stream.is_active():
+                self.pya_stream.stop_stream()
+            self.pya_stream.close()
+        self.audio['buffer'] = np.zeros(int(0.25*self.samplingRate), dtype=np.int16)
+        self.audio['write_ix'] = 0
+        self.audio['read_ix'] = 0
+        self.audio['chan_label'] = None
+        self.pya_stream = self.pya_manager.open(format=pyaudio.paInt16,
+                                                channels=1,
+                                                rate=self.samplingRate,
+                                                output=True,
+                                                stream_callback=self.pyaudio_callback)
+
+    def pyaudio_callback(self,
+                         in_data,  # recorded data if input=True; else None
+                         frame_count,  # number of frames. 1024.
+                         time_info,  # dictionary
+                         status_flags):  # PaCallbackFlags
+        # time_info: {'input_buffer_adc_time': ??, 'current_time': ??, 'output_buffer_dac_time': ??}
+        # status_flags: https://people.csail.mit.edu/hubert/pyaudio/docs/#pacallbackflags
+        read_indices = (np.arange(frame_count) + self.audio['read_ix']) % self.audio['buffer'].shape[0]
+        out_data = self.audio['buffer'][read_indices].tobytes()
+        self.audio['read_ix'] = (self.audio['read_ix'] + frame_count) % self.audio['buffer'].shape[0]
+        flag = pyaudio.paContinue
+        return out_data, flag
+
     def refresh_axes(self):
         n_samples = self.plot_config['duration'] * self.samplingRate
 
@@ -522,6 +569,13 @@ class SweepWidget(MyWidget):
         my_filter = ss_info['filter']
         if my_filter:
             data, my_filter['zi'] = signal.sosfilt(my_filter['sos'], data, zi=my_filter['zi'])
+
+        if self.pya_stream:
+            if 'chan_label' in self.audio and self.audio['chan_label']:
+                if self.audio['chan_label'] == line_label:
+                    write_indices = (np.arange(data.shape[0]) + self.audio['write_ix']) % self.audio['buffer'].shape[0]
+                    self.audio['buffer'][write_indices] = (np.copy(data) * (2**15 / self.plot_config['y_range'])).astype(np.int16)
+                    self.audio['write_ix'] = (self.audio['write_ix'] + data.shape[0]) % self.audio['buffer'].shape[0]
 
         sample_indices = ss_info['last_sample_ix'] + np.arange(n_in, dtype=np.int32)
         max_ind = np.int32(ss_info['sampling_rate'] * self.plot_config['duration'])

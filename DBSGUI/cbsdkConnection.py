@@ -291,4 +291,4 @@ class CbSdkConnection(object):
 
     def monitor_chan(self, chan_ix):
         if self.is_connected:
-            cbpy.analog_out(149, chan_ix, track_last=True, spike_only=False, instance=self.cbsdk_config['instance'])
+            cbpy.analog_out(149, chan_ix, track_last=False, spike_only=False, instance=self.cbsdk_config['instance'])
