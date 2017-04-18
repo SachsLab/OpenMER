@@ -17,9 +17,9 @@ NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will
 RAWDURATION = 1.0
 HPDURATION = 1.0
 XRANGE = 1.0  # seconds
-YRANGE = 2000  # y-axis range per channel, use +- this value.
-RASTDURATION = 0.5
-RASTROWS = 6
+YRANGE = 800  # y-axis range per channel, use +- this value.
+RASTDURATION = 1.0
+RASTROWS = 4
 FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
@@ -426,6 +426,14 @@ class SweepWidget(MyWidget):
             chan_ix = self.group_info[button_id - 1]['chan']
         CbSdkConnection().monitor_chan(chan_ix)
 
+    def on_thresh_line_moved(self, inf_line):
+        for line_label in self.segmented_series:
+            ss_info = self.segmented_series[line_label]
+            if ss_info['thresh_line'] == inf_line:
+                new_thresh = int(inf_line.getYPos() - ss_info['y_offset'])
+                print(new_thresh)
+                # TODO: set channel config
+
     def add_series(self, sampling_rate=30000, line_label="new line", do_filter=False):
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
@@ -452,12 +460,17 @@ class SweepWidget(MyWidget):
         # Attempt to synchronize different series using machine time.
         last_sample_ix = int(np.mod(get_now_time(), self.plot_config['duration']) * sampling_rate)
 
+        thresh_line = pg.InfiniteLine(angle=0, movable=True)
+        thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
+        self.plotWidget.addItem(thresh_line)
+
         self.segmented_series[line_label] = {
             'segments': curve_segments,
             'sampling_rate': sampling_rate,  # Per-line sampling_rate not supported at this time.
             'filter': my_filter,
             'last_sample_ix': last_sample_ix,
-            'line_ix': len(self.segmented_series)
+            'line_ix': len(self.segmented_series),
+            'thresh_line': thresh_line
         }
 
     def refresh_axes(self):
@@ -479,10 +492,12 @@ class SweepWidget(MyWidget):
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             y_offset = int(-ss_info['line_ix'] * 2 * self.plot_config['y_range'])
+            ss_info['y_offset'] = y_offset
             new_y_ticks.append((y_offset, line_label))
             for ix in range(len(ss_info['segments'])):
                 x_offset = ix * samples_per_segment
                 ss_info['segments'][ix].setPos(x_offset, y_offset)
+            ss_info['thresh_line'].setValue(y_offset)
         y_ax_item = self.plotWidget.getPlotItem().getAxis('left')
         y_ax_item.setTicks([new_y_ticks])
 
@@ -540,6 +555,9 @@ class SweepWidget(MyWidget):
                 pci.setData(old_y)
 
         self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
+
+        # TODO: occasionally check channel config for spk thresh,
+        # self.segmented_series[line_label]['thresh_line'].setValue(offset + thresh)
 
 
 class RasterWidget(MyWidget):
