@@ -7,7 +7,6 @@ import PyQt5
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtChart import *
 import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
 
@@ -20,8 +19,6 @@ RAWDURATION = 1.0
 HPDURATION = 1.0
 XRANGE = 1.0  # seconds
 YRANGE = 800  # y-axis range per channel, use +- this value.
-RASTDURATION = 1.0
-RASTROWS = 4
 FILTERCONFIG = {'order': 6, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
@@ -60,7 +57,6 @@ class MyGUI(QMainWindow):
         self.indicate_connection_state()
         self.show()
         self.sweep_widgets = {}
-        self.raster_widget = None
 
     def __del__(self):
         # CbSdkConnection().disconnect() No need to disconnect because the instance will do so automatically.
@@ -80,11 +76,9 @@ class MyGUI(QMainWindow):
         self.actions = {
             "Connect": QAction("Connect", self),
             "AddSweep": QAction("Add Sweep Plot", self),
-            "AddRaster": QAction("Add Raster Plot", self),
         }
         self.actions["Connect"].triggered.connect(self.on_action_connect_triggered)
         self.actions["AddSweep"].triggered.connect(self.on_action_add_sweep_triggered)
-        self.actions["AddRaster"].triggered.connect(self.on_action_add_raster_triggered)
         # self.actions["Quit"] = QtWidgets.QAction("Quit", self)
         # self.actions["Quit"].triggered.connect(QtWidgets.qApp.quit)
 
@@ -97,7 +91,6 @@ class MyGUI(QMainWindow):
         file_menu = menu_bar.addMenu('&File')
         file_menu.addAction(self.actions["Connect"])
         file_menu.addAction(self.actions["AddSweep"])
-        file_menu.addAction(self.actions["AddRaster"])
 
     def create_toolbars(self):
         # Toolbars
@@ -156,19 +149,6 @@ class MyGUI(QMainWindow):
         if not self.sweep_widgets:
             self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False}
 
-    def on_action_add_raster_triggered(self):
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': True}
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))  # TODO: Or RAW, never both
-        for gi_item in group_info:
-            gi_item['label'] = gi_item['label'].decode('utf-8')
-            gi_item['unit'] = gi_item['unit'].decode('utf-8')
-        self.raster_widget = RasterWidget(group_info)
-        self.raster_widget.was_closed.connect(self.on_raster_closed)
-
-    def on_raster_closed(self):
-        self.raster_widget = None
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False}
-
     def update(self):
         super(MyGUI, self).update()
 
@@ -184,16 +164,6 @@ class MyGUI(QMainWindow):
                             data = cont_data[cont_chan_ids.index(chan_id)][1]
                             label = self.sweep_widgets[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
                             self.sweep_widgets[sweep_key].update(label, data)
-
-            if self.raster_widget:
-                ev_timestamps = self.cbsdk_conn.get_event_data()
-                ev_chan_ids = [x[0] for x in ev_timestamps]
-                chart_chan_ids = [x['chan'] for x in self.raster_widget.group_info]
-                match_chans = list(set(ev_chan_ids) & set(chart_chan_ids))
-                for chan_id in match_chans:
-                    data = ev_timestamps[ev_chan_ids.index(chan_id)][1]['timestamps']
-                    label = self.raster_widget.group_info[chart_chan_ids.index(chan_id)]['label']
-                    self.raster_widget.chart.update(label, data)
 
 
 class ConnectDialog(QDialog):
@@ -620,273 +590,6 @@ class SweepWidget(MyWidget):
 
         # TODO: occasionally check channel config for spk thresh,
         # self.segmented_series[line_label]['thresh_line'].setValue(offset + thresh)
-
-
-class RasterWidget(MyWidget):
-    def __init__(self, *args, **kwargs):
-        super(RasterWidget, self).__init__(*args, **kwargs)
-
-        self.chart = RasterChart(sampling_rate=self.samplingRate)
-
-        for chan_ix in range(len(self.group_info)):
-            label_string = self.group_info[chan_ix]['label']
-            self.chart.add_series(line_label=label_string)
-        self.chart.refresh_axes()
-
-        # TODO: Control panel to change row duration, number of rows, clear button
-        cntrl_layout = QHBoxLayout()
-        clear_button = QPushButton("Clear")
-        clear_button.clicked.connect(self.on_clear_button_clicked)
-        cntrl_layout.addWidget(clear_button)
-        self.layout().addLayout(cntrl_layout)
-
-        new_chart_view = QChartView(self.chart)
-        self.layout().addWidget(new_chart_view)
-
-    def on_clear_button_clicked(self):
-        self.chart.clear()
-
-
-class MyChart(QChart):
-    def __init__(self, theme='dark', **kwargs):
-        super(MyChart, self).__init__(**kwargs)
-        self.theme = theme
-        self.legend().hide()
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.setBackgroundRoundness(0.)
-        self.setDropShadowEnabled(False)
-        # self.addAxis(QValueAxis(), Qt.AlignBottom)
-        self.addAxis(QCategoryAxis(), Qt.AlignBottom)
-        # self.addAxis(QValueAxis(), Qt.AlignLeft)
-        self.addAxis(QCategoryAxis(), Qt.AlignLeft)
-        self.apply_color_scheme()
-
-    def apply_color_scheme(self, theme=None):
-        if theme is not None:
-            self.theme = theme
-        # self.setBackgroundVisible(False)
-        self.setBackgroundBrush(THEMES[self.theme]['bgcolor'])
-        self.axisX().setLabelsBrush(THEMES[self.theme]['labelcolor'])
-        self.axisY().setLabelsBrush(THEMES[self.theme]['labelcolor'])
-        axis_pen = QPen(THEMES[self.theme]['axiscolor'])
-        axis_pen.setWidth(THEMES[self.theme]['axiswidth'])
-        # axis_pen.setStyle(Qt.DotLine)
-        self.axisX().setLinePen(axis_pen)
-        self.axisY().setLinePen(axis_pen)
-        self.axisX().setGridLineVisible(False)
-        # self.axisY().setGridLineVisible(False)
-        self.axisY().setGridLinePen(axis_pen)
-        self.color_iterator = -1
-
-
-class RasterChart(MyChart):
-    """
-
-    """
-    frate_changed = pyqtSignal(str, float)
-
-    def __init__(self, row_duration=RASTDURATION, sampling_rate=None, n_rows=RASTROWS, **kwargs):
-        super(RasterChart, self).__init__(**kwargs)
-        self.config = {
-            'row_duration': row_duration,
-            'sampling_rate': sampling_rate,
-            'n_rows': n_rows
-        }
-        self.scatter_series = {}
-        self.refresh_axes()
-
-    def refresh_axes(self):
-        # Remove all existing labels
-        for label in self.axisX().categoriesLabels():
-            self.axisX().remove(label)
-        for label in self.axisY().categoriesLabels():
-            self.axisY().remove(label)
-
-        # Add X-axis labels.
-        self.x_lim = self.config['row_duration'] * self.config['sampling_rate']
-        self.axisX().setRange(0, self.x_lim)  # self.axisX().setRange(-0.5, self.x_lim + 0.5)
-        self.axisX().setLabelsPosition(QCategoryAxis.AxisLabelsPositionOnValue)
-        self.axisX().append("0", 0)
-        self.axisX().append("{:.1f}".format(self.config['row_duration']), self.x_lim)
-
-        # Add Y-axis labels. Note, categories have to be added in ascending order.
-        min_y = 1 - len(self.scatter_series)
-        self.axisY().setRange(min_y, 1)
-        self.axisY().setStartValue(min_y)
-        # Sort self.segmented_series according to -line_ix
-        series_list = sorted(self.scatter_series.items(), key=lambda x: x[1]['chan_ix'], reverse=True)
-        label_ix = 0
-        for kv_tup in series_list:
-            ss_info = self.scatter_series[kv_tup[0]]
-            y_max = 1 - ss_info['chan_ix']
-            self.axisY().append(kv_tup[0], y_max)
-            self.scatter_series[kv_tup[0]]['label_ix'] = label_ix
-            label_ix += 1
-
-        # Display settings
-        for ax in [self.axisX(), self.axisY()]:
-            ax.setLineVisible(False)
-
-    def add_series(self, line_label="new line"):
-        self.color_iterator = (self.color_iterator + 1) % len(THEMES[self.theme]['pencolors'])
-        pen_color = QColor(THEMES[self.theme]['pencolors'][self.color_iterator])
-        my_pen = QPen(pen_color)
-        # pen_color.setAlphaF(0.1)  # Does not work with setUseOpenGL
-
-        my_series = []
-        for series_ix in range(2):
-            new_series = QScatterSeries()
-            new_series.setMarkerShape(QScatterSeries.MarkerShapeRectangle)
-            new_series.setPen(my_pen)  # Outline. Not used by OpenGL
-            new_series.setColor(pen_color)  # Fill
-            new_series.setMarkerSize(6)
-            self.addSeries(new_series)
-            new_series.attachAxis(self.axisX())
-            new_series.attachAxis(self.axisY())
-            new_series.setUseOpenGL(True)
-            my_series.append(new_series)
-
-        self.scatter_series[line_label] = {
-            'old': my_series[0],
-            'latest': my_series[1],
-            'last_sample_ix': 0,
-            'chan_ix': len(self.scatter_series),  # To offset on y-axis
-            'frate': 0,
-            'hist_dur': 0.0
-        }
-
-    def clear(self):
-        for key in self.scatter_series:
-            ss = self.scatter_series[key]
-            ss['old'].clear()
-            ss['latest'].clear()
-            ss['last_sample_ix'] = 0
-            ss['hist_dur'] = 0.0
-            self.modify_frate(key, 0)
-
-    def modify_frate(self, ss_key, new_frate):
-        ss = self.scatter_series[ss_key]
-        ss['frate'] = new_frate
-        old_label = self.axisY().categoriesLabels()[ss['label_ix']]
-        new_label = "{0:.0f}.{1:d}".format(new_frate, ss['label_ix'])
-        self.axisY().replaceLabel(old_label, new_label)
-        self.frate_changed.emit(ss_key, new_frate)
-
-    def update(self, line_label, data):
-        """
-        :param line_label:
-        :param data: A list of 6 numpy arrays, one for each sorted unit, each containing uint32 timestamps.
-        :return:
-        """
-        data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
-        data.sort()
-        offset = data[0] - np.mod(data[0], self.x_lim)
-        data = data - offset
-
-        ss_info = self.scatter_series[line_label]
-
-        y_offset = -ss_info['chan_ix']
-
-        # Take spike times that should be added to the latest line.
-        latest = ss_info['latest']
-        if data[0] > ss_info['last_sample_ix']:
-            add_bool = data < self.x_lim
-            for spk in data[add_bool]:
-                latest.append(spk, y_offset + 1.0 / (self.config['n_rows'] + 1))
-            data = data[np.logical_not(add_bool)]  # Remove from data
-
-        # Remaining spike times should be added to a new line and old spike times shifted up.
-        if data.shape[0] > 0:
-            old = ss_info['old']
-
-            # Shift old points up 1
-            old_points = QPolygonF(old.pointsVector())  # Copy of data points in QVector<QPoint>
-            if old_points.count() > 0:
-                old_points.translate(0, 1.0 / (self.config['n_rows'] + 1))  # Move them up 1
-                # Remove out of range points.
-                while old_points.first().y() >= (1 + y_offset):
-                    old_points.remove(0)
-                old.replace(old_points)
-
-            # Shift new->old points up 1
-            transfer_points = QPolygonF(latest.pointsVector())
-            transfer_points.translate(0, 1.0 / (self.config['n_rows'] + 1))
-            old.append(transfer_points)
-
-            latest.clear()
-            for spk in data:
-                latest.append(spk - self.x_lim, y_offset + 1.0 / (self.config['n_rows'] + 1))
-
-            # Calculate firing rate from old
-            hist_dur = min(self.scatter_series[line_label]['hist_dur'] + 1, self.config['n_rows'] - 1)
-            self.scatter_series[line_label]['hist_dur'] = hist_dur
-            new_frate = old.count() / hist_dur
-            self.scatter_series[line_label]['frate'] = new_frate
-
-            # Update labels
-            self.modify_frate(line_label, new_frate)
-
-        latest_points = latest.pointsVector()
-        if len(latest_points) > 0:
-            self.scatter_series[line_label]['last_sample_ix'] = latest_points[-1].x()
-
-
-class BufferSeries(QLineSeries):
-    # dtype = np.float
-    dtype = np.int32
-
-    def __init__(self, xdata=None, sample_offset=0, pen_color="blue", **kwargs):
-        """
-        :param xdata: X-axis values. Typically samples time in seconds.
-        :param sample_offset:  If this is in a sequence of segments, how many samples precede this segment.
-        :param pen_color: QColor or known color string ("blue", "red", "green", etc.)
-        :param kwargs:  To pass on to QLineSeries initializer.
-        """
-        super(BufferSeries, self).__init__(**kwargs)
-        self.qpoly = None
-        self.np_buffer = None
-        self.sample_offset = sample_offset
-        pen_color = QColor(pen_color)
-        # pen_color.setAlphaF(0.1)  # Does not work with setUseOpenGL
-        self.setPen(QPen(pen_color))
-        self.setUseOpenGL(True)  # Causes crash when moving dock around. Improves performance.
-        self.reset_data(xdata)
-
-    @property
-    def x_offset(self):
-        return self.at(0).x()
-
-    def reset_data(self, xdata=None):
-        """
-        :param xdata: Will fill up the x-values of (QPolygon) self.qpoly. Also used to determine size.
-        :return: no return
-        """
-        xdata = xdata if xdata is not None else np.asarray([])
-        ydata = np.zeros(xdata.shape, dtype=self.dtype)
-        n_samples = xdata.shape[0]
-        # bytes_per_sample = np.finfo(self.dtype).dtype.itemsize
-        bytes_per_sample = np.iinfo(self.dtype).dtype.itemsize
-        # self.qpoly = QPolygonF(n_samples)
-        self.qpoly = QPolygon(n_samples)
-        pointer = self.qpoly.data()
-        pointer.setsize(2 * self.qpoly.size() * bytes_per_sample)
-        self.np_buffer = np.frombuffer(pointer, self.dtype)
-        self.np_buffer[:(n_samples - 1) * 2 + 1:2] = xdata
-        self.np_buffer[1:(n_samples - 1) * 2 + 2:2] = ydata
-        self.replace(self.qpoly)
-
-    def replace_data(self, ydata, sample_bool=None):
-        old_ydata = self.np_buffer[1::2]
-        if sample_bool is None:
-            sample_bool = np.zeros(old_ydata.shape, dtype=np.bool)
-            sample_bool[:ydata.shape[0]] = True
-        if np.any(sample_bool):
-            old_ydata[sample_bool] = ydata
-            # old_ydata[np.logical_not(sample_bool)] = 0.
-            self.replace(self.qpoly)  # Big memory leak
-            return True
-        else:
-            return False
 
 
 if __name__ == '__main__':
