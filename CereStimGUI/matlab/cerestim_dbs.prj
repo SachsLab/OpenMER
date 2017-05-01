@@ -1,0 +1,122 @@
+<deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
+  <configuration build-checksum="3019414398" file="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs.prj" location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab" name="cerestim_dbs" preferred-package-location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
+    <param.appname>cerestim_dbs</param.appname>
+    <param.icon />
+    <param.icons />
+    <param.version>1.0</param.version>
+    <param.authnamewatermark>Chadwick Boulay</param.authnamewatermark>
+    <param.email>chadwick.boulay@gmail.com</param.email>
+    <param.company>Ottawa Hospital Research Institute</param.company>
+    <param.summary />
+    <param.description />
+    <param.screenshot />
+    <param.guid />
+    <param.installpath.string>\Ottawa Hospital Research Institute\cerestim_dbs\</param.installpath.string>
+    <param.installpath.combo>option.installpath.programfiles</param.installpath.combo>
+    <param.logo />
+    <param.install.notes />
+    <param.target.install.notes />
+    <param.intermediate>${PROJECT_ROOT}\cerestim_dbs\for_testing</param.intermediate>
+    <param.files.only>${PROJECT_ROOT}\cerestim_dbs\for_redistribution_files_only</param.files.only>
+    <param.output>${PROJECT_ROOT}\cerestim_dbs\for_redistribution</param.output>
+    <param.logdir>${PROJECT_ROOT}\cerestim_dbs</param.logdir>
+    <param.enable.clean.build>false</param.enable.clean.build>
+    <param.user.defined.mcr.options />
+    <param.target.type>subtarget.standalone</param.target.type>
+    <param.support.packages />
+    <param.web.mcr>false</param.web.mcr>
+    <param.package.mcr>true</param.package.mcr>
+    <param.no.mcr>false</param.no.mcr>
+    <param.web.mcr.name>CereStimDBS_web</param.web.mcr.name>
+    <param.package.mcr.name>CereStimDBS_mcr</param.package.mcr.name>
+    <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
+    <param.windows.command.prompt>true</param.windows.command.prompt>
+    <param.create.log>false</param.create.log>
+    <param.log.file />
+    <unset>
+      <param.icon />
+      <param.icons />
+      <param.version />
+      <param.summary />
+      <param.description />
+      <param.screenshot />
+      <param.guid />
+      <param.installpath.string />
+      <param.installpath.combo />
+      <param.logo />
+      <param.target.install.notes />
+      <param.intermediate />
+      <param.files.only />
+      <param.output />
+      <param.logdir />
+      <param.enable.clean.build />
+      <param.user.defined.mcr.options />
+      <param.target.type />
+      <param.support.packages />
+      <param.no.mcr />
+      <param.no.mcr.name />
+      <param.windows.command.prompt />
+      <param.create.log />
+      <param.log.file />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}\cerestim_dbs.mlapp</file>
+    </fileset.main>
+    <fileset.resources />
+    <fileset.package />
+    <fileset.depfun>
+      <file>D:\Tools\Neurophys\CereStim\CereStim API\cerestim96.m</file>
+      <file>D:\Tools\Neurophys\CereStim\CereStim API\stimmex.mexw64</file>
+    </fileset.depfun>
+    <build-deliverables>
+      <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="splash.png" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\splash.png</file>
+      <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="cerestim_dbs.exe" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\cerestim_dbs.exe</file>
+      <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="readme.txt" optional="true">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\readme.txt</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>C:\Program Files\MATLAB\R2017a</root>
+      <toolboxes>
+        <toolbox name="fixedpoint" />
+        <toolbox name="matlabcoder" />
+        <toolbox name="matlabhdlcoder" />
+        <toolbox name="embeddedcoder" />
+      </toolboxes>
+      <toolbox>
+        <fixedpoint>
+          <enabled>true</enabled>
+        </fixedpoint>
+      </toolbox>
+      <toolbox>
+        <matlabcoder>
+          <enabled>true</enabled>
+        </matlabcoder>
+      </toolbox>
+      <toolbox>
+        <matlabhdlcoder>
+          <enabled>true</enabled>
+        </matlabhdlcoder>
+      </toolbox>
+      <toolbox>
+        <embeddedcoder>
+          <enabled>true</enabled>
+        </embeddedcoder>
+      </toolbox>
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>6.2</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>
