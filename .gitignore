@@ -34,5 +34,6 @@ QtSerialPort/build*
 
 # Build system files
 *.pro.user
-
+build-*
 .idea
+CereStimGUI/matlab/cerestim_dbs/

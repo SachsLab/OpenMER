@@ -1,9 +1,9 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3019414398" file="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs.prj" location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab" name="cerestim_dbs" preferred-package-location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
-    <param.appname>cerestim_dbs</param.appname>
+  <configuration build-checksum="3340229377" file="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs.prj" location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab" name="cerestim_dbs" preferred-package-location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
+    <param.appname>CereStimDBS</param.appname>
     <param.icon />
     <param.icons />
-    <param.version>1.0</param.version>
+    <param.version>1.1</param.version>
     <param.authnamewatermark>Chadwick Boulay</param.authnamewatermark>
     <param.email>chadwick.boulay@gmail.com</param.email>
     <param.company>Ottawa Hospital Research Institute</param.company>
@@ -11,7 +11,7 @@
     <param.description />
     <param.screenshot />
     <param.guid />
-    <param.installpath.string>\Ottawa Hospital Research Institute\cerestim_dbs\</param.installpath.string>
+    <param.installpath.string>\Ottawa Hospital Research Institute\CereStimDBS\</param.installpath.string>
     <param.installpath.combo>option.installpath.programfiles</param.installpath.combo>
     <param.logo />
     <param.install.notes />
@@ -24,11 +24,11 @@
     <param.user.defined.mcr.options />
     <param.target.type>subtarget.standalone</param.target.type>
     <param.support.packages />
-    <param.web.mcr>false</param.web.mcr>
-    <param.package.mcr>true</param.package.mcr>
+    <param.web.mcr>true</param.web.mcr>
+    <param.package.mcr>false</param.package.mcr>
     <param.no.mcr>false</param.no.mcr>
     <param.web.mcr.name>CereStimDBS_web</param.web.mcr.name>
-    <param.package.mcr.name>CereStimDBS_mcr</param.package.mcr.name>
+    <param.package.mcr.name>MyAppInstaller_mcr</param.package.mcr.name>
     <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
     <param.windows.command.prompt>true</param.windows.command.prompt>
     <param.create.log>false</param.create.log>
@@ -36,7 +36,8 @@
     <unset>
       <param.icon />
       <param.icons />
-      <param.version />
+      <param.authnamewatermark />
+      <param.company />
       <param.summary />
       <param.description />
       <param.screenshot />
@@ -53,7 +54,10 @@
       <param.user.defined.mcr.options />
       <param.target.type />
       <param.support.packages />
+      <param.web.mcr />
+      <param.package.mcr />
       <param.no.mcr />
+      <param.package.mcr.name />
       <param.no.mcr.name />
       <param.windows.command.prompt />
       <param.create.log />
@@ -70,7 +74,7 @@
     </fileset.depfun>
     <build-deliverables>
       <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="splash.png" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\splash.png</file>
-      <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="cerestim_dbs.exe" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\cerestim_dbs.exe</file>
+      <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="CereStimDBS.exe" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\CereStimDBS.exe</file>
       <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="readme.txt" optional="true">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\readme.txt</file>
     </build-deliverables>
     <workflow />
