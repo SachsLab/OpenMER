@@ -1,41 +1,26 @@
+"""
+If the following PR has not been merged, then you will have to manually edit the VTickGroup.py file.
+https://github.com/pyqtgraph/pyqtgraph/pull/485
+"""
 import sys
-import time
 import numpy as np
 import PyQt5
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtChart import *
+import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
+from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
 
 
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
 PLOTHEIGHT = 800
-RASTDURATION = 0.5
+RASTDURATION = 0.5  # Seconds
 RASTROWS = 8
-SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
-THEMES = {
-    'dark': {
-        'pencolors': ["cyan", QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
-        'bgcolor': Qt.black,
-        'labelcolor': Qt.gray,
-        'axiscolor': Qt.gray,
-        'axiswidth': 1
-    }
-}
 LABEL_FONT_POINT_SIZE = 24
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
-
-
-def get_now_time():
-    # Attempt to synchronize different series using machine time.
-    cbsdk_conn = CbSdkConnection()
-    if cbsdk_conn.is_connected:
-        now = cbsdk_conn.time()
-    else:
-        now = time.time()
-    return now
 
 
 class MyGUI(QMainWindow):
@@ -141,162 +126,181 @@ class MyGUI(QMainWindow):
                 for chan_id in match_chans:
                     data = ev_timestamps[ev_chan_ids.index(chan_id)][1]['timestamps']
                     label = self.raster_widget.group_info[chart_chan_ids.index(chan_id)]['label']
-                    self.raster_widget.chart.update(label, data)
+                    self.raster_widget.update(label, data)
 
                 comments = self.cbsdk_conn.get_comments()
                 if comments:
-                    self.raster_widget.chart.parse_comments(comments)
+                    pass
+                    # self.raster_widget.chart.parse_comments(comments)
 
 
+class RasterWidget(CustomWidget):
+    frate_changed = pyqtSignal(str, float)
 
-class ConnectDialog(QDialog):
-    """
-    A modal dialog window with widgets for modifying connection parameters.
-    Changes + OK will change the parameters in the CbSdkConnection singleton,
-    but will not actually connect.
-    """
-
-    def __init__(self, parent=None):
-        super(ConnectDialog, self).__init__(parent)
-        # Get access to the CbSdkConnection instance, but don't connect yet.
-        self.cbsdkConn = CbSdkConnection()
-
-        # Widgets to show/edit connection parameters.
-        layout = QVBoxLayout(self)
-
-        # client-addr ip
-        client_addr_layout = QHBoxLayout()
-        client_addr_layout.addWidget(QLabel("client-addr"))
-        self.clientIpEdit = QLineEdit(self.cbsdkConn.con_params['client-addr'])
-        self.clientIpEdit.setInputMask("000.000.000.000;_")
-        client_addr_layout.addWidget(self.clientIpEdit)
-        layout.addLayout(client_addr_layout)
-
-        # client-port int
-        client_port_layout = QHBoxLayout()
-        client_port_layout.addWidget(QLabel("client-port"))
-        self.clientPortSpin = QSpinBox()
-        self.clientPortSpin.setMinimum(0)
-        self.clientPortSpin.setMaximum(99999)
-        self.clientPortSpin.setSingleStep(1)
-        self.clientPortSpin.setValue(self.cbsdkConn.con_params['client-port'])
-        client_port_layout.addWidget(self.clientPortSpin)
-        layout.addLayout(client_port_layout)
-
-        # inst-addr ip
-        inst_addr_layout = QHBoxLayout()
-        inst_addr_layout.addWidget(QLabel("inst-addr"))
-        self.instIpEdit = QLineEdit(self.cbsdkConn.con_params['inst-addr'])
-        self.instIpEdit.setInputMask("000.000.000.000;_")
-        inst_addr_layout.addWidget(self.instIpEdit)
-        layout.addLayout(inst_addr_layout)
-
-        # inst-port int
-        inst_port_layout = QHBoxLayout()
-        inst_port_layout.addWidget(QLabel("inst-port"))
-        self.instPortSpin = QSpinBox()
-        self.instPortSpin.setMinimum(0)
-        self.instPortSpin.setMaximum(99999)
-        self.instPortSpin.setSingleStep(1)
-        self.instPortSpin.setValue(self.cbsdkConn.con_params['inst-port'])
-        inst_port_layout.addWidget(self.instPortSpin)
-        layout.addLayout(inst_port_layout)
-
-        # receive-buffer-size int
-        rec_buff_layout = QHBoxLayout()
-        rec_buff_layout.addWidget(QLabel("receive-buffer-size"))
-        self.recBuffSpin = QSpinBox()
-        self.recBuffSpin.setMinimum(6 * 1024 * 1024)
-        self.recBuffSpin.setMaximum(8 * 1024 * 1024)
-        self.recBuffSpin.setSingleStep(1024 * 1024)
-        self.recBuffSpin.setValue(self.cbsdkConn.con_params['receive-buffer-size'])
-        rec_buff_layout.addWidget(self.recBuffSpin)
-        layout.addLayout(rec_buff_layout)
-
-        # OK and Cancel buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
-            Qt.Horizontal, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    @staticmethod
-    def do_connect_dialog(parent=None):
-        dialog = ConnectDialog(parent)
-        result = dialog.exec_()
-        if result == QDialog.Accepted:
-            dialog.cbsdkConn.disconnect()
-            # Collect values from widgets and set them on dialog.cbsdkConn
-            new_params = {
-                'client-addr': dialog.clientIpEdit.text(),
-                'client-port': dialog.clientPortSpin.value(),
-                'inst-addr': dialog.instIpEdit.text(),
-                'inst-port': dialog.instPortSpin.value(),
-                'receive-buffer-size': dialog.recBuffSpin.value()
-            }
-            dialog.cbsdkConn.con_params = new_params
-            return dialog.cbsdkConn.connect()
-        return -1
-
-
-class MyWidget(QWidget):
-    """
-    A simple skeleton widget.
-    It is only useful if sub-classed.
-    """
-    was_closed = pyqtSignal()
-
-    def __init__(self, group_info, group_ix=0, **kwargs):
-        super(MyWidget, self).__init__(**kwargs)
-        self.group_info = group_info
-        self.awaiting_close = False
-
-        # Get sampling rate from group_ix
-        if (SAMPLINGGROUPS[group_ix] == "0") or (SAMPLINGGROUPS[group_ix] == "RAW"):
-            group_ix = 5
-        self.samplingRate = int(SAMPLINGGROUPS[group_ix])
-
-        chart_layout = QVBoxLayout()
-        chart_layout.setContentsMargins(0, 0, 0, 0)
-        chart_layout.setSpacing(0)
-        self.setLayout(chart_layout)
-
-        self.labels = {}
-
-        self.resize(600, PLOTHEIGHT)
-        self.show()
-
-    def closeEvent(self, evnt):
-        super(MyWidget, self).closeEvent(evnt)
-        self.awaiting_close = True
-        self.was_closed.emit()
-
-
-class RasterWidget(MyWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, theme='dark', **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
+        self.resize(600, PLOTHEIGHT)
+        self.setup_control_panel()
+        self.setup_plot_widget(theme=theme)
+        self.refresh_axes()
+        self.refresh_axes()  # Twice on purpose.
 
-        self.chart = RasterChart(sampling_rate=self.samplingRate)
+    def on_clear_button_clicked(self):
+        self.clear()
 
-        for chan_ix in range(len(self.group_info)):
-            label_string = self.group_info[chan_ix]['label']
-            self.chart.add_series(line_label=label_string)
-        self.chart.refresh_axes()
-        self.chart.clear()
-
-        # TODO: Control panel to change row duration, number of rows, clear button
+    def setup_control_panel(self):
+        # Create control panel
         cntrl_layout = QHBoxLayout()
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.on_clear_button_clicked)
         cntrl_layout.addWidget(clear_button)
         self.layout().addLayout(cntrl_layout)
 
-        new_chart_view = QChartView(self.chart)
-        self.layout().addWidget(new_chart_view)
+    def setup_plot_widget(self, theme='dark'):
+        # Create and add PlotWidget
+        self.plotWidget = pg.PlotWidget()
+        # self.plotWidget.useOpenGL(True)
+        self.layout().addWidget(self.plotWidget)
 
-    def on_clear_button_clicked(self):
-        self.chart.clear()
+        # Configure the PlotWidget
+        self.plot_config = {
+            'x_range': RASTDURATION,
+            'n_rows': RASTROWS,
+            'theme': theme,
+            'color_iterator': -1
+        }
+
+        self.raster_series = {}  # Will contain one array of curves for each line/channel label.
+        for chan_ix in range(len(self.group_info)):
+            self.add_series(self.group_info[chan_ix])
+
+    def add_series(self, chan_info):
+        n_total_series = len(self.raster_series) + 1
+        y_per_chan = 1.0 / n_total_series
+        y_per_row = 1.0 / (n_total_series * self.plot_config['n_rows'])
+
+        # Go back through old series and adjust their yranges
+        for chan_label in self.raster_series:
+            chan_ix = self.raster_series[chan_label]['line_ix']
+            y_chan_start = 1 - (chan_ix + 1) * y_per_chan
+            for seg_ix in range(self.plot_config['n_rows']):
+                y_range = [y_chan_start + seg_ix*y_per_row, y_chan_start + (seg_ix + 1) * y_per_row]
+                self.raster_series[chan_label]['segments'][seg_ix].setYRange(y_range)
+
+        # Appearance settings
+        my_theme = THEMES[self.plot_config['theme']]
+        self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
+        pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+
+        # Prepare plot data
+        rast_segments = []
+        chan_ix = len(self.raster_series)
+        y_chan_start = 1 - (chan_ix + 1) * y_per_chan
+        for seg_ix in range(self.plot_config['n_rows']):
+            xvals = None  # (seg_ix + np.random.rand(5)) / self.plot_config['n_rows']
+            yrange = [y_chan_start + seg_ix * y_per_row, y_chan_start + (seg_ix + 1) * y_per_row]
+            new_seg = pg.VTickGroup(xvals=xvals,
+                                    yrange=yrange,
+                                    pen=pen_color)
+            self.plotWidget.addItem(new_seg)
+            rast_segments.append(new_seg)
+
+        start_time = int(get_now_time())
+        #
+        self.raster_series[chan_info['label']] = {
+            'segments': rast_segments,
+            'line_ix': len(self.raster_series),
+            'chan_id': chan_info['chan'],
+            'count': 0,
+            'frate': 0,
+            'start_time': start_time,
+            'last_spike_time': start_time
+        }
+
+    def refresh_axes(self):
+        self.x_lim = self.plot_config['x_range'] * self.samplingRate
+        self.plotWidget.setXRange(0, self.x_lim, padding=0.01)
+
+    def clear(self):
+        start_time = int(get_now_time())
+        for key in self.raster_series:
+            rs = self.raster_series[key]
+            # rs['old'].clear()
+            # rs['latest'].clear()
+            rs['count'] = 0
+            rs['start_time'] = start_time
+            rs['last_spike_time'] = start_time
+            self.modify_frate(key, 0)
+
+    def modify_frate(self, rs_key, new_frate):
+        rs = self.raster_series[rs_key]
+        rs['frate'] = new_frate
+        # old_label = self.axisY().categoriesLabels()[ss['label_ix']]
+        # new_label = "{0:3.0f}.{1:d}".format(new_frate, ss['label_ix'])
+        # self.axisY().replaceLabel(old_label, new_label)
+        self.frate_changed.emit(rs_key, new_frate)
+
+    def parse_comments(self, comments):
+        # comments is a list of lists: [[timestamp, string, rgba],]
+        comment_strings = [x[1] for x in comments]
+        dtts = []
+        for comm_str in comment_strings:
+            if 'DTT:' in comm_str:
+                dtts.append(float(comm_str[4:]))
+        if len(dtts) > 0:
+            new_dtt = dtts[-1]
+            if not self.DTT or self.DTT != new_dtt:
+                self.clear()
+                self.DTT = new_dtt
+
+    def update(self, line_label, data):
+        """
+
+        :param line_label: Label of the segmented series
+        :param data: Replace data in the segmented series with these data
+        :return:
+        """
+        n_total_series = len(self.raster_series) + 1
+        y_per_row = 1.0 / (n_total_series * self.plot_config['n_rows'])
+
+        data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
+        data.sort()
+
+        # Only keep spikes since last spike time
+        rs_info = self.raster_series[line_label]
+        last_spike_time = rs_info['last_spike_time']
+        data = data[data > last_spike_time]
+
+        # Process remaining spikes
+        while data.size > 0:
+            # Find spikes that fit on the most recent row.
+            last_x_coord = last_spike_time % self.x_lim
+            deltas = data - last_spike_time
+            last_row_bool = (last_x_coord + deltas) <= self.x_lim
+
+            seg_list = rs_info['segments']
+            if np.any(last_row_bool):
+                seg_list[0].xvals.extend(data[last_row_bool] % self.x_lim)
+                self.raster_series[line_label]['last_spike_time'] = data[last_row_bool][-1]
+                # Clear data that has already been added
+                data = data[np.logical_not(last_row_bool)]
+
+            # If there are any remaining spikes, shift all rows up.
+            if data.size > 0:
+                # Delete the oldest row
+                self.plotWidget.removeItem(seg_list[-1])
+                seg_list.pop()
+                # Shift remaining rows up
+                for vtg in seg_list:
+                    vtg.setYRange([x+y_per_row for x in vtg.yRange()])
+                # Add new empty row
+                new_y_range = [x - y_per_row for x in seg_list[0].yRange()]
+                new_vtg = pg.VTickGroup(xvals=None, yrange=new_y_range, pen=seg_list[0].pen)
+                seg_list.insert(0, new_vtg)
+                self.plotWidget.addItem(new_vtg)
+                # update last_spike_time to beginning of new row
+                self.raster_series[line_label]['last_spike_time'] -\
+                    (self.raster_series[line_label]['last_spike_time'] % self.x_lim) + self.x_lim
 
 
 class MyChart(QChart):
