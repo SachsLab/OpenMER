@@ -1,6 +1,5 @@
 """
-If the following PR has not been merged, then you will have to manually edit the VTickGroup.py file.
-https://github.com/pyqtgraph/pyqtgraph/pull/485
+chadwick.boulay@gmail.com
 """
 import sys
 import numpy as np
@@ -26,7 +25,6 @@ SIMOK = False  # Make this False for production. Make this True for development 
 class MyGUI(QMainWindow):
     """
     This application is for monitoring activity from the Blackrock NSP.
-
     """
 
     def __init__(self):
@@ -121,21 +119,24 @@ class MyGUI(QMainWindow):
             if self.raster_widget:
                 ev_timestamps = self.cbsdk_conn.get_event_data()
                 ev_chan_ids = [x[0] for x in ev_timestamps]
-                chart_chan_ids = [x['chan'] for x in self.raster_widget.group_info]
-                match_chans = list(set(ev_chan_ids) & set(chart_chan_ids))
-                for chan_id in match_chans:
-                    data = ev_timestamps[ev_chan_ids.index(chan_id)][1]['timestamps']
-                    label = self.raster_widget.group_info[chart_chan_ids.index(chan_id)]['label']
-                    self.raster_widget.update(label, data)
+                for chan_label in self.raster_widget.rasters:
+                    ri = self.raster_widget.rasters[chan_label]
+                    if ri['chan_id'] in ev_chan_ids:
+                        data = ev_timestamps[ev_chan_ids.index(ri['chan_id'])][1]['timestamps']
+                    else:
+                        data = [[], ]
+                    self.raster_widget.update(chan_label, data)
 
                 comments = self.cbsdk_conn.get_comments()
                 if comments:
-                    pass
-                    # self.raster_widget.chart.parse_comments(comments)
+                    self.raster_widget.parse_comments(comments)
 
 
 class RasterWidget(CustomWidget):
     frate_changed = pyqtSignal(str, float)
+    vtick = QPainterPath()
+    vtick.moveTo(0, -0.5)
+    vtick.lineTo(0, 0.5)
 
     def __init__(self, *args, theme='dark', **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
@@ -143,7 +144,7 @@ class RasterWidget(CustomWidget):
         self.setup_control_panel()
         self.setup_plot_widget(theme=theme)
         self.refresh_axes()
-        self.refresh_axes()  # Twice on purpose.
+        self.DTT = None
 
     def on_clear_button_clicked(self):
         self.clear()
@@ -157,10 +158,10 @@ class RasterWidget(CustomWidget):
         self.layout().addLayout(cntrl_layout)
 
     def setup_plot_widget(self, theme='dark'):
-        # Create and add PlotWidget
-        self.plotWidget = pg.PlotWidget()
-        # self.plotWidget.useOpenGL(True)
-        self.layout().addWidget(self.plotWidget)
+        # Create and add GraphicsLayoutWidget
+        self.glw = pg.GraphicsLayoutWidget()
+        # self.glw.useOpenGL(True)
+        self.layout().addWidget(self.glw)
 
         # Configure the PlotWidget
         self.plot_config = {
@@ -170,74 +171,78 @@ class RasterWidget(CustomWidget):
             'color_iterator': -1
         }
 
-        self.raster_series = {}  # Will contain one array of curves for each line/channel label.
+        self.rasters = {}  # Will contain one dictionary for each line/channel label.
         for chan_ix in range(len(self.group_info)):
             self.add_series(self.group_info[chan_ix])
 
     def add_series(self, chan_info):
-        n_total_series = len(self.raster_series) + 1
-        y_per_chan = 1.0 / n_total_series
-        y_per_row = 1.0 / (n_total_series * self.plot_config['n_rows'])
-
-        # Go back through old series and adjust their yranges
-        for chan_label in self.raster_series:
-            chan_ix = self.raster_series[chan_label]['line_ix']
-            y_chan_start = 1 - (chan_ix + 1) * y_per_chan
-            for seg_ix in range(self.plot_config['n_rows']):
-                y_range = [y_chan_start + seg_ix*y_per_row, y_chan_start + (seg_ix + 1) * y_per_row]
-                self.raster_series[chan_label]['segments'][seg_ix].setYRange(y_range)
+        new_plot = self.glw.addPlot(row=len(self.rasters), col=0)
 
         # Appearance settings
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
         pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
 
-        # Prepare plot data
-        rast_segments = []
-        chan_ix = len(self.raster_series)
-        y_chan_start = 1 - (chan_ix + 1) * y_per_chan
-        for seg_ix in range(self.plot_config['n_rows']):
-            xvals = None  # (seg_ix + np.random.rand(5)) / self.plot_config['n_rows']
-            yrange = [y_chan_start + seg_ix * y_per_row, y_chan_start + (seg_ix + 1) * y_per_row]
-            new_seg = pg.VTickGroup(xvals=xvals,
-                                    yrange=yrange,
-                                    pen=pen_color)
-            self.plotWidget.addItem(new_seg)
-            rast_segments.append(new_seg)
+        spis = []
+        for spi_ix in range(2):
+            spi = pg.ScatterPlotItem(pxMode=False)
+            spi.setSymbol(self.vtick)
+            spi.setSize(0.8)
+            spi.setPen(pen_color)
+            new_plot.addItem(spi)
+            spis.append(spi)
+
+        frate_annotation = pg.TextItem(text=chan_info['label'],
+                                       color=(255, 255, 255))
+        frate_annotation.setPos(0, self.plot_config['n_rows'])
+        my_font = QFont()
+        my_font.setPointSize(24)
+        frate_annotation.setFont(my_font)
+        new_plot.addItem(frate_annotation)
 
         start_time = int(get_now_time())
-        #
-        self.raster_series[chan_info['label']] = {
-            'segments': rast_segments,
-            'line_ix': len(self.raster_series),
+
+        self.rasters[chan_info['label']] = {
+            'plot': new_plot,
+            'old': spis[0],
+            'latest': spis[1],
+            'line_ix': len(self.rasters),
             'chan_id': chan_info['chan'],
             'count': 0,
             'frate': 0,
+            'frate_item': frate_annotation,
             'start_time': start_time,
+            'latest_t0': start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate)),
             'last_spike_time': start_time
         }
 
     def refresh_axes(self):
-        self.x_lim = self.plot_config['x_range'] * self.samplingRate
-        self.plotWidget.setXRange(0, self.x_lim, padding=0.01)
+        self.x_lim = int(self.plot_config['x_range'] * self.samplingRate)
+        for rs_key in self.rasters:
+            plot = self.rasters[rs_key]['plot']
+            plot.setXRange(0, self.plot_config['x_range'] * self.samplingRate)
+            plot.setYRange(-0.05, self.plot_config['n_rows']+0.05)
+            plot.hideAxis('bottom')
+            plot.hideAxis('left')
 
     def clear(self):
         start_time = int(get_now_time())
-        for key in self.raster_series:
-            rs = self.raster_series[key]
+        for key in self.rasters:
+            rs = self.rasters[key]
             # rs['old'].clear()
+            rs['old'].setData(np.empty(0, dtype=rs['old'].data.dtype))
             # rs['latest'].clear()
+            rs['latest'].setData(np.empty(0, dtype=rs['latest'].data.dtype))
             rs['count'] = 0
             rs['start_time'] = start_time
+            rs['latest_t0'] = start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate))
             rs['last_spike_time'] = start_time
             self.modify_frate(key, 0)
 
     def modify_frate(self, rs_key, new_frate):
-        rs = self.raster_series[rs_key]
-        rs['frate'] = new_frate
-        # old_label = self.axisY().categoriesLabels()[ss['label_ix']]
-        # new_label = "{0:3.0f}.{1:d}".format(new_frate, ss['label_ix'])
-        # self.axisY().replaceLabel(old_label, new_label)
+        self.rasters[rs_key]['frate'] = new_frate
+        new_label = "{0:3.0f}".format(new_frate)
+        self.rasters[rs_key]['frate_item'].setText(new_label)
         self.frate_changed.emit(rs_key, new_frate)
 
     def parse_comments(self, comments):
@@ -260,47 +265,54 @@ class RasterWidget(CustomWidget):
         :param data: Replace data in the segmented series with these data
         :return:
         """
-        n_total_series = len(self.raster_series) + 1
-        y_per_row = 1.0 / (n_total_series * self.plot_config['n_rows'])
+        if len(data[0]) == 0:
+            # If data is empty, get_now_time and shift up if necessary.
+            now_time = int(get_now_time())
+            while (now_time - self.rasters[line_label]['latest_t0']) > self.x_lim:
+                self.shift_up(line_label)
+        else:
+            # Process data
+            data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
+            data.sort()
+            # Only keep recent spikes
+            data = data[np.logical_and(data > self.rasters[line_label]['last_spike_time'],
+                                       data > self.rasters[line_label]['latest_t0'])]
 
-        data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
-        data.sort()
+            # Process remaining spikes
+            while data.size > 0:
+                add_data_bool = np.logical_and(data > self.rasters[line_label]['latest_t0'],
+                                               data <= self.rasters[line_label]['latest_t0'] + self.x_lim)
+                add_count = np.sum(add_data_bool)
+                if add_count > 0:
+                    self.rasters[line_label]['latest'].addPoints(x=data[add_data_bool] % self.x_lim,
+                                                                 y=0.5*np.ones(np.sum(add_data_bool)))
+                    self.rasters[line_label]['last_spike_time'] = data[add_data_bool][-1]
+                    self.rasters[line_label]['count'] += add_count
+                    data = data[np.logical_not(add_data_bool)]
 
-        # Only keep spikes since last spike time
-        rs_info = self.raster_series[line_label]
-        last_spike_time = rs_info['last_spike_time']
-        data = data[data > last_spike_time]
+                if data.size > 0:
+                    self.shift_up(line_label)
 
-        # Process remaining spikes
-        while data.size > 0:
-            # Find spikes that fit on the most recent row.
-            last_x_coord = last_spike_time % self.x_lim
-            deltas = data - last_spike_time
-            last_row_bool = (last_x_coord + deltas) <= self.x_lim
+        samples_elapsed = self.rasters[line_label]['last_spike_time'] - self.rasters[line_label]['start_time']
+        if samples_elapsed > 0:
+            frate = self.rasters[line_label]['count'] * self.samplingRate / samples_elapsed
+            self.modify_frate(line_label, frate)
 
-            seg_list = rs_info['segments']
-            if np.any(last_row_bool):
-                seg_list[0].xvals.extend(data[last_row_bool] % self.x_lim)
-                self.raster_series[line_label]['last_spike_time'] = data[last_row_bool][-1]
-                # Clear data that has already been added
-                data = data[np.logical_not(last_row_bool)]
-
-            # If there are any remaining spikes, shift all rows up.
-            if data.size > 0:
-                # Delete the oldest row
-                self.plotWidget.removeItem(seg_list[-1])
-                seg_list.pop()
-                # Shift remaining rows up
-                for vtg in seg_list:
-                    vtg.setYRange([x+y_per_row for x in vtg.yRange()])
-                # Add new empty row
-                new_y_range = [x - y_per_row for x in seg_list[0].yRange()]
-                new_vtg = pg.VTickGroup(xvals=None, yrange=new_y_range, pen=seg_list[0].pen)
-                seg_list.insert(0, new_vtg)
-                self.plotWidget.addItem(new_vtg)
-                # update last_spike_time to beginning of new row
-                self.raster_series[line_label]['last_spike_time'] -\
-                    (self.raster_series[line_label]['last_spike_time'] % self.x_lim) + self.x_lim
+    def shift_up(self, line_label):
+        self.rasters[line_label]['latest_t0'] += self.x_lim
+        old_x, old_y = self.rasters[line_label]['old'].getData()
+        if old_x.size > 0:
+            keep_bool = (old_y + 1) < self.plot_config['n_rows']
+            self.rasters[line_label]['old'].setData(x=old_x[keep_bool], y=old_y[keep_bool] + 1)
+            self.rasters[line_label]['count'] -= np.sum(np.logical_not(keep_bool))
+        latest_x, latest_y = self.rasters[line_label]['latest'].getData()
+        if latest_x.size > 0:
+            self.rasters[line_label]['old'].addPoints(x=latest_x, y=latest_y + 1)
+            # self.rasters[line_label]['latest'].clear()
+            self.rasters[line_label]['latest'].setData(np.empty(0, dtype=self.rasters[line_label]['latest'].data.dtype))
+        self.rasters[line_label]['start_time'] = max(self.rasters[line_label]['start_time'],
+                                                     self.rasters[line_label]['last_spike_time']
+                                                     - (self.x_lim * self.plot_config['n_rows']))
 
 
 class MyChart(QChart):
