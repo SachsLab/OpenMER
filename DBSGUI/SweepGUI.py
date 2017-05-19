@@ -2,18 +2,19 @@ import sys
 import numpy as np
 from scipy import signal
 import pyaudio
+import PyQt5
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMainWindow, QAction, QToolBar, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton, QApplication
 from PyQt5.QtCore import Qt, QTimer
 import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
-from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
+from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
 
 
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
-PLOTHEIGHT = 800
+WINDOWDIMS = [0, 0, 620, 1080]
 NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will be updated independent of rest.
 RAWDURATION = 1.0
 HPDURATION = 1.0
@@ -23,80 +24,14 @@ FILTERCONFIG = {'order': 6, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
-class MyGUI(QMainWindow):
-    """
-    This application is for monitoring activity from the Blackrock NSP.
-
-    """
+class SweepGUI(CustomGUI):
 
     def __init__(self):
-        super(MyGUI, self).__init__()
-        self.cbsdk_conn = CbSdkConnection(simulate_ok=SIMOK)
-        self.actions = {}
-        self.setup_ui()
-        self.indicate_connection_state()
-        self.show()
-        self.sweep_widgets = {}
+        super(SweepGUI, self).__init__()
+        self.setWindowTitle('Neuroport DBS - Continuous Sweeps')
+        self.plot_widget = {}
 
-    def __del__(self):
-        # CbSdkConnection().disconnect() No need to disconnect because the instance will do so automatically.
-        pass
-
-    def setup_ui(self):
-        self.resize(200, 150)
-        self.setWindowTitle('Neuroport DBS')
-        # self.setCentralWidget(QWidget(self))  # This squeezes out docks.
-        # self.centralWidget().setLayout(QVBoxLayout())
-        self.create_actions()
-        self.create_menus()
-        self.create_toolbars()
-
-    def create_actions(self):
-        # Actions
-        self.actions = {
-            "Connect": QAction("Connect", self),
-            "AddSweep": QAction("Add Sweep Plot", self),
-        }
-        self.actions["Connect"].triggered.connect(self.on_action_connect_triggered)
-        self.actions["AddSweep"].triggered.connect(self.on_action_add_sweep_triggered)
-        # self.actions["Quit"] = QtWidgets.QAction("Quit", self)
-        # self.actions["Quit"].triggered.connect(QtWidgets.qApp.quit)
-
-        # TODO: Icons, tooltips, shortcuts, etc.
-        # TODO: QActionGroup if many actions need to be grouped.
-
-    def create_menus(self):
-        # Menus
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu('&File')
-        file_menu.addAction(self.actions["Connect"])
-        file_menu.addAction(self.actions["AddSweep"])
-
-    def create_toolbars(self):
-        # Toolbars
-        for k, v in self.actions.items():
-            toolbar_item = QToolBar(k)
-            toolbar_item.addAction(v)
-            self.addToolBar(Qt.LeftToolBarArea, toolbar_item)
-
-    def indicate_connection_state(self):
-        if self.cbsdk_conn.is_connected:
-            msg_str = 'Connected to NSP'
-            # TODO: Disable connect menu/toolbar
-        elif self.cbsdk_conn.is_simulating:
-            msg_str = 'Connected to NSP simulator'
-        else:
-            msg_str = 'Not connected'
-            # TODO: Enable connect menu/toolbar
-        self.statusBar().showMessage(msg_str)
-
-    def on_action_connect_triggered(self):
-        result = ConnectDialog.do_connect_dialog()
-        if result == -1:
-            print("Connection canceled.")
-        self.indicate_connection_state()
-
-    def on_action_add_sweep_triggered(self):
+    def on_action_add_plot_triggered(self):
         group_ix, do_filter = AddSamplingGroupDialog.do_samplinggroup_dialog()
         if group_ix == -1:
             print("Add group canceled")
@@ -114,36 +49,32 @@ class MyGUI(QMainWindow):
             gi_item['unit'] = gi_item['unit'].decode('utf-8')
 
         # Chart container
-        self.sweep_widgets[(group_ix, do_filter)] = SweepWidget(group_info, group_ix=group_ix, do_filter=do_filter)
-        self.sweep_widgets[(group_ix, do_filter)].was_closed.connect(self.on_sweep_closed)
+        self.plot_widget[(group_ix, do_filter)] = SweepWidget(group_info, group_ix=group_ix, do_filter=do_filter)
+        self.plot_widget[(group_ix, do_filter)].was_closed.connect(self.on_plot_closed)
 
-    def on_sweep_closed(self):
+    def on_plot_closed(self):
         del_list = []
-        for key in self.sweep_widgets:
-            if self.sweep_widgets[key].awaiting_close:
+        for key in self.plot_widget:
+            if self.plot_widget[key].awaiting_close:
                 del_list.append(key)
 
         for key in del_list:
-            del self.sweep_widgets[key]
+            del self.plot_widget[key]
 
-        if not self.sweep_widgets:
+        if not self.plot_widget:
             self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False}
 
-    def update(self):
-        super(MyGUI, self).update()
-
-        if self.cbsdk_conn.is_connected or self.cbsdk_conn.is_simulating:
-            if self.sweep_widgets:
-                cont_data = self.cbsdk_conn.get_continuous_data()
-                if cont_data is not None:
-                    cont_chan_ids = [x[0] for x in cont_data]
-                    for sweep_key in self.sweep_widgets:
-                        chart_chan_ids = [x['chan'] for x in self.sweep_widgets[sweep_key].group_info]
-                        match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
-                        for chan_id in match_chans:
-                            data = cont_data[cont_chan_ids.index(chan_id)][1]
-                            label = self.sweep_widgets[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
-                            self.sweep_widgets[sweep_key].update(label, data)
+    def do_plot_update(self):
+        cont_data = self.cbsdk_conn.get_continuous_data()
+        if cont_data is not None:
+            cont_chan_ids = [x[0] for x in cont_data]
+            for sweep_key in self.plot_widget:
+                chart_chan_ids = [x['chan'] for x in self.plot_widget[sweep_key].group_info]
+                match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
+                for chan_id in match_chans:
+                    data = cont_data[cont_chan_ids.index(chan_id)][1]
+                    label = self.plot_widget[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
+                    self.plot_widget[sweep_key].update(label, data)
 
 
 class AddSamplingGroupDialog(QDialog):
@@ -190,15 +121,13 @@ class AddSamplingGroupDialog(QDialog):
 
 
 class SweepWidget(CustomWidget):
-    def __init__(self, *args, do_filter=False, theme='dark', **kwargs):
+    def __init__(self, *args, **kwargs):
         super(SweepWidget, self).__init__(*args, **kwargs)
-        self.resize(600, PLOTHEIGHT)
+        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
+        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
+        self.refresh_axes()  # Extra time on purpose.
         self.pya_manager = pyaudio.PyAudio()
         self.pya_stream = None
-        self.setup_control_panel()
-        self.setup_plot_widget(do_filter=do_filter, theme=theme)
-        self.refresh_axes()
-        self.refresh_axes()  # Twice on purpose.
         self.audio = {}
         self.reset_audio()
 
@@ -210,7 +139,7 @@ class SweepWidget(CustomWidget):
         self.pya_manager.terminate()
         super(SweepWidget, self).closeEvent(evnt)
 
-    def setup_control_panel(self):
+    def create_control_panel(self):
         # Create control panel
         # +/- range
         cntrl_layout = QHBoxLayout()
@@ -236,26 +165,25 @@ class SweepWidget(CustomWidget):
         self.monitor_chan_label = None
         self.layout().addLayout(cntrl_layout)
 
-    def setup_plot_widget(self, do_filter=False, theme='dark'):
+    def create_plots(self, theme='dark', do_filter=True):
+        # Collect PlotWidget configuration
+        self.plot_config = {
+            'x_range': XRANGE,
+            'y_range': YRANGE,
+            'theme': theme,
+            'color_iterator': -1
+        }
+        self.plot_config['n_segments'] = NPLOTSEGMENTS
+        self.plot_config['do_filter'] = do_filter
         # Create and add PlotWidget
         self.plotWidget = pg.PlotWidget()
         self.plotWidget.useOpenGL(True)
         self.layout().addWidget(self.plotWidget)
-
-        # Configure the PlotWidget
-        self.plot_config = {
-            'x_range': XRANGE,
-            'y_range': YRANGE,
-            'duration': RAWDURATION,
-            'n_segments': NPLOTSEGMENTS,
-            'do_filter': do_filter,
-            'theme': theme,
-            'color_iterator': -1
-        }
-
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
         for chan_ix in range(len(self.group_info)):
-            self.add_series(self.group_info[chan_ix], sampling_rate=self.samplingRate, do_filter=do_filter)
+            self.add_series(self.group_info[chan_ix],
+                            sampling_rate=self.samplingRate,
+                            do_filter=self.plot_config['do_filter'])
 
     def on_range_edit_editingFinished(self):
         self.plot_config['y_range'] = float(self.range_edit.text())
@@ -286,7 +214,7 @@ class SweepWidget(CustomWidget):
         pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
 
         # Prepare plot data
-        n_samples = int(self.plot_config['duration'] * sampling_rate)
+        n_samples = int(self.plot_config['x_range'] * sampling_rate)
         xdata = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
         samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
         curve_segments = []
@@ -306,7 +234,7 @@ class SweepWidget(CustomWidget):
             my_filter = None
 
         # Attempt to synchronize different series using machine time.
-        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['duration']) * sampling_rate)
+        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['x_range']) * sampling_rate)
 
         # Add threshold line
         thresh_line = pg.InfiniteLine(angle=0, movable=True)
@@ -352,7 +280,7 @@ class SweepWidget(CustomWidget):
         return out_data, flag
 
     def refresh_axes(self):
-        n_samples = self.plot_config['duration'] * self.samplingRate
+        n_samples = self.plot_config['x_range'] * self.samplingRate
 
         # X-axis
         x_ax_item = self.plotWidget.getPlotItem().getAxis('bottom')
@@ -406,7 +334,7 @@ class SweepWidget(CustomWidget):
                     self.audio['write_ix'] = (self.audio['write_ix'] + data.shape[0]) % self.audio['buffer'].shape[0]
 
         sample_indices = ss_info['last_sample_ix'] + np.arange(n_in, dtype=np.int32)
-        max_ind = np.int32(ss_info['sampling_rate'] * self.plot_config['duration'])
+        max_ind = np.int32(ss_info['sampling_rate'] * self.plot_config['x_range'])
         sample_indices = np.int32(np.mod(sample_indices, max_ind))
 
         # If the data is longer than one sweep (e.g., process sleeping while off-screen),
@@ -416,7 +344,7 @@ class SweepWidget(CustomWidget):
             data = data[-max_ind:]
 
         # Get the sample-offset for each segment.
-        n_samples = int(self.plot_config['duration'] * ss_info['sampling_rate'])
+        n_samples = int(self.plot_config['x_range'] * ss_info['sampling_rate'])
         samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
         x_offsets = np.asarray([ix * samples_per_segment for ix in range(self.plot_config['n_segments'])])
 
@@ -452,7 +380,7 @@ class SweepWidget(CustomWidget):
 
 if __name__ == '__main__':
     qapp = QApplication(sys.argv)
-    aw = MyGUI()
+    aw = SweepGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
     timer.start(1)

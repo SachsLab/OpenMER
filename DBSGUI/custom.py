@@ -1,7 +1,9 @@
 import time
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
 from PyQt5.QtCore import Qt, pyqtSignal
+import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
 
 
@@ -15,6 +17,8 @@ THEMES = {
         'axiswidth': 1
     }
 }
+SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+
 
 def get_now_time():
     # Attempt to synchronize different series using machine time.
@@ -24,6 +28,89 @@ def get_now_time():
     else:
         now = time.time()
     return now
+
+
+class CustomGUI(QMainWindow):
+    """
+    This application is for monitoring activity from the Blackrock NSP.
+    """
+
+    def __init__(self):
+        super(CustomGUI, self).__init__()
+        self.cbsdk_conn = CbSdkConnection(simulate_ok=SIMOK)
+        self.setup_ui()
+        self.indicate_connection_state()
+        self.plot_widget = None
+        self.show()
+
+    def __del__(self):
+        # CbSdkConnection().disconnect() No need to disconnect because the instance will do so automatically.
+        pass
+
+    def setup_ui(self):
+        # self.setCentralWidget(QWidget(self))
+        # self.centralWidget().setLayout(QVBoxLayout())
+        self.create_actions()
+        self.create_menus()
+        self.create_toolbars()
+        self.resize(200, 150)
+
+    def create_actions(self):
+        # Actions
+        self.actions = {
+            'Connect': QAction("Connect", self),
+            'Quit': QAction("Quit", self),
+            'AddPlot': QAction("Add Plot", self)
+        }
+        self.actions['Connect'].triggered.connect(self.on_action_connect_triggered)
+        self.actions['Quit'].triggered.connect(qApp.quit)
+        self.actions['AddPlot'].triggered.connect(self.on_action_add_plot_triggered)
+        # TODO: Icons, tooltips, shortcuts, etc.
+        # TODO: QActionGroup if many actions need to be grouped.
+
+    def create_menus(self):
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu('&File')
+        for action_key in self.actions:
+            file_menu.addAction(self.actions[action_key])
+
+    def create_toolbars(self):
+        for k, v in self.actions.items():
+            toolbar_item = QToolBar(k)
+            toolbar_item.addAction(v)
+            self.addToolBar(Qt.LeftToolBarArea, toolbar_item)
+
+    def indicate_connection_state(self):
+        if self.cbsdk_conn.is_connected:
+            msg_str = 'Connected to NSP'
+            # TODO: Disable connect menu/toolbar
+        elif self.cbsdk_conn.is_simulating:
+            msg_str = 'Connected to NSP simulator'
+        else:
+            msg_str = 'Not connected'
+            # TODO: Enable connect menu/toolbar
+        self.statusBar().showMessage(msg_str)
+
+    def on_action_connect_triggered(self):
+        result = ConnectDialog.do_connect_dialog()
+        if result == -1:
+            print("Connection canceled.")
+        self.indicate_connection_state()
+
+    def on_action_add_plot_triggered(self):
+        # abc.abstractmethod not possible because ABC does not work with Qt-derived classes, so raise error instead.
+        raise TypeError("This method must be overridden by sub-class.")
+
+    def update(self):
+        super(CustomGUI, self).update()
+
+        if self.cbsdk_conn.is_connected or self.cbsdk_conn.is_simulating:
+            if self.plot_widget:
+                self.do_plot_update()
+
+    def do_plot_update(self):
+        # abc.abstractmethod not possible because ABC does not work with Qt-derived classes, so raise error instead.
+        raise TypeError("This method must be overridden by sub-class.")
 
 
 class ConnectDialog(QDialog):
@@ -125,24 +212,44 @@ class CustomWidget(QWidget):
     was_closed = pyqtSignal()
 
     def __init__(self, group_info, group_ix=0, **kwargs):
-        super(CustomWidget, self).__init__(**kwargs)
+        super(CustomWidget, self).__init__()
+        self.setWindowFlags(Qt.FramelessWindowHint)
+
+        # Init member variables
         self.group_info = group_info
         self.awaiting_close = False
+        self.labels = {}
 
         # Get sampling rate from group_ix
         if (SAMPLINGGROUPS[group_ix] == "0") or (SAMPLINGGROUPS[group_ix] == "RAW"):
             group_ix = 5
         self.samplingRate = int(SAMPLINGGROUPS[group_ix])
 
-        chart_layout = QVBoxLayout()
-        chart_layout.setContentsMargins(0, 0, 0, 0)
-        chart_layout.setSpacing(0)
-        self.setLayout(chart_layout)
-
-        self.labels = {}
-
-        self.resize(600, 800)
+        # Create UI elements
+        plot_layout = QVBoxLayout()
+        plot_layout.setContentsMargins(0, 0, 0, 0)
+        plot_layout.setSpacing(0)
+        self.setLayout(plot_layout)
+        self.create_control_panel()
+        self.create_plots(**kwargs)
+        self.refresh_axes()
         self.show()
+
+    def create_control_panel(self):
+        cntrl_layout = QHBoxLayout()
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.clear)
+        cntrl_layout.addWidget(clear_button)
+        self.layout().addLayout(cntrl_layout)
+
+    def create_plots(self, theme='dark'):
+        raise TypeError("Must be implemented by sub-class.")
+
+    def refresh_axes(self):
+        raise TypeError("Must be implemented by sub-class.")
+
+    def clear(self):
+        raise TypeError("Must be implemented by sub-class.")
 
     def closeEvent(self, evnt):
         super(CustomWidget, self).closeEvent(evnt)

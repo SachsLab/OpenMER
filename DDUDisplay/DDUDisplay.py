@@ -9,6 +9,8 @@ from PyQt5.QtCore import *
 from cerebus import cbpy
 # from pympler import tracker
 
+WINDOWDIMS = [1320, 0, 600, 220]
+
 
 class MyGUI(QMainWindow):
     """
@@ -56,7 +58,8 @@ class MyGUI(QMainWindow):
             self.connect_button.setText("Open")
 
     def setup_ui(self):
-        self.resize(600, 250)
+        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
+        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
         self.setWindowTitle('IGN DDU')
         self.setCentralWidget(QWidget(self))
         self.centralWidget().setLayout(QVBoxLayout())
