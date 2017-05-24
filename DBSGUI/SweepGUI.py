@@ -20,7 +20,7 @@ RAWDURATION = 1.0
 HPDURATION = 1.0
 XRANGE = 1.0  # seconds
 YRANGE = 800  # y-axis range per channel, use +- this value.
-FILTERCONFIG = {'order': 6, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
+FILTERCONFIG = {'order': 4 , 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 

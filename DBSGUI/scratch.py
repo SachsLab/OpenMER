@@ -1,71 +1,40 @@
 # Just some chunks of code to help with development.
-import sys
-import PyQt5
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-import numpy as np
-import pyqtgraph as pg
+import sys, os
+import time
+dbsgui_path = os.path.abspath(os.path.join('..', 'NeuroportDBS', 'DBSGUI'))
+sys.path.append(dbsgui_path)
+from cbsdkConnection import CbSdkConnection
 
+SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 
-class MyGUI(QMainWindow):
-    """
-    This application is for monitoring activity from the Blackrock NSP.
+cbsdk_conn = CbSdkConnection(simulate_ok=False)
+cbsdk_conn.connect()
+cbsdk_conn.cbsdk_config = {
+    'reset': True, 'get_events': False, 'get_comments': False, 'get_continuous': False,
+    'buffer_parameter': {
+        'comment_length': 0
+    }
+}
+group_info = cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
+sys_config = cbsdk_conn.get_sys_config()
 
-    """
+# temp_ev = cbsdk_conn.get_event_data()
+# temp_cont = cbsdk_conn.get_continuous_data()
 
-    def __init__(self):
-        super(MyGUI, self).__init__()
-        self.setup_ui()
-        self.show()
+chid = group_info[0]['chan']
+n_valid = [0 for gi in group_info]
+for get_ix in range(10):
+    # for gi_ix in range(len(group_info)):
+    gi_ix = 0
+    temp_wfs, unit_ids, n_valid[gi_ix] = cbsdk_conn.get_waveforms(group_info[gi_ix]['chan'],
+                                                                  valid_since=n_valid[gi_ix],
+                                                                  spike_samples=sys_config['spklength'])
+    print("chid: {}, n_spikes: {}, n_valid: {}".format(group_info[gi_ix]['chan'], temp_wfs.shape[0], n_valid[gi_ix]))
+    time.sleep(1)
+print("done")
 
-    def __del__(self):
-        pass
+# import matplotlib.pyplot as plt
+# plt.ion()
+# plt.plot(temp_wfs.T)
 
-    def setup_ui(self):
-        self.resize(1000, 800)
-        self.setWindowTitle('Test')
-        self.setCentralWidget(QWidget(self))  # This squeezes out docks.
-        self.centralWidget().setLayout(QVBoxLayout())
-
-        glw = pg.GraphicsLayoutWidget()
-        glw.useOpenGL(True)
-        self.centralWidget().layout().addWidget(glw)
-
-        vtick = QPainterPath()
-        vtick.moveTo(0, -0.5)
-        vtick.lineTo(0, 0.5)
-
-        p1 = glw.addPlot(row=0, col=0)
-        p1.setXRange(-0.05, 1.05)
-        p1.hideAxis('bottom')
-
-        s1 = pg.ScatterPlotItem(pxMode=False)
-        s1.setSymbol(vtick)
-        s1.setSize(1)
-        s1.setPen(QColor(*np.random.randint(0, 255 + 1, 3).tolist()))
-        p1.addItem(s1)
-
-        s2 = pg.ScatterPlotItem(pxMode=False, symbol=vtick, size=1,
-                                pen=QColor(*np.random.randint(0, 255 + 1, 3).tolist()))
-        p1.addItem(s2)
-
-        p2 = glw.addPlot(row=1, col=0)
-
-        self.spis = [s1, s2]
-
-    def update(self):
-        super(MyGUI, self).update()
-        for spi_ix in range(len(self.spis)):
-            self.spis[spi_ix].setData(np.random.rand(10), spi_ix + 0.5 + np.zeros((10,)))
-
-
-if __name__ == '__main__':
-    qapp = QApplication(sys.argv)
-    aw = MyGUI()
-    timer = QTimer()
-    timer.timeout.connect(aw.update)
-    timer.start(1)
-
-    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
-        QApplication.instance().exec_()
+cbsdk_conn.disconnect()

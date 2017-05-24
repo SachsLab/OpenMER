@@ -27,7 +27,7 @@ class RasterGUI(CustomGUI):
         self.setWindowTitle('Neuroport DBS - Raster Plot')
 
     def on_action_add_plot_triggered(self):
-        self.cbsdk_conn.cbsdk_config ={
+        self.cbsdk_conn.cbsdk_config = {
             'reset': True, 'get_events': True, 'get_comments': True,
             'buffer_parameter': {
                 'comment_length': 10

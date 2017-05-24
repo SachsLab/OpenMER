@@ -292,3 +292,15 @@ class CbSdkConnection(object):
     def monitor_chan(self, chan_ix):
         if self.is_connected:
             cbpy.analog_out(149, chan_ix, track_last=False, spike_only=False, instance=self.cbsdk_config['instance'])
+
+    def get_waveforms(self, chan_ix, valid_since=0, spike_samples=48):
+        if self.is_connected:
+            return cbpy.get_spike_cache(chan_ix,
+                                        valid_since=valid_since,
+                                        spike_samples=spike_samples,
+                                        instance=self.cbsdk_config['instance'])
+
+    def get_sys_config(self):
+        if self.is_connected:
+            #  {'spklength': spklength, 'spkpretrig': spkpretrig, 'sysfreq': sysfreq}
+            return cbpy.get_sys_config(instance=self.cbsdk_config['instance'])

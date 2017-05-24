@@ -8,15 +8,17 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import pyqtgraph as pg
-from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
+from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
 
 
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
 WINDOWDIMS = [920, 0, 400, 1080]
-XRANGE = 1500  # uSeconds
-YRANGE = 400   # uV default
-SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+XRANGE = [-300, 1140]  # uSeconds
+YRANGE = 250      # uV default
+NWAVEFORMS = 20  # Max number of waveforms to plot.
+SIMOK = False     # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+WF_COLORS = ["white", "magenta", "cyan", "yellow", "purple", "green"]
 
 
 class WaveformGUI(CustomGUI):
@@ -27,24 +29,30 @@ class WaveformGUI(CustomGUI):
 
     def on_action_add_plot_triggered(self):
         self.cbsdk_conn.cbsdk_config ={
-            'reset': True, 'get_events': True, 'get_comments': True,
+            'reset': True, 'get_events': False, 'get_comments': True,
             'buffer_parameter': {
                 'comment_length': 10
             }
         }
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))  # TODO: Or RAW, never both
+        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
         for gi_item in group_info:
             gi_item['label'] = gi_item['label'].decode('utf-8')
             gi_item['unit'] = gi_item['unit'].decode('utf-8')
         self.plot_widget = WaveformWidget(group_info)
         self.plot_widget.was_closed.connect(self.on_plot_closed)
+        self.wf_config = self.cbsdk_conn.get_sys_config()  # {'spklength': 48, 'spkpretrig': 10, 'sysfreq': 30000}
 
     def on_plot_closed(self):
         self.plot_widget = None
         self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
 
     def do_plot_update(self):
-        self.plot_widget.update(None, None)
+        for label in self.plot_widget.wf_info:
+            this_info = self.plot_widget.wf_info[label]
+            temp_wfs, unit_ids, this_info['n_valid'] = self.cbsdk_conn.get_waveforms(
+                this_info['chan_id'], valid_since=this_info['n_valid'], spike_samples=self.wf_config['spklength']
+            )
+            self.plot_widget.update(label, [temp_wfs, unit_ids])
         comments = self.cbsdk_conn.get_comments()
         if comments:
             self.plot_widget.parse_comments(comments)
@@ -54,6 +62,7 @@ class WaveformWidget(CustomWidget):
 
     def __init__(self, *args, **kwargs):
         super(WaveformWidget, self).__init__(*args, **kwargs)
+        # super calls self.create_control_panel(), self.create_plots(**kwargs), self.refresh_axes()
         self.move(WINDOWDIMS[0], WINDOWDIMS[1])
         self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
         self.DTT = None
@@ -64,7 +73,8 @@ class WaveformWidget(CustomWidget):
             'x_range': XRANGE,
             'y_range': YRANGE,
             'theme': theme,
-            'color_iterator': -1
+            'color_iterator': -1,
+            'n_wfs': NWAVEFORMS
         }
         # Create and add GraphicsLayoutWidget
         self.glw = pg.GraphicsLayoutWidget()
@@ -78,30 +88,28 @@ class WaveformWidget(CustomWidget):
         new_plot = self.glw.addPlot(row=len(self.wf_info), col=0)
 
         # Appearance settings
-        my_theme = THEMES[self.plot_config['theme']]
-        self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        # my_theme = THEMES[self.plot_config['theme']]
+        # self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
+        # pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
 
-        now_time = int(get_now_time())
         self.wf_info[chan_info['label']] = {
             'plot': new_plot,
             'line_ix': len(self.wf_info),
             'chan_id': chan_info['chan'],
-            'count': 0,
-            'last_spike_time': now_time
+            'n_valid': 0
         }
 
     def refresh_axes(self):
-        self.x_lim = int(self.plot_config['x_range'] * self.samplingRate / 1000000)
         for wf_key in self.wf_info:
             plot = self.wf_info[wf_key]['plot']
-            plot.setXRange(0, self.x_lim)
+            plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1])
             plot.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
             plot.hideAxis('bottom')
             plot.hideAxis('left')
 
     def clear(self):
-        pass
+        for line_label in self.wf_info:
+            self.wf_info[line_label]['plot'].clear()
 
     def parse_comments(self, comments):
         # comments is a list of lists: [[timestamp, string, rgba],]
@@ -119,11 +127,24 @@ class WaveformWidget(CustomWidget):
     def update(self, line_label, data):
         """
 
-        :param line_label: Label of the segmented series
-        :param data: Replace data in the segmented series with these data
+        :param line_label: Label of the plot series
+        :param data: Replace data in the plot with these data
         :return:
         """
-        pass
+        wfs, unit_ids = data
+        x = (1000000 / self.samplingRate) * np.arange(wfs.shape[1]) + self.plot_config['x_range'][0]
+        for ix in range(wfs.shape[0]):
+            if np.sum(np.nonzero(wfs[ix])) > 0:
+                c = pg.PlotCurveItem()
+                # pen_color = QColor(WF_COLORS[unit_ids[ix]])
+                # c.setPen(pen_color)
+                self.wf_info[line_label]['plot'].addItem(c)
+                c.setData(x=x, y=0.25*wfs[ix])
+        data_items = self.wf_info[line_label]['plot'].listDataItems()
+        if len(data_items) > NWAVEFORMS:
+            for di in data_items[:-NWAVEFORMS]:
+                self.wf_info[line_label]['plot'].removeItem(di)
+
 
 
 if __name__ == '__main__':
