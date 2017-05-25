@@ -62,9 +62,6 @@ class RasterGUI(CustomGUI):
 
 class RasterWidget(CustomWidget):
     frate_changed = pyqtSignal(str, float)
-    vtick = QPainterPath()
-    vtick.moveTo(0, -0.5)
-    vtick.lineTo(0, 0.5)
 
     def __init__(self, *args, **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
@@ -90,21 +87,18 @@ class RasterWidget(CustomWidget):
 
     def add_series(self, chan_info):
         new_plot = self.glw.addPlot(row=len(self.rasters), col=0)
-
         # Appearance settings
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
         pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
-
-        spis = []
-        for spi_ix in range(2):
-            spi = pg.ScatterPlotItem(pxMode=False)
-            spi.setSymbol(self.vtick)
-            spi.setSize(0.8)
-            spi.setPen(pen_color)
-            new_plot.addItem(spi)
-            spis.append(spi)
-
+        # Create PlotCurveItem for latest spikes (bottom row) and slower-updating old spikes (upper rows)
+        pcis = []
+        for pci_ix in range(2):
+            pci = pg.PlotCurveItem(connect='pairs')
+            pci.setPen(pen_color)
+            new_plot.addItem(pci)
+            pcis.append(pci)
+        # Create text for displaying firing rate. Placeholder text is channel label.
         frate_annotation = pg.TextItem(text=chan_info['label'],
                                        color=(255, 255, 255))
         frate_annotation.setPos(0, self.plot_config['y_range'])
@@ -112,22 +106,16 @@ class RasterWidget(CustomWidget):
         my_font.setPointSize(24)
         frate_annotation.setFont(my_font)
         new_plot.addItem(frate_annotation)
-
-        start_time = int(get_now_time())
-
+        # Store information
         self.rasters[chan_info['label']] = {
             'plot': new_plot,
-            'old': spis[0],
-            'latest': spis[1],
+            'old': pcis[0],
+            'latest': pcis[1],
             'line_ix': len(self.rasters),
             'chan_id': chan_info['chan'],
-            'count': 0,
-            'frate': 0,
-            'frate_item': frate_annotation,
-            'start_time': start_time,
-            'latest_t0': start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate)),
-            'last_spike_time': start_time
+            'frate_item': frate_annotation
         }
+        self.clear()
 
     def refresh_axes(self):
         self.x_lim = int(self.plot_config['x_range'] * self.samplingRate)
@@ -142,10 +130,10 @@ class RasterWidget(CustomWidget):
         start_time = int(get_now_time())
         for key in self.rasters:
             rs = self.rasters[key]
-            # rs['old'].clear()
-            rs['old'].setData(np.empty(0, dtype=rs['old'].data.dtype))
-            # rs['latest'].clear()
-            rs['latest'].setData(np.empty(0, dtype=rs['latest'].data.dtype))
+            rs['old'].clear()
+            rs['latest'].clear()
+            rs['old_timestamps'] = np.empty(0, dtype=np.uint32)
+            rs['latest_timestamps'] = np.empty(0, dtype=np.uint32)
             rs['count'] = 0
             rs['start_time'] = start_time
             rs['latest_t0'] = start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate))
@@ -178,54 +166,53 @@ class RasterWidget(CustomWidget):
         :param data: Replace data in the segmented series with these data
         :return:
         """
-        if len(data[0]) == 0:
-            # If data is empty, get_now_time and shift up if necessary.
-            now_time = int(get_now_time())
-            while (now_time - self.rasters[line_label]['latest_t0']) > self.x_lim:
-                self.shift_up(line_label)
-        else:
-            # Process data
-            data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same series.
-            data.sort()
-            # Only keep recent spikes
-            data = data[np.logical_and(data > self.rasters[line_label]['last_spike_time'],
-                                       data > self.rasters[line_label]['latest_t0'])]
-
-            # Process remaining spikes
-            while data.size > 0:
-                add_data_bool = np.logical_and(data > self.rasters[line_label]['latest_t0'],
-                                               data <= self.rasters[line_label]['latest_t0'] + self.x_lim)
-                add_count = np.sum(add_data_bool)
-                if add_count > 0:
-                    self.rasters[line_label]['latest'].addPoints(x=data[add_data_bool] % self.x_lim,
-                                                                 y=0.5*np.ones(np.sum(add_data_bool)))
-                    self.rasters[line_label]['last_spike_time'] = data[add_data_bool][-1]
-                    self.rasters[line_label]['count'] += add_count
-                    data = data[np.logical_not(add_data_bool)]
-
-                if data.size > 0:
-                    self.shift_up(line_label)
-
-        samples_elapsed = self.rasters[line_label]['last_spike_time'] - self.rasters[line_label]['start_time']
+        now_time = int(get_now_time())
+        new_t0 = now_time - (now_time % self.x_lim)
+        rs = self.rasters[line_label]
+        # Process data
+        data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same unit.
+        data = data[data > rs['last_spike_time']]  # Only keep spikes we haven't seen before.
+        rs['latest_timestamps'] = np.append(rs['latest_timestamps'], data)
+        rs['count'] += data.size
+        if data.size > 0:
+            rs['last_spike_time'] = max(data)
+        # Move spikes that do not belong in the bottom row to the upper section (latest)
+        move_bool = rs['latest_timestamps'] < new_t0
+        if np.any(move_bool):
+            rs['old_timestamps'] = np.append(rs['old_timestamps'], rs['latest_timestamps'][move_bool])
+            rs['latest_timestamps'] = rs['latest_timestamps'][np.logical_not(move_bool)]
+        # Remove spikes that are outside the plot_range
+        remove_bool = rs['old_timestamps'] < (new_t0 - self.x_lim * (self.plot_config['y_range'] - 1))
+        if np.any(remove_bool):
+            rs['old_timestamps'] = rs['old_timestamps'][np.logical_not(remove_bool)]
+            rs['count'] -= np.sum(remove_bool)
+        # Update bottom section of plot (latest)
+        if (data.size > 0) or np.any(move_bool) or (new_t0 != rs['latest_t0']):
+            # Update latest
+            x_vals = np.repeat(rs['latest_timestamps'] - rs['latest_t0'], 2)
+            y_vals = 0.1 * np.ones_like(x_vals)
+            y_vals[1::2] += 0.8
+            rs['latest'].setData(x=x_vals, y=y_vals)
+        # Update upper section of plot (old)
+        if np.any(move_bool) or (new_t0 != rs['latest_t0']):
+            # Update old
+            x_vals = rs['old_timestamps'] % self.x_lim
+            y_vals = 1.1 * np.ones_like(x_vals)
+            for row_ix in range(1, self.plot_config['y_range']):
+                row_cutoff = new_t0 - (row_ix * self.x_lim)
+                y_vals[rs['old_timestamps'] < row_cutoff] += 1
+            x_vals = np.repeat(x_vals, 2)
+            y_vals = np.repeat(y_vals, 2)
+            y_vals[1::2] += 0.8
+            rs['old'].setData(x=x_vals, y=y_vals)
+        # Save some variables
+        rs['latest_t0'] = new_t0
+        rs['start_time'] = max(rs['start_time'], rs['last_spike_time'] - (self.x_lim * self.plot_config['y_range']))
+        # Update frate annotation.
+        samples_elapsed = rs['last_spike_time'] - rs['start_time']
         if samples_elapsed > 0:
             frate = self.rasters[line_label]['count'] * self.samplingRate / samples_elapsed
             self.modify_frate(line_label, frate)
-
-    def shift_up(self, line_label):
-        self.rasters[line_label]['latest_t0'] += self.x_lim
-        old_x, old_y = self.rasters[line_label]['old'].getData()
-        if old_x.size > 0:
-            keep_bool = (old_y + 1) < self.plot_config['y_range']
-            self.rasters[line_label]['old'].setData(x=old_x[keep_bool], y=old_y[keep_bool] + 1)
-            self.rasters[line_label]['count'] -= np.sum(np.logical_not(keep_bool))
-        latest_x, latest_y = self.rasters[line_label]['latest'].getData()
-        if latest_x.size > 0:
-            self.rasters[line_label]['old'].addPoints(x=latest_x, y=latest_y + 1)
-            # self.rasters[line_label]['latest'].clear()
-            self.rasters[line_label]['latest'].setData(np.empty(0, dtype=self.rasters[line_label]['latest'].data.dtype))
-        self.rasters[line_label]['start_time'] = max(self.rasters[line_label]['start_time'],
-                                                     self.rasters[line_label]['last_spike_time']
-                                                     - (self.x_lim * self.plot_config['y_range']))
 
 
 if __name__ == '__main__':
