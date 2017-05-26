@@ -4,7 +4,7 @@ from scipy import signal
 import pyaudio
 import PyQt5
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QMainWindow, QAction, QToolBar, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton, QApplication
 from PyQt5.QtCore import Qt, QTimer
 import pyqtgraph as pg
@@ -15,12 +15,12 @@ from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, TH
 # TODO: Make some of these settings configurable via UI elements
 # TODO: Load these constants from a config file.
 WINDOWDIMS = [0, 0, 620, 1080]
+WINDOWDIMS_LFP = [1320, 220, 600, 860]
 NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will be updated independent of rest.
-RAWDURATION = 1.0
-HPDURATION = 1.0
-XRANGE = 1.0  # seconds
+XRANGE = 1.05 # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
 YRANGE = 800  # y-axis range per channel, use +- this value.
-FILTERCONFIG = {'order': 4 , 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
+FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
+DSFAC = 100
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 
 
@@ -32,7 +32,7 @@ class SweepGUI(CustomGUI):
         self.plot_widget = {}
 
     def on_action_add_plot_triggered(self):
-        group_ix, do_filter = AddSamplingGroupDialog.do_samplinggroup_dialog()
+        group_ix, do_downsample = AddSamplingGroupDialog.do_samplinggroup_dialog()
         if group_ix == -1:
             print("Add group canceled")
             return
@@ -49,8 +49,10 @@ class SweepGUI(CustomGUI):
             gi_item['unit'] = gi_item['unit'].decode('utf-8')
 
         # Chart container
-        self.plot_widget[(group_ix, do_filter)] = SweepWidget(group_info, group_ix=group_ix, do_filter=do_filter)
-        self.plot_widget[(group_ix, do_filter)].was_closed.connect(self.on_plot_closed)
+        self.plot_widget[(group_ix, do_downsample)] = SweepWidget(group_info,
+                                                                  group_ix=group_ix,
+                                                                  downsample=do_downsample)
+        self.plot_widget[(group_ix, do_downsample)].was_closed.connect(self.on_plot_closed)
 
     def on_plot_closed(self):
         del_list = []
@@ -75,6 +77,11 @@ class SweepGUI(CustomGUI):
                     data = cont_data[cont_chan_ids.index(chan_id)][1]
                     label = self.plot_widget[sweep_key].group_info[chart_chan_ids.index(chan_id)]['label']
                     self.plot_widget[sweep_key].update(label, data)
+        # Comment above and uncomment below to test if trying to exclude cbsdk.
+        # for sweep_key in self.plot_widget:
+        #     for gi in self.plot_widget[sweep_key].group_info:
+        #         data = np.random.randint(-500, 500, size=(10000,), dtype=np.int16)
+        #         self.plot_widget[sweep_key].update(gi['label'], data)
 
 
 class AddSamplingGroupDialog(QDialog):
@@ -97,10 +104,10 @@ class AddSamplingGroupDialog(QDialog):
         chan_group_layout.addWidget(self.combo_box)
         layout.addLayout(chan_group_layout)
 
-        # Do filter
-        self.filter_checkbox = QCheckBox("250 Hz hp filter")
-        self.filter_checkbox.setChecked(True)
-        layout.addWidget(self.filter_checkbox)
+        # Check this box to create a new alternate window. This enables viewing the data twice (e.g., filtered and raw)
+        self.downsample_checkbox = QCheckBox("Downsample")
+        self.downsample_checkbox.setChecked(False)
+        layout.addWidget(self.downsample_checkbox)
 
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
@@ -116,15 +123,20 @@ class AddSamplingGroupDialog(QDialog):
         result = dialog.exec_()
         if result == QDialog.Accepted:
             # Get channel group from widgets and return it
-            return dialog.combo_box.currentIndex(), dialog.filter_checkbox.checkState() == Qt.Checked
+            return dialog.combo_box.currentIndex(), dialog.downsample_checkbox.checkState() == Qt.Checked
         return -1, False
 
 
 class SweepWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
+        self.plot_config = {}
+        self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
         super(SweepWidget, self).__init__(*args, **kwargs)
-        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
-        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
+        this_dims = WINDOWDIMS
+        if 'downsample' in self.plot_config and self.plot_config['downsample']:
+            this_dims = WINDOWDIMS_LFP
+        self.move(this_dims[0], this_dims[1])
+        self.resize(this_dims[2], this_dims[3])
         self.refresh_axes()  # Extra time on purpose.
         self.pya_manager = pyaudio.PyAudio()
         self.pya_stream = None
@@ -162,28 +174,25 @@ class SweepWidget(CustomWidget):
             monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
         monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
-        self.monitor_chan_label = None
+        # Checkbox for HP filter
+        filter_checkbox = QCheckBox("HP")
+        filter_checkbox.stateChanged.connect(self.on_hp_filter_changed)
+        filter_checkbox.setChecked(True)
+        cntrl_layout.addWidget(filter_checkbox)
+        # Checkbox for Comb filter
+        filter_checkbox = QCheckBox("LN")
+        filter_checkbox.setEnabled(False)
+        filter_checkbox.stateChanged.connect(self.on_ln_filter_changed)
+        filter_checkbox.setChecked(False)
+        cntrl_layout.addWidget(filter_checkbox)
+        # Finish
         self.layout().addLayout(cntrl_layout)
 
-    def create_plots(self, theme='dark', do_filter=True):
-        # Collect PlotWidget configuration
-        self.plot_config = {
-            'x_range': XRANGE,
-            'y_range': YRANGE,
-            'theme': theme,
-            'color_iterator': -1
-        }
-        self.plot_config['n_segments'] = NPLOTSEGMENTS
-        self.plot_config['do_filter'] = do_filter
-        # Create and add PlotWidget
-        self.plotWidget = pg.PlotWidget()
-        self.plotWidget.useOpenGL(True)
-        self.layout().addWidget(self.plotWidget)
-        self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
-        for chan_ix in range(len(self.group_info)):
-            self.add_series(self.group_info[chan_ix],
-                            sampling_rate=self.samplingRate,
-                            do_filter=self.plot_config['do_filter'])
+    def on_hp_filter_changed(self, state):
+        self.plot_config['do_hp'] = state == Qt.Checked
+
+    def on_ln_filter_changed(self, state):
+        self.plot_config['do_ln'] = state == Qt.Checked
 
     def on_range_edit_editingFinished(self):
         self.plot_config['y_range'] = float(self.range_edit.text())
@@ -203,53 +212,100 @@ class SweepWidget(CustomWidget):
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
-                new_thresh = int(inf_line.getYPos() - ss_info['y_offset'])
+                new_thresh = int(inf_line.getYPos())
                 cbsdkconn = CbSdkConnection()
                 cbsdkconn.set_channel_info(ss_info['chan_id'], {'spkthrlevel': new_thresh})
 
-    def add_series(self, chan_info, sampling_rate=30000, do_filter=False):
+    def create_plots(self, theme='dark', downsample=False):
+        # Collect PlotWidget configuration
+        self.plot_config['downsample'] = downsample
+        self.plot_config['x_range'] = XRANGE
+        self.plot_config['y_range'] = YRANGE
+        self.plot_config['theme'] = theme
+        self.plot_config['color_iterator'] = -1
+        self.plot_config['n_segments'] = NPLOTSEGMENTS
+        if 'do_hp' not in self.plot_config:
+            self.plot_config['do_hp'] = False
+        self.plot_config['hp_sos'] = signal.butter(FILTERCONFIG['order'],
+                                                   2 * FILTERCONFIG['cutoff'] / self.samplingRate,
+                                                   btype=FILTERCONFIG['type'],
+                                                   output=FILTERCONFIG['output'])
+        if 'do_ln' not in self.plot_config:
+            self.plot_config['do_ln'] = False
+        self.plot_config['ln_filt'] = None  # TODO: comb filter coeffs
+
+        # Create and add GraphicsLayoutWidget
+        glw = pg.GraphicsLayoutWidget(parent=self)
+        # glw.useOpenGL(True)  # Actually seems slower.
+        self.layout().addWidget(glw)
+        # Add add a plot with a series of many curve segments for each line.
+        for chan_ix in range(len(self.group_info)):
+            self.add_series(self.group_info[chan_ix])
+
+    def add_series(self, chan_info):
+        # Plot for this channel
+        glw = self.findChild(pg.GraphicsLayoutWidget)
+        new_plot = glw.addPlot(row=len(self.segmented_series), col=0, title=chan_info['label'], enableMenu=False)
+        new_plot.setMouseEnabled(x=False, y=False)
+
         # Appearance settings
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
         pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
 
         # Prepare plot data
-        n_samples = int(self.plot_config['x_range'] * sampling_rate)
-        xdata = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
-        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
-        curve_segments = []
+        samples_per_segment = int(
+            np.ceil(self.plot_config['x_range'] * self.samplingRate / self.plot_config['n_segments']))
         for ix in range(self.plot_config['n_segments']):
-            ix_offset = ix * samples_per_segment
-            this_x = xdata[ix_offset:ix_offset + samples_per_segment]  # Last segment might not be full length.
-            c = pg.PlotCurveItem(pen=pen_color)
-            self.plotWidget.addItem(c)
-            c.setData(y=np.zeros(this_x.shape))  # Pre-fill. Use zeros because we do not know offset.
-            curve_segments.append(c)
-
-        if do_filter:
-            sos = signal.butter(FILTERCONFIG['order'], 2 * FILTERCONFIG['cutoff'] / sampling_rate,
-                                btype=FILTERCONFIG['type'], output=FILTERCONFIG['output'])
-            my_filter = {'sos': sos, 'zi': signal.sosfilt_zi(sos)}
-        else:
-            my_filter = None
-
-        # Attempt to synchronize different series using machine time.
-        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['x_range']) * sampling_rate)
+            if ix < (self.plot_config['n_segments'] - 1):
+                seg_x = np.arange(ix * samples_per_segment, (ix + 1) * samples_per_segment, dtype=np.int16)
+            else:
+                # Last segment might not be full length.
+                seg_x = np.arange(ix * samples_per_segment,
+                                  int(self.plot_config['x_range'] * self.samplingRate), dtype=np.int16)
+            if self.plot_config['downsample']:
+                seg_x = seg_x[::DSFAC]
+            c = new_plot.plot(parent=new_plot, pen=pen_color)  # PlotDataItem
+            c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
         # Add threshold line
         thresh_line = pg.InfiniteLine(angle=0, movable=True)
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
-        self.plotWidget.addItem(thresh_line)
+        new_plot.addItem(thresh_line)
 
         self.segmented_series[chan_info['label']] = {
-            'segments': curve_segments,
-            'sampling_rate': sampling_rate,  # Per-line sampling_rate not supported at this time.
-            'filter': my_filter,
-            'last_sample_ix': last_sample_ix,
+            'chan_id': chan_info['chan'],
             'line_ix': len(self.segmented_series),
+            'plot': new_plot,
+            'last_sample_ix': -1,
             'thresh_line': thresh_line,
-            'chan_id': chan_info['chan']
+            'hp_zi': signal.sosfilt_zi(self.plot_config['hp_sos']),
+            'ln_zi': None
         }
+
+    def refresh_axes(self):
+        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['x_range']) * self.samplingRate)
+        for line_label in self.segmented_series:
+            ss_info = self.segmented_series[line_label]
+
+            # Fixup axes
+            plot = ss_info['plot']
+            plot.setXRange(0, self.plot_config['x_range'] * self.samplingRate)
+            plot.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            plot.hideAxis('bottom')
+            plot.hideAxis('left')
+
+            # Reset data
+            for seg_ix in range(self.plot_config['n_segments']):
+                pci = plot.dataItems[seg_ix]
+                old_x, old_y = pci.getData()
+                pci.setData(x=old_x, y=np.zeros_like(old_x))
+                ss_info['last_sample_ix'] = last_sample_ix
+
+            # Get channel info from cbpy to determine threshold
+            cbsdkconn = CbSdkConnection()
+            full_info = cbsdkconn.get_channel_info(ss_info['chan_id'])
+            ss_info['thresh_line'].setValue(full_info['spkthrlevel'])
 
     def reset_audio(self):
         if self.pya_stream:
@@ -279,39 +335,6 @@ class SweepWidget(CustomWidget):
         flag = pyaudio.paContinue
         return out_data, flag
 
-    def refresh_axes(self):
-        n_samples = self.plot_config['x_range'] * self.samplingRate
-
-        # X-axis
-        x_ax_item = self.plotWidget.getPlotItem().getAxis('bottom')
-        x_ax_item.setTicks([
-            [(0, "0"), (n_samples, "{0:.2f}".format(n_samples / self.samplingRate))],
-        ])
-        x_ax_item.setLabel(name="Time", unit="s")
-        self.plotWidget.setXRange(0, n_samples, padding=0)
-
-        # Y-axis
-        min_y = (1 - 2 * len(self.segmented_series)) * self.plot_config['y_range']
-        self.plotWidget.setYRange(min_y, self.plot_config['y_range'])
-        new_y_ticks = []
-        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
-        for line_label in self.segmented_series:
-            ss_info = self.segmented_series[line_label]
-            y_offset = int(-ss_info['line_ix'] * 2 * self.plot_config['y_range'])
-            ss_info['y_offset'] = y_offset
-            new_y_ticks.append((y_offset, line_label))
-            for ix in range(len(ss_info['segments'])):
-                x_offset = ix * samples_per_segment
-                ss_info['segments'][ix].setPos(x_offset, y_offset)
-
-            # Get channel info from cbpy to determine threshold
-            cbsdkconn = CbSdkConnection()
-            full_info = cbsdkconn.get_channel_info(ss_info['chan_id'])
-            ss_info['thresh_line'].setValue(y_offset + full_info['spkthrlevel'])
-
-        y_ax_item = self.plotWidget.getPlotItem().getAxis('left')
-        y_ax_item.setTicks([new_y_ticks])
-
     def update(self, line_label, data):
         """
 
@@ -321,11 +344,10 @@ class SweepWidget(CustomWidget):
         """
         ss_info = self.segmented_series[line_label]
         n_in = data.shape[0]
-
-        my_filter = ss_info['filter']
-        if my_filter:
-            data, my_filter['zi'] = signal.sosfilt(my_filter['sos'], data, zi=my_filter['zi'])
-
+        if self.plot_config['do_hp']:
+            data, ss_info['hp_zi'] = signal.sosfilt(self.plot_config['hp_sos'], data, zi=ss_info['hp_zi'])
+        if self.plot_config['do_ln']:
+            pass  # TODO: Line noise / comb filter
         if self.pya_stream:
             if 'chan_label' in self.audio and self.audio['chan_label']:
                 if self.audio['chan_label'] == line_label:
@@ -333,49 +355,37 @@ class SweepWidget(CustomWidget):
                     self.audio['buffer'][write_indices] = (np.copy(data) * (2**15 / self.plot_config['y_range'])).astype(np.int16)
                     self.audio['write_ix'] = (self.audio['write_ix'] + data.shape[0]) % self.audio['buffer'].shape[0]
 
-        sample_indices = ss_info['last_sample_ix'] + np.arange(n_in, dtype=np.int32)
-        max_ind = np.int32(ss_info['sampling_rate'] * self.plot_config['x_range'])
-        sample_indices = np.int32(np.mod(sample_indices, max_ind))
+        # Assume new samples are consecutively added to old samples (i.e., no lost samples)
+        sample_indices = np.arange(n_in, dtype=np.int32) + ss_info['last_sample_ix']
 
-        # If the data is longer than one sweep (e.g., process sleeping while off-screen),
-        # then the indices will overlap. So we take only the samples that will be plotted..
-        if sample_indices.size > max_ind:
-            sample_indices = sample_indices[-max_ind:]
-            data = data[-max_ind:]
+        # Wrap sample indices around our plotting limit
+        n_plot_samples = int(self.plot_config['x_range'] * self.samplingRate)
+        sample_indices = np.int32(np.mod(sample_indices, n_plot_samples))
 
-        # Get the sample-offset for each segment.
-        n_samples = int(self.plot_config['x_range'] * ss_info['sampling_rate'])
-        samples_per_segment = int(np.ceil(n_samples / self.plot_config['n_segments']))
-        x_offsets = np.asarray([ix * samples_per_segment for ix in range(self.plot_config['n_segments'])])
+        # If the data length is longer than one sweep then the indices will overlap. Trim to last n_plot_samples
+        if sample_indices.size > n_plot_samples:
+            sample_indices = sample_indices[-n_plot_samples:]
+            data = data[-n_plot_samples:]
 
-        # Find the segment that includes the last sample that was updated.
-        last_segment_ix = np.where(sample_indices[-1] >= x_offsets)[0][-1]
-
-        all_x = np.arange(n_samples, dtype=np.int32)  # Time x-axis in samples
-        for seg_ix in range(self.plot_config['n_segments']):
-            x_off = x_offsets[seg_ix]
-            seg_x = all_x[x_off:x_off + samples_per_segment]
-            data_bool = np.in1d(sample_indices, seg_x, assume_unique=True)
-            if np.any(data_bool):
-                seg_bool = np.in1d(seg_x, sample_indices, assume_unique=True)
-                # Get old yData
-                pci = ss_info['segments'][seg_ix]  # PlotCurveItem
-                old_y = pci.yData
-                old_y[seg_bool] = data[data_bool]
-
-                # Clear out the rest of last_segment_ix
-                if seg_ix == last_segment_ix:
-                    clear_bool = np.logical_and(seg_x > sample_indices[-1],
-                                                seg_x < sample_indices[-1] + 10)
-                    old_y[clear_bool] = np.zeros((np.sum(clear_bool),), dtype=np.int32)
-
-                # pci yData has been changed, but setData does more than just modify the data.
-                pci.setData(old_y)
-
+        # Go through each plotting segment and replace data with new data as needed.
+        for pci in ss_info['plot'].dataItems:
+            old_x, old_y = pci.getData()
+            x_lims = [old_x[0], old_x[-1]]
+            if self.plot_config['downsample']:
+                x_lims[1] += (DSFAC - 1)
+            data_bool = np.logical_and(sample_indices >= x_lims[0], sample_indices <= x_lims[-1])
+            if np.where(data_bool)[0].size > 0:
+                new_x, new_y = sample_indices[data_bool], data[data_bool]
+                if self.plot_config['downsample']:
+                    new_x = new_x[::DSFAC] - (new_x[0] % DSFAC) + (old_x[0] % DSFAC)
+                    new_y = new_y[::DSFAC]
+                old_bool = np.in1d(old_x, new_x, assume_unique=True)
+                new_bool = np.in1d(new_x, old_x, assume_unique=True)
+                old_y[old_bool] = new_y[new_bool]
+                # old_y[np.where(old_bool)[0][-1]+1:] = 0  # Uncomment to zero out the end of the last seg.
+                pci.setData(x=old_x, y=old_y)
+        # Store last_sample_ix for next iteration.
         self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
-
-        # TODO: occasionally check channel config for spk thresh,
-        # self.segmented_series[line_label]['thresh_line'].setValue(offset + thresh)
 
 
 if __name__ == '__main__':

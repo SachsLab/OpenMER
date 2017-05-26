@@ -4,9 +4,8 @@ chadwick.boulay@gmail.com
 import sys
 import numpy as np
 import PyQt5
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt5.QtWidgets import QPushButton, QLineEdit, QApplication, QHBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QTimer
 import pyqtgraph as pg
 from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
 
@@ -67,6 +66,26 @@ class WaveformWidget(CustomWidget):
         self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
         self.DTT = None
 
+    def create_control_panel(self):
+        # Create control panel
+        cntrl_layout = QHBoxLayout()
+        # +/- amplitude range
+        cntrl_layout.addWidget(QLabel("+/-"))
+        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
+        cntrl_layout.addWidget(self.range_edit)
+        # N Spikes
+        cntrl_layout.addWidget(QLabel("N Spikes"))
+        self.n_spikes_edit = QLineEdit("{}".format(NWAVEFORMS))
+        self.n_spikes_edit.editingFinished.connect(self.on_n_spikes_edit_editingFinished)
+        cntrl_layout.addWidget(self.n_spikes_edit)
+        # Clear button
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.clear)
+        cntrl_layout.addWidget(clear_button)
+        # Finish
+        self.layout().addLayout(cntrl_layout)
+
     def create_plots(self, theme='dark'):
         # Collect PlotWidget configuration
         self.plot_config = {
@@ -77,15 +96,16 @@ class WaveformWidget(CustomWidget):
             'n_wfs': NWAVEFORMS
         }
         # Create and add GraphicsLayoutWidget
-        self.glw = pg.GraphicsLayoutWidget()
-        self.glw.useOpenGL(True)
-        self.layout().addWidget(self.glw)
+        glw = pg.GraphicsLayoutWidget(parent=self)
+        # self.glw.useOpenGL(True)
+        self.layout().addWidget(glw)
         self.wf_info = {}  # Will contain one dictionary for each line/channel label.
         for chan_ix in range(len(self.group_info)):
             self.add_series(self.group_info[chan_ix])
 
     def add_series(self, chan_info):
-        new_plot = self.glw.addPlot(row=len(self.wf_info), col=0)
+        glw = self.findChild(pg.GraphicsLayoutWidget)
+        new_plot = glw.addPlot(row=len(self.wf_info), col=0)
 
         # Appearance settings
         # my_theme = THEMES[self.plot_config['theme']]
@@ -110,6 +130,14 @@ class WaveformWidget(CustomWidget):
     def clear(self):
         for line_label in self.wf_info:
             self.wf_info[line_label]['plot'].clear()
+
+    def on_range_edit_editingFinished(self):
+        self.plot_config['y_range'] = float(self.range_edit.text())
+        self.refresh_axes()
+
+    def on_n_spikes_edit_editingFinished(self):
+        self.plot_config['n_wfs'] = int(self.n_spikes_edit.text())
+        self.refresh_axes()
 
     def parse_comments(self, comments):
         # comments is a list of lists: [[timestamp, string, rgba],]
@@ -141,8 +169,8 @@ class WaveformWidget(CustomWidget):
                 self.wf_info[line_label]['plot'].addItem(c)
                 c.setData(x=x, y=0.25*wfs[ix])
         data_items = self.wf_info[line_label]['plot'].listDataItems()
-        if len(data_items) > NWAVEFORMS:
-            for di in data_items[:-NWAVEFORMS]:
+        if len(data_items) > self.plot_config['n_wfs']:
+            for di in data_items[:-self.plot_config['n_wfs']]:
                 self.wf_info[line_label]['plot'].removeItem(di)
 
 

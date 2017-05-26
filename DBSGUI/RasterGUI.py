@@ -4,9 +4,9 @@ chadwick.boulay@gmail.com
 import sys
 import numpy as np
 import PyQt5
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 import pyqtgraph as pg
 from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
 
@@ -78,15 +78,16 @@ class RasterWidget(CustomWidget):
             'color_iterator': -1
         }
         # Create and add GraphicsLayoutWidget
-        self.glw = pg.GraphicsLayoutWidget()
-        self.glw.useOpenGL(True)
-        self.layout().addWidget(self.glw)
+        glw = pg.GraphicsLayoutWidget(parent=self)
+        # glw.useOpenGL(True)
+        self.layout().addWidget(glw)
         self.rasters = {}  # Will contain one dictionary for each line/channel label.
         for chan_ix in range(len(self.group_info)):
             self.add_series(self.group_info[chan_ix])
 
     def add_series(self, chan_info):
-        new_plot = self.glw.addPlot(row=len(self.rasters), col=0)
+        glw = self.findChild(pg.GraphicsLayoutWidget)
+        new_plot = glw.addPlot(row=len(self.rasters), col=0)
         # Appearance settings
         my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
@@ -94,7 +95,7 @@ class RasterWidget(CustomWidget):
         # Create PlotCurveItem for latest spikes (bottom row) and slower-updating old spikes (upper rows)
         pcis = []
         for pci_ix in range(2):
-            pci = pg.PlotCurveItem(connect='pairs')
+            pci = pg.PlotCurveItem(parent=new_plot, connect='pairs')
             pci.setPen(pen_color)
             new_plot.addItem(pci)
             pcis.append(pci)

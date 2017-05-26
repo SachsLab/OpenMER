@@ -3,7 +3,6 @@ from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
 from PyQt5.QtCore import Qt, pyqtSignal
-import pyqtgraph as pg
 from cbsdkConnection import CbSdkConnection
 
 
@@ -242,7 +241,7 @@ class CustomWidget(QWidget):
         cntrl_layout.addWidget(clear_button)
         self.layout().addLayout(cntrl_layout)
 
-    def create_plots(self, theme='dark'):
+    def create_plots(self, theme='dark', **kwargs):
         raise TypeError("Must be implemented by sub-class.")
 
     def refresh_axes(self):
