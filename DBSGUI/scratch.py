@@ -22,19 +22,10 @@ sys_config = cbsdk_conn.get_sys_config()
 # temp_cont = cbsdk_conn.get_continuous_data()
 
 chid = group_info[0]['chan']
-n_valid = [0 for gi in group_info]
-for get_ix in range(10):
-    # for gi_ix in range(len(group_info)):
-    gi_ix = 0
-    temp_wfs, unit_ids, n_valid[gi_ix] = cbsdk_conn.get_waveforms(group_info[gi_ix]['chan'],
-                                                                  valid_since=n_valid[gi_ix],
-                                                                  spike_samples=sys_config['spklength'])
-    print("chid: {}, n_spikes: {}, n_valid: {}".format(group_info[gi_ix]['chan'], temp_wfs.shape[0], n_valid[gi_ix]))
-    time.sleep(1)
-print("done")
+temp_wfs, unit_ids = cbsdk_conn.get_waveforms(chid)
 
 # import matplotlib.pyplot as plt
 # plt.ion()
-# plt.plot(temp_wfs.T)
+# plt.plot(temp_wfs[unit_ids == 3].T)
 
 cbsdk_conn.disconnect()

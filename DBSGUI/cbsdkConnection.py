@@ -88,6 +88,7 @@ class CbSdkConnection(object):
             'get_events': True,
             'get_continuous': True
         }  # See self._do_config for description.
+        self.spike_cache = {}
 
     def __del__(self):
         self.disconnect()
@@ -293,12 +294,11 @@ class CbSdkConnection(object):
         if self.is_connected:
             cbpy.analog_out(149, chan_ix, track_last=False, spike_only=False, instance=self.cbsdk_config['instance'])
 
-    def get_waveforms(self, chan_ix, valid_since=0, spike_samples=48):
+    def get_waveforms(self, chan_ix):
         if self.is_connected:
-            return cbpy.get_spike_cache(chan_ix,
-                                        valid_since=valid_since,
-                                        spike_samples=spike_samples,
-                                        instance=self.cbsdk_config['instance'])
+            if chan_ix not in self.spike_cache:
+                self.spike_cache[chan_ix] = cbpy.SpikeCache(channel=chan_ix, instance=self.cbsdk_config['instance'])
+            return self.spike_cache[chan_ix].get_new_waveforms()
 
     def get_sys_config(self):
         if self.is_connected:

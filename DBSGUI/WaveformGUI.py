@@ -4,6 +4,7 @@ chadwick.boulay@gmail.com
 import sys
 import numpy as np
 import PyQt5
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QPushButton, QLineEdit, QApplication, QHBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QTimer
 import pyqtgraph as pg
@@ -48,9 +49,7 @@ class WaveformGUI(CustomGUI):
     def do_plot_update(self):
         for label in self.plot_widget.wf_info:
             this_info = self.plot_widget.wf_info[label]
-            temp_wfs, unit_ids, this_info['n_valid'] = self.cbsdk_conn.get_waveforms(
-                this_info['chan_id'], valid_since=this_info['n_valid'], spike_samples=self.wf_config['spklength']
-            )
+            temp_wfs, unit_ids = self.cbsdk_conn.get_waveforms(this_info['chan_id'])
             self.plot_widget.update(label, [temp_wfs, unit_ids])
         comments = self.cbsdk_conn.get_comments()
         if comments:
@@ -115,8 +114,7 @@ class WaveformWidget(CustomWidget):
         self.wf_info[chan_info['label']] = {
             'plot': new_plot,
             'line_ix': len(self.wf_info),
-            'chan_id': chan_info['chan'],
-            'n_valid': 0
+            'chan_id': chan_info['chan']
         }
 
     def refresh_axes(self):
@@ -164,8 +162,8 @@ class WaveformWidget(CustomWidget):
         for ix in range(wfs.shape[0]):
             if np.sum(np.nonzero(wfs[ix])) > 0:
                 c = pg.PlotCurveItem()
-                # pen_color = QColor(WF_COLORS[unit_ids[ix]])
-                # c.setPen(pen_color)
+                pen_color = QColor(WF_COLORS[unit_ids[ix]])
+                c.setPen(pen_color)
                 self.wf_info[line_label]['plot'].addItem(c)
                 c.setData(x=x, y=0.25*wfs[ix])
         data_items = self.wf_info[line_label]['plot'].listDataItems()
