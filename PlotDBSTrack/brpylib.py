@@ -463,7 +463,8 @@ class NevFile:
         elec_ids = check_elecid(elec_ids)
 
         # Must go through each data packet and process separately until end of file
-        while self.datafile.tell() != ospath.getsize(self.datafile.name):
+        filesize = ospath.getsize(self.datafile.name)
+        while self.datafile.tell() != filesize:
 
             time_stamp = unpack('<I', self.datafile.read(4))[0]
             packet_id  = unpack('<H', self.datafile.read(2))[0]
