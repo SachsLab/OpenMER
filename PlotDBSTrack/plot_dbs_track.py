@@ -6,12 +6,12 @@ from scipy import signal
 
 record_number = '001'
 data_folder = '20170419-153633'
-seg_interval = [1, 5]
+seg_interval = [0.5, 4.5]
 hp_cutoff = 250
 beta_cutoff = np.asarray([16, 30])
 rms_thresh = 4.0
 dec_factor = 10
-data_root = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', '..', 'Data'))
+data_root = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', '..', 'DBSData'))
 
 nev_fn = os.path.join(data_root, data_folder, data_folder + '-' + record_number + '.nev')
 nsx_fn = os.path.join(data_root, data_folder, data_folder + '-' + record_number + '.ns5')
