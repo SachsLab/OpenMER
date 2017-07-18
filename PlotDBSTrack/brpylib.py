@@ -437,7 +437,7 @@ class NevFile:
             if header_string == 'NEUEVWAV' and float(self.basic_header['FileSpec']) < 2.3:
                 self.extended_headers[i]['SpikeWidthSamples'] = WAVEFORM_SAMPLES_21
 
-    def getdata(self, elec_ids='all'):
+    def getdata(self, elec_ids='all', get_waveforms=True):
         """
         This function is used to return a set of data from the NSx datafile.
 
@@ -558,14 +558,17 @@ class NevFile:
                 elif num_bytes == 2: data_type = np.int16
 
                 # Extract and scale the data
-                if idx == -1:
-                    output['spike_events']['Waveforms'].append(
-                        [np.fromfile(file=self.datafile, dtype=data_type, count=samples).astype(np.int32) * dig_factor])
+                if get_waveforms:
+                    if idx == -1:
+                        output['spike_events']['Waveforms'].append(
+                            [np.fromfile(file=self.datafile, dtype=data_type, count=samples).astype(np.int32) * dig_factor])
+                    else:
+                        output['spike_events']['Waveforms'][idx] = \
+                            np.append(output['spike_events']['Waveforms'][idx],
+                                      [np.fromfile(file=self.datafile, dtype=data_type, count=samples).astype(np.int32) *
+                                       dig_factor], axis=0)
                 else:
-                    output['spike_events']['Waveforms'][idx] = \
-                        np.append(output['spike_events']['Waveforms'][idx],
-                                  [np.fromfile(file=self.datafile, dtype=data_type, count=samples).astype(np.int32) *
-                                   dig_factor], axis=0)
+                    self.datafile.seek(self.basic_header['BytesInDataPackets'] - 8, 1)
 
             # For comment events
             elif packet_id == COMMENT_PACKET_ID:

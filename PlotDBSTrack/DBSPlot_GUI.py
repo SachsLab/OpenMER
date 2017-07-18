@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
@@ -26,6 +27,89 @@ rms_thresh = 4.0
 dec_factor = 10
 
 
+def getRGBAFromCMap(x, c_inds, c_vals, mode='rgb'):
+    """
+    Args:
+        x: value for which we want the colour float from 0 to 1
+        c_inds: list of values at which the colormap is defined
+        c_vals: list of PyQt4.QtGui.QColor for each of the above points
+        mode: 'rgb' or 'hsv'
+    Returns:
+    """
+    if x < np.min(c_inds):
+        x = np.min(c_inds)
+
+    ix_0 = (np.asarray(c_inds) <= x).nonzero()[0][0]
+    x_0 = c_inds[ix_0]
+    c_0 = c_vals[ix_0]
+
+    if x >= np.max(c_inds):
+        x = np.max(c_inds)
+        ix_1 = c_inds.index(x)
+    else:
+        ix_1 = (np.asarray(c_inds) > x).nonzero()[0][0]
+    x_1 = c_inds[ix_1]
+    c_1 = c_vals[ix_1]
+    dx = (x_1 - x_0)
+    if dx == 0:
+        f = 0.
+    else:
+        f = (x - x_0) / dx
+    if mode == 'rgb':
+        r = c_0.red() * (1. - f) + c_1.red() * f
+        g = c_0.green() * (1. - f) + c_1.green() * f
+        b = c_0.blue() * (1. - f) + c_1.blue() * f
+        a = c_0.alpha() * (1. - f) + c_1.alpha() * f
+        return r, g, b, a
+    elif mode == 'hsv':
+        h_0, s_0, v_0, _ = c_0.getHsv()
+        h_1, s_1, v_1, _ = c_1.getHsv()
+        h = h_0 * (1. - f) + h_1 * f
+        s = s_0 * (1. - f) + s_1 * f
+        v = v_0 * (1. - f) + v_1 * f
+        c_out = QtGui.QColor()
+        c_out.setHsv(h, s, v)
+        return c_out.red(), c_out.green(), c_out.blue(), c_out.alpha()
+    else:
+        raise TypeError("mode must be 'rgb' or 'hsv'")
+
+
+def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=False):
+    """
+
+    :param n_pts:
+    :param cm_name:
+    :param cm_library:
+    :param has_alpha:
+    :return:
+    """
+    n_channels = 4 if has_alpha else 3
+    lut = np.empty((n_pts, n_channels), dtype=np.ubyte)
+    if cm_library == 'matplotlib':
+        import matplotlib.cm as mplcm
+        cmap = mplcm.get_cmap(cm_name)
+        for i in range(n_pts):
+            x = float(i) / (n_pts - 1)
+            color = cmap(x)
+            lut[i] = 255 * np.asarray(color[:n_channels])
+    else:
+        # pyqtgraph has its own colormap system but it is hidden deep inside its gradientEditor.
+        # If we do not wish to invoke the gradientEditor then the code would look something like this.
+        from pyqtgraph.Qt import QtGui
+        from pyqtgraph.graphicsItems.GradientEditorItem import Gradients
+        grad_dict = Gradients[cm_name]
+        c_inds = []
+        c_vals = []
+        for tick in grad_dict['ticks']:
+            c_inds.append(tick[0])
+            c_vals.append(QtGui.QColor(*tick[1]))
+        c_inds, c_vals = zip(*sorted(zip(c_inds, c_vals)))  # Sort both accordings to c_inds
+        for i in range(n_pts):
+            x = float(i) / (n_pts - 1)
+            lut[i] = getRGBAFromCMap(x, c_inds, c_vals, mode=grad_dict['mode'])[:n_channels]
+    return lut
+
+
 def get_data(base_fn, dest=None):
     if dest is None:
         dest = {'labels': [], 'spk': [], 'tvec': [],
@@ -45,7 +129,7 @@ def get_data(base_fn, dest=None):
                                 dtype=np.uint32)
 
     nev_file = brpylib.NevFile(base_fn + '.nev')
-    nev_dict = nev_file.getdata(elec_ids='all')
+    nev_dict = nev_file.getdata(elec_ids='all', get_waveforms=False)
     nev_file.close()
     comm_ts = np.asarray(nev_dict['comments']['TimeStamps'])
     comm_str = nev_dict['comments']['Comment']
@@ -102,6 +186,7 @@ def get_data(base_fn, dest=None):
 class DBSPlotGUI(QtWidgets.QMainWindow):
     def __init__(self):
         super(DBSPlotGUI, self).__init__()
+        self.last_ev_time = time.time()
         self.setup_ui()
         self.show()
 
@@ -144,13 +229,16 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         layout.addLayout(data_layout)
 
         # TODO: Add pyqtgraph plot items to layout.
-        glw = pg.GraphicsLayoutWidget(parent=self)
+        self.glw = pg.GraphicsLayoutWidget(parent=self)
         self.plots = {}
-        self.plots['rms'] = glw.addPlot(row=0, col=0, title='RMS')
-        self.plots['n_spikes'] = glw.addPlot(row=0, col=1, title='Spikes')
-        layout.addWidget(glw)
+        self.plots['rms'] = self.glw.addPlot(row=0, col=0, colspan=2, title='RMS', clickable=True)
+        self.plots['rms'].scene().sigMouseClicked.connect(self.on_scene_clicked)
+        self.plots['n_spikes'] = self.glw.addPlot(row=0, col=2, colspan=2, title='Spikes', clickable=True)
+        self.plots['n_spikes'].scene().sigMouseClicked.connect(self.on_scene_clicked)
+        self.plots['spectra'] = []  # We don't yet know how many there will be.
+        layout.addWidget(self.glw)
 
-        self.resize(1000, 800)
+        self.resize(1000, 1000)
 
     def get_root(self):
         root_dir = QtWidgets.QFileDialog.getExistingDirectory(caption="Choose data parent directory.",
@@ -183,6 +271,26 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             self.traj_listwidget.sizeHintForRow(
                 0) * self.traj_listwidget.count() + 2 * self.traj_listwidget.frameWidth())
 
+    def on_scene_clicked(self, event):
+        if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
+            self.last_ev_time = event.time()
+            depth = event.currentItem.mapSceneToView(event.scenePos()).y()
+            depth_ix = np.argmin(np.abs(depth - self.data['depth']))
+            tvec = self.data['tvec'][depth_ix]
+            data = self.data['spk'][depth_ix]
+
+            dlg = QtWidgets.QDialog()
+            dlg.setMinimumSize(800, 600)
+            dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
+            glw = pg.GraphicsLayoutWidget(parent=dlg)
+            dlg.layout().addWidget(glw)
+            for chan_ix in range(data.shape[0]):
+                plt = glw.addPlot(row=chan_ix, col=0)
+                pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
+                curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.data['labels'][chan_ix], pen=pen)
+                plt.setYRange(np.min(data), np.max(data))
+            dlg.exec_()
+
     def analyze(self):
         curr_sess = self.sub_combobox.currentText()
         datadir = os.path.join(self.root_lineedit.text(), curr_sess)
@@ -199,21 +307,48 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         # TODO: Delete legend
         self.plots['rms'].clear()
         self.plots['n_spikes'].clear()
-        self.plots['rms'].addLegend()
-        self.plots['n_spikes'].addLegend()
+        self.plots['rms'].addLegend(offset=(350, 30))
+        self.plots['n_spikes'].addLegend(offset=(350, 30))
         depths = np.asarray(self.data['depth'])
         rms_dat = np.asarray(self.data['rms'])
         nspk_dat = np.asarray(self.data['n_spikes'])
         spec_dat = np.asarray(self.data['spec_den'])
+        b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
+        freqs = self.data['f'][0][b_freq]
+        spec_dat = spec_dat[:, :, b_freq]  # Limit to between 0 and 100
+        spec_dat = np.log10(np.square(spec_dat))  # convert to dB
+        min_diff = np.min(np.diff(depths))
+        spec_depths = np.arange(depths[0], depths[-1], min_diff)
+        my_lut = getLUT()
+        levels = np.min(-spec_dat), np.max(-spec_dat)
         for chan_ix in range(rms_dat.shape[1]):
             ch_label = self.data['labels'][chan_ix]
             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
-            self.plots['rms'].plot(x=depths, y=rms_dat[:, chan_ix],
-                                   name=ch_label, pen=pen)
-            self.plots['n_spikes'].plot(x=depths, y=nspk_dat[:, chan_ix],
-                                        name=ch_label, pen=pen)
+            curve = self.plots['rms'].plot(x=rms_dat[:, chan_ix], y=depths,
+                                           name=ch_label, pen=pen, clickable=True)
+            curve.getViewBox().invertY(True)
+            curve = self.plots['n_spikes'].plot(x=nspk_dat[:, chan_ix], y=depths,
+                                                name=ch_label, pen=pen, clickable=True)
+            curve.getViewBox().invertY(True)
 
-            # TODO: depth-frequency plots using self.data['spec_den']
+            if len(self.plots['spectra']) <= chan_ix:
+                self.plots['spectra'].append(self.glw.addPlot(row=2, col=chan_ix, title=ch_label))
+                # view = pg.ImageView(view=self.plots['spectra'][chan_ix])
+                img = pg.ImageItem()
+                self.plots['spectra'][chan_ix].addItem(img)
+            # Update ImageView with new data.
+            img_dat = np.squeeze(spec_dat[:, chan_ix, :].T)
+            img_dat_interp = np.zeros((img_dat.shape[0], len(spec_depths)))
+            for f_ix in range(len(freqs)):
+                img_dat_interp[f_ix, :] = np.interp(spec_depths, depths, img_dat[f_ix, :])
+            img_item = self.plots['spectra'][chan_ix].items[0]
+            img_item.setImage(-img_dat_interp, lut=my_lut)  # - on img_dat because LUT has blue a hot (I think?)
+            img_item.setPos(freqs[0], spec_depths[0])
+            img_item.scale((freqs[-1] - freqs[0]) / img_dat_interp.shape[0],
+                           (spec_depths[-1] - spec_depths[0]) / img_dat_interp.shape[1])
+            img_item.setLevels(levels)
+            self.plots['spectra'][chan_ix].setAspectLocked(False)
+            self.plots['spectra'][chan_ix].invertY(True)
 
 
 if __name__ == '__main__':
