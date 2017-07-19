@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 import time
 from qtpy import QtCore
@@ -10,7 +11,8 @@ import pyqtgraph as pg
 import brpylib
 
 
-DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', '..', 'DBSData'))
+DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', '..', 'DBSData'))\
+    if 'Linux' in platform.system() else os.path.abspath('D:\DBSData')
 DEF_SEG_INTERVAL = [0.5, 4.5]
 THEMES = {
     'dark': {
@@ -26,6 +28,10 @@ beta_cutoff = np.asarray([16, 30])
 rms_thresh = 4.0
 dec_factor = 10
 
+
+def empty_data_dict():
+    return {'labels': [], 'spk': [], 'tvec': [], 'depth': [],
+            'rms': [], 'n_spikes': [], 'spec_den': [], 'f': []}
 
 def getRGBAFromCMap(x, c_inds, c_vals, mode='rgb'):
     """
@@ -112,13 +118,17 @@ def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=Fal
 
 def get_data(base_fn, dest=None):
     if dest is None:
-        dest = {'labels': [], 'spk': [], 'tvec': [],
-                'rms': [], 'n_spikes': [], 'spec_den': [], 'f': []}
+        dest = empty_data_dict()
 
     nsx_file = brpylib.NsxFile(base_fn + '.ns5')
     nsx_dict = nsx_file.getdata(elec_ids='all', start_time_s=0, data_time_s='all', downsample=1)
     nsx_file.close()
-    dest['labels'] = [x['ElectrodeLabel'] for x in nsx_file.extended_headers]
+    new_labels = [x['ElectrodeLabel'] for x in nsx_file.extended_headers]
+    if (len(dest['labels']) > 0) and (dest['labels'] != new_labels):
+        # TODO: Raise error that channel labels do not match across files.
+        return dest
+    else:
+        dest['labels'] = new_labels
     fs = nsx_dict['samp_per_s']
     si = 1 + np.arange(nsx_dict['data_headers'][0]['NumDataPoints'])
     t = si / fs
@@ -136,6 +146,10 @@ def get_data(base_fn, dest=None):
     comm_depths = np.asarray([float(x.split(':')[1]) for x in comm_str])
     b_new_depth = np.hstack((False, np.diff(comm_depths) > 0))
     b_long_enough = np.hstack((np.diff(comm_ts[b_new_depth]) >= (DEF_SEG_INTERVAL[1] * fs), False))
+
+    if not (np.any(b_new_depth) and np.any(b_long_enough)):
+        return dest
+
     seg_start_ts = comm_ts[b_new_depth][b_long_enough]
     seg_stop_ts = comm_ts[b_new_depth][np.where(b_long_enough)[0] + 1] - 1
     seg_start_depth = comm_depths[b_new_depth][b_long_enough]
@@ -178,7 +192,7 @@ def get_data(base_fn, dest=None):
         dest['spec_den'].append(Pxx_den)
         dest['f'].append(f)
 
-    dest['depth'] = seg_start_depth
+    dest['depth'].extend(seg_start_depth)
 
     return dest
 
@@ -249,7 +263,10 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
     def populate_sub_combobox(self):
         self.sub_combobox.clear()
-        dirs = next(os.walk(self.root_lineedit.text()))[1]
+        if os.path.isdir(self.root_lineedit.text()):
+            dirs = next(os.walk(self.root_lineedit.text()))[1]
+        else:
+            dirs = []
         self.sub_combobox.addItems(dirs)
         # TODO: Set index to most recent.
 
@@ -275,7 +292,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
             self.last_ev_time = event.time()
             depth = event.currentItem.mapSceneToView(event.scenePos()).y()
-            depth_ix = np.argmin(np.abs(depth - self.data['depth']))
+            depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
             tvec = self.data['tvec'][depth_ix]
             data = self.data['spk'][depth_ix]
 
@@ -295,8 +312,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         curr_sess = self.sub_combobox.currentText()
         datadir = os.path.join(self.root_lineedit.text(), curr_sess)
         traj_list = self.traj_listwidget.selectedItems()
-        self.data = {'labels': [], 'spk': [], 'tvec': [],
-                     'rms': [], 'n_spikes': [], 'spec_den': [], 'f': []}
+        self.data = empty_data_dict()
         for traj in traj_list:
             base_fn = os.path.join(datadir, curr_sess + '-' + traj.text())
             self.data = get_data(base_fn, dest=self.data)
@@ -310,17 +326,19 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.plots['rms'].addLegend(offset=(350, 30))
         self.plots['n_spikes'].addLegend(offset=(350, 30))
         depths = np.asarray(self.data['depth'])
-        rms_dat = np.asarray(self.data['rms'])
-        nspk_dat = np.asarray(self.data['n_spikes'])
-        spec_dat = np.asarray(self.data['spec_den'])
+        resort = np.argsort(depths)
+        depths = depths[resort]
+        rms_dat = np.asarray(self.data['rms'])[resort, :]
+        nspk_dat = np.asarray(self.data['n_spikes'])[resort, :]
+        spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
         b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
         freqs = self.data['f'][0][b_freq]
         spec_dat = spec_dat[:, :, b_freq]  # Limit to between 0 and 100
-        spec_dat = np.log10(np.square(spec_dat))  # convert to dB
+        spec_dat = -np.log10(np.square(spec_dat))  # convert to dB; - because LUT has blue a hot (I think?)
         min_diff = np.min(np.diff(depths))
         spec_depths = np.arange(depths[0], depths[-1], min_diff)
         my_lut = getLUT()
-        levels = np.min(-spec_dat), np.max(-spec_dat)
+        levels = np.min(spec_dat), np.max(spec_dat)
         for chan_ix in range(rms_dat.shape[1]):
             ch_label = self.data['labels'][chan_ix]
             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
@@ -342,7 +360,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             for f_ix in range(len(freqs)):
                 img_dat_interp[f_ix, :] = np.interp(spec_depths, depths, img_dat[f_ix, :])
             img_item = self.plots['spectra'][chan_ix].items[0]
-            img_item.setImage(-img_dat_interp, lut=my_lut)  # - on img_dat because LUT has blue a hot (I think?)
+            img_item.setImage(img_dat_interp, lut=my_lut)
             img_item.setPos(freqs[0], spec_depths[0])
             img_item.scale((freqs[-1] - freqs[0]) / img_dat_interp.shape[0],
                            (spec_depths[-1] - spec_depths[0]) / img_dat_interp.shape[1])
