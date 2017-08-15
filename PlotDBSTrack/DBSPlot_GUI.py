@@ -7,12 +7,14 @@ from qtpy import QtGui
 from qtpy import QtWidgets
 import numpy as np
 from scipy import signal
+import pyfftw.interfaces.numpy_fft as fft
 import pyqtgraph as pg
 import brpylib
+from utilities import segment_consecutive
 
+DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', 'DBSData'))\
+    if platform.system() in ['Linux', 'Darwin'] else os.path.abspath('D:\DBSData')
 
-DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', '..', 'DBSData'))\
-    if 'Linux' in platform.system() else os.path.abspath('D:\DBSData')
 DEF_SEG_INTERVAL = [0.5, 4.5]
 THEMES = {
     'dark': {
@@ -23,11 +25,44 @@ THEMES = {
         'axiswidth': 1
     }
 }
+
+num_tap = 8000
 hp_cutoff = 250
 beta_cutoff = np.asarray([16, 30])
 rms_thresh = 4.0
-dec_factor = 10
+dec_factor = 50
 
+def olafilt(b, x, axis=-1, zi=None):
+    ax0, ax1 = x.shape
+
+    L_I = b.shape[0]
+    # Find power of 2 larger that 2*L_I (from abarnert on Stackoverflow)
+    L_F = 2<<(L_I-1).bit_length()
+    L_S = L_F - L_I + 1
+    L_sig = x.shape[axis]
+    offsets = range(0, L_sig, L_S)
+
+    # blockwise frequency domain multiplication
+    if np.iscomplexobj(b) or np.iscomplexobj(x):
+        FDir = np.fft.fft(b, n=L_F)
+        tempresult = [np.fft.ifft(np.fft.fft(x[:, n:n+L_S], n=L_F, axis=-1)*FDir[np.newaxis, :])
+                      for n in offsets]
+        res = np.zeros(ax0, L_sig+L_F, dtype=np.complex128)
+    else:
+        FDir = np.fft.rfft(b, n=L_F)
+        tempresult = [np.fft.irfft(np.fft.rfft(x[:, n:n+L_S], n=L_F, axis=-1)*FDir[np.newaxis, :])
+                      for n in offsets]
+        res = np.zeros((ax0, L_sig+L_F))
+
+    # overlap and add
+    for i, n in enumerate(offsets):
+        res[:, n:n+L_F] += tempresult[i]
+
+    if zi is not None:
+        res[:, :zi.shape[0]] = res[:, :zi.shape[0]] + zi
+        return res[:, :L_sig], res[:, L_sig:]
+    else:
+        return res[:, :L_sig]
 
 def empty_data_dict():
     return {'labels': [], 'spk': [], 'tvec': [], 'depth': [],
@@ -115,84 +150,113 @@ def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=Fal
             lut[i] = getRGBAFromCMap(x, c_inds, c_vals, mode=grad_dict['mode'])[:n_channels]
     return lut
 
+def load_blackrock_data(base_fn):
+
+    data_ = {'nsx': [], 'nev': []}
+    file_ = {'nsx': [], 'nev': []}
+    file_['nsx'] = brpylib.NsxFile(base_fn + '.ns5')
+    data_['nsx'] = file_['nsx'].getdata(elec_ids='all', start_time_s=0, data_time_s='all', downsample=1)
+    file_['nsx'].close()
+
+    file_['nev'] = brpylib.NevFile(base_fn + '.nev')
+    data_['nev'] = file_['nev'].getdata(elec_ids='all', get_waveforms=False)
+    file_['nev'].close()
+
+    return file_, data_
+
+def segment_data_by_depth(data_, num_depth=100):
+
+    sig = data_['nsx']['data']
+
+    dtt = np.asarray([float(tmp.split(':')[-1]) for tmp in data_['nev']['comments']['Comment']])
+    dtt_sample_ix = np.asarray(data_['nev']['comments']['TimeStamps'])
+
+    label = np.nonzero(dtt[:-1]-dtt[1:])[0]
+    tmp = np.ones(dtt.size, dtype=bool)
+    tmp[label] = False
+    label = tmp.copy()
+    label_sorted = segment_consecutive(np.nonzero(label)[0], stepsize=3)
+
+    fs = data_['nsx']['samp_per_s']
+    si = 1 + np.arange(data_['nsx']['data_headers'][0]['NumDataPoints'])
+    t  = si / fs
+    nyquist = fs / 2
+
+    count = 0
+    tvecs = np.zeros((num_depth,), dtype=object) * np.nan
+    sigs = np.zeros((num_depth,), dtype=object) * np.nan
+    edts = np.zeros((num_depth,)) * np.nan
+    for v in label_sorted:
+        ix0, ix1 = dtt_sample_ix[v[0]], dtt_sample_ix[v[-1]]
+        if (ix1-ix0)/fs > 3:
+            sigs[count] = sig[:,ix0:ix1]
+            tvecs[count] = t[ix0:ix1]
+            edts[count] = np.round(dtt[v[0]], 3)
+            count += 1
+
+    sigs = sigs[np.equal(np.zeros(edts.size, dtype=bool),np.isnan(edts))]
+    edts = edts[np.equal(np.zeros(edts.size, dtype=bool),np.isnan(edts))]
+
+    return sigs, edts, tvecs
 
 def get_data(base_fn, dest=None):
     if dest is None:
         dest = empty_data_dict()
 
-    nsx_file = brpylib.NsxFile(base_fn + '.ns5')
-    nsx_dict = nsx_file.getdata(elec_ids='all', start_time_s=0, data_time_s='all', downsample=1)
-    nsx_file.close()
-    new_labels = [x['ElectrodeLabel'] for x in nsx_file.extended_headers]
+    file_, data_ = load_blackrock_data(base_fn)
+
+    fs = data_['nsx']['samp_per_s']
+    si = 1 + np.arange(data_['nsx']['data_headers'][0]['NumDataPoints'])
+    t  = si / fs
+    nyquist = fs / 2
+
+    sigs, edts, tvecs = segment_data_by_depth(data_, num_depth=100)
+
+    hfir1 = signal.firwin(num_tap+1, hp_cutoff, nyq=nyquist, pass_zero=False)
+    hfir0 = signal.firwin(num_tap+1, (2, hp_cutoff), nyq=nyquist, pass_zero=True)
+
+    for i, sig in enumerate(sigs):
+        ix  = np.arange(sig.shape[-1])
+        idx = np.logical_and(ix >= .5*fs, ix <4.5*fs)
+
+        seg_spk = np.atleast_2d(olafilt(hfir1, sig[:,idx], zi=None))[:,5000:]
+        seg_psd = np.atleast_2d(olafilt(hfir0, sig[:,idx], zi=None))[:,5000:][:,::dec_factor]
+
+        seg_tvec = tvecs[i][idx][5000:]
+        if seg_spk.shape[-1] >= fs*4-5000:
+
+            dest['spk'].append(seg_spk)
+            dest['depth'].append(edts[i])
+            dest['tvec'].append(seg_tvec)
+
+            # Calculate the RMS of the highpass
+            seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=-1))
+            dest['rms'].append(seg_rms)
+
+            # Find threshold crossing events at rms_thresh * seg_rms
+            seg_spk_offset = seg_spk + (rms_thresh * seg_rms[:, np.newaxis])
+            b_spike = np.hstack((np.zeros((seg_spk_offset.shape[0], 1), dtype=np.bool),
+                                 np.logical_and(seg_spk_offset[:, :-1] >= 0, seg_spk_offset[:, 1:] < 0)))
+            dest['n_spikes'].append(np.sum(b_spike, axis=1))
+
+            # Calculate the spectrum
+            f, Pxx_den = signal.periodogram(seg_psd, fs / dec_factor, axis=1)
+            dest['spec_den'].append(Pxx_den)
+            dest['f'].append(f)
+
+    dest['depth'] = np.asarray(dest['depth'])
+    dest['spk'] = np.asarray(dest['spk'])
+    dest['rms'] = np.asarray(dest['rms'])
+    dest['spec_den'] = np.asarray(dest['spec_den'])
+    dest['f'] = np.asarray(dest['f'])
+    dest['n_spikes'] = np.asarray(dest['n_spikes'])
+
+    new_labels = [x['ElectrodeLabel'] for x in file_['nsx'].extended_headers]
     if (len(dest['labels']) > 0) and (dest['labels'] != new_labels):
         # TODO: Raise error that channel labels do not match across files.
         return dest
     else:
         dest['labels'] = new_labels
-    fs = nsx_dict['samp_per_s']
-    si = 1 + np.arange(nsx_dict['data_headers'][0]['NumDataPoints'])
-    t = si / fs
-    nyquist = fs / 2
-    seg_sub_ind = np.arange(DEF_SEG_INTERVAL[0] * fs, DEF_SEG_INTERVAL[1] * fs, dtype=np.uint32)
-    seg_sub_ind_lfp = np.arange(DEF_SEG_INTERVAL[0] * fs / dec_factor,
-                                DEF_SEG_INTERVAL[1] * fs / dec_factor,
-                                dtype=np.uint32)
-
-    nev_file = brpylib.NevFile(base_fn + '.nev')
-    nev_dict = nev_file.getdata(elec_ids='all', get_waveforms=False)
-    nev_file.close()
-    comm_ts = np.asarray(nev_dict['comments']['TimeStamps'])
-    comm_str = nev_dict['comments']['Comment']
-    comm_depths = np.asarray([float(x.split(':')[1]) for x in comm_str])
-    b_new_depth = np.hstack((False, np.diff(comm_depths) > 0))
-    b_long_enough = np.hstack((np.diff(comm_ts[b_new_depth]) >= (DEF_SEG_INTERVAL[1] * fs), False))
-
-    if not (np.any(b_new_depth) and np.any(b_long_enough)):
-        return dest
-
-    seg_start_ts = comm_ts[b_new_depth][b_long_enough]
-    seg_stop_ts = comm_ts[b_new_depth][np.where(b_long_enough)[0] + 1] - 1
-    seg_start_depth = comm_depths[b_new_depth][b_long_enough]
-
-    sig = nsx_dict['data']
-
-    # HP filter raw data
-    sos_spk = signal.butter(8, hp_cutoff / nyquist, btype='highpass', output='sos')
-    data_spk = signal.sosfiltfilt(sos_spk, sig, axis=1)
-
-    # Beta filter data
-    sos_beta = signal.butter(8, beta_cutoff / nyquist, btype='bandpass', output='sos')
-    data_beta = signal.sosfiltfilt(sos_beta, sig, axis=1)
-
-    # Downsample for LFP spectra
-    data_lfp = signal.decimate(sig, dec_factor, axis=1, zero_phase=True)
-
-    for seg_ix in range(len(seg_start_ts)):
-        b_seg = np.logical_and(si >= seg_start_ts[seg_ix], si <= seg_stop_ts[seg_ix])
-        seg_sig = sig[:, b_seg][:, seg_sub_ind]
-
-        # Calculate the RMS of the highpass
-        seg_spk = data_spk[:, b_seg][:, seg_sub_ind]
-        dest['spk'].append(seg_spk)
-        dest['tvec'].append(t[b_seg][seg_sub_ind])
-
-        seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=1))
-        dest['rms'].append(seg_rms)
-
-        # Find threshold crossing events at rms_thresh * seg_rms
-        seg_spk_offset = seg_spk + (rms_thresh * seg_rms[:, np.newaxis])
-        b_spike = np.hstack((np.zeros((seg_spk_offset.shape[0], 1), dtype=np.bool),
-                             np.logical_and(seg_spk_offset[:, :-1] >= 0, seg_spk_offset[:, 1:] < 0)))
-        dest['n_spikes'].append(np.sum(b_spike, axis=1))
-
-        # Calculate the spectrum
-        b_seg_lfp = np.logical_and(si[::dec_factor] >= seg_start_ts[seg_ix], si[::dec_factor] <= seg_stop_ts[seg_ix])
-        f, Pxx_den = signal.periodogram(data_lfp[:, b_seg_lfp][:, seg_sub_ind_lfp], fs / dec_factor, axis=1)
-        # plt.semilogy(f, Pxx_den.T)
-        dest['spec_den'].append(Pxx_den)
-        dest['f'].append(f)
-
-    dest['depth'].extend(seg_start_depth)
 
     return dest
 
