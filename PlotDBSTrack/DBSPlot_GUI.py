@@ -309,10 +309,11 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         # TODO: Add pyqtgraph plot items to layout.
         self.glw = pg.GraphicsLayoutWidget(parent=self)
         self.plots = {}
-        self.plots['rms'] = self.glw.addPlot(row=0, col=0, colspan=2, title='RMS', clickable=True)
-        self.plots['rms'].scene().sigMouseClicked.connect(self.on_scene_clicked)
-        self.plots['n_spikes'] = self.glw.addPlot(row=0, col=2, colspan=2, title='Spikes', clickable=True)
-        self.plots['n_spikes'].scene().sigMouseClicked.connect(self.on_scene_clicked)
+        self.plots['rms'] = []
+        # self.plots['rms'] = self.glw.addPlot(row=0, col=0, colspan=2, title='RMS', clickable=True)
+        # self.plots['rms'].scene().sigMouseClicked.connect(self.on_scene_clicked)
+        # self.plots['n_spikes'] = self.glw.addPlot(row=0, col=2, colspan=2, title='Spikes', clickable=True)
+        # self.plots['n_spikes'].scene().sigMouseClicked.connect(self.on_scene_clicked)
         self.plots['spectra'] = []  # We don't yet know how many there will be.
         layout.addWidget(self.glw)
 
@@ -385,15 +386,13 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
     def update_plots(self):
         # TODO: Delete legend
-        self.plots['rms'].clear()
-        self.plots['n_spikes'].clear()
-        self.plots['rms'].addLegend(offset=(350, 30))
-        self.plots['n_spikes'].addLegend(offset=(350, 30))
+        # self.plots['n_spikes'].clear()
+        # self.plots['n_spikes'].addLegend(offset=(350, 30))
         depths = np.asarray(self.data['depth'])
         resort = np.argsort(depths)
         depths = depths[resort]
         rms_dat = np.asarray(self.data['rms'])[resort, :]
-        nspk_dat = np.asarray(self.data['n_spikes'])[resort, :]
+        # nspk_dat = np.asarray(self.data['n_spikes'])[resort, :]
         spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
         b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
         freqs = self.data['f'][0][b_freq]
@@ -406,12 +405,24 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         for chan_ix in range(rms_dat.shape[1]):
             ch_label = self.data['labels'][chan_ix]
             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
-            curve = self.plots['rms'].plot(x=rms_dat[:, chan_ix], y=depths,
-                                           name=ch_label, pen=pen, clickable=True)
-            curve.getViewBox().invertY(True)
-            curve = self.plots['n_spikes'].plot(x=nspk_dat[:, chan_ix], y=depths,
-                                                name=ch_label, pen=pen, clickable=True)
-            curve.getViewBox().invertY(True)
+
+
+            if len(self.plots['rms']) <= chan_ix:
+                self.plots['rms'].append(self.glw.addPlot(row=0, col=chan_ix, colspan=1, title='RMS', clickable=True))
+                self.plots['rms'][chan_ix].scene().sigMouseClicked.connect(self.on_scene_clicked)
+
+                self.plots['rms'][chan_ix].clear()
+                self.plots['rms'][chan_ix].addLegend(offset=(350, 30))
+
+                bg1 = pg.BarGraphItem(x=depths, height=rms_dat[:, chan_ix], width=0.1, brush='r')
+                self.plots['rms'][chan_ix].addItem(bg1)
+
+            # curve = self.plots['rms'].plot(x=rms_dat[:, chan_ix], y=depths,
+            #                                name=ch_label, pen=pen, clickable=True)
+            # curve.getViewBox().invertY(True)
+            # curve = self.plots['n_spikes'].plot(x=nspk_dat[:, chan_ix], y=depths,
+            #                                     name=ch_label, pen=pen, clickable=True)
+            # curve.getViewBox().invertY(True)
 
             if len(self.plots['spectra']) <= chan_ix:
                 self.plots['spectra'].append(self.glw.addPlot(row=2, col=chan_ix, title=ch_label))
