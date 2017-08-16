@@ -188,41 +188,6 @@ def load_blackrock_data_brpy(base_fn):
             'ev_times': np.asarray(data_['nev']['comments']['TimeStamps']) / fs * pq.s,
             'ev_depths': np.asarray([float(tmp.split(':')[-1]) for tmp in data_['nev']['comments']['Comment']])}
 
-
-def segment_data_by_depth(data_dict, slice_times):
-
-    sig = data_dict['ana_data']
-
-    dtt = data_dict['ev_depths']
-    dtt_sample_ix = data_dict['ev_times']
-
-    label = np.nonzero(dtt[:-1]-dtt[1:])[0]
-    tmp = np.ones(dtt.size, dtype=bool)
-    tmp[label] = False
-    label = tmp.copy()
-    label_sorted = segment_consecutive(np.nonzero(label)[0], stepsize=3)
-
-    fs = np.mean(np.diff(data_dict['ana_times']))
-    nyquist = fs / 2
-
-    count = 0
-    tvecs = np.zeros((num_depth,), dtype=object) * np.nan
-    sigs = np.zeros((num_depth,), dtype=object) * np.nan
-    edts = np.zeros((num_depth,)) * np.nan
-    for v in label_sorted:
-        ix0, ix1 = dtt_sample_ix[v[0]], dtt_sample_ix[v[-1]]
-        if (ix1-ix0)/fs > 3:
-            sigs[count] = sig[:,ix0:ix1]
-            tvecs[count] = t[ix0:ix1]
-            edts[count] = np.round(dtt[v[0]], 3)
-            count += 1
-
-    sigs = sigs[np.equal(np.zeros(edts.size, dtype=bool),np.isnan(edts))]
-    edts = edts[np.equal(np.zeros(edts.size, dtype=bool),np.isnan(edts))]
-
-    return sigs, edts, tvecs
-
-
 def get_data(base_fn, dest=None):
     if dest is None:
         dest = empty_data_dict()
