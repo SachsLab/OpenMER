@@ -152,6 +152,9 @@ def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=Fal
 
 def load_blackrock_data(base_fn):
 
+    if base_fn[-1] == '-':
+        base_fn = base_fn[:-1]
+
     data_ = {'nsx': [], 'nev': []}
     file_ = {'nsx': [], 'nev': []}
     file_['nsx'] = brpylib.NsxFile(base_fn + '.ns5')
