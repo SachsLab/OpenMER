@@ -276,9 +276,8 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
         seg_stop_ix = np.hstack((np.where(b_new_depth)[0][1:],data_dict['ev_times'].size))[b_long_enough]
         n_segs = len(seg_start_ix)
 
-        t0 = time.time()
         for seg_ix in range(n_segs):
-            t0_seg = time.time()
+
             seg_start_time = data_dict['ev_times'][seg_start_ix[seg_ix]]
             seg_stop_time = data_dict['ev_times'][seg_stop_ix[seg_ix]] - (1/fs)
             b_seg = np.logical_and(data_dict['ana_times'] >= seg_start_time, data_dict['ana_times'] < seg_stop_time)
@@ -287,14 +286,19 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
             tvec -= tvec[0]
             b_interval = np.logical_and(tvec >= DEF_SEG_INTERVAL[0], tvec < (DEF_SEG_INTERVAL[1] - 0.5/fs))
 
-            print('segment',time.time()-t0_seg)
-
-            t0_proc = time.time()
             seg_spk = np.atleast_2d(olafilt(hfir1, sig[:, b_interval], zi=None))[:,num_tap//2:]
             seg_psd = np.atleast_2d(olafilt(hfir0, sig[:, b_interval], zi=None))[:,num_tap//2:][:, ::dec_factor]
 
+            lo = ffb0.process(sig[:, b_interval])
+            hi = ffb1.process(sig[:, b_interval])
+
             dest['spk'].append(seg_spk)
             dest['tvec'].append(data_dict['ana_times'][b_seg][b_interval][num_tap//2:])
+
+            # Calculate PAC
+            seg_pdn = parpac.pad_mr(np.angle(lo), np.abs(hi))
+            seg_pac = parpac.pac_mi(seg_pdn)[:,0,0] * pac_scale
+            dest['pac'].append(seg_pac)
 
             # Calculate the RMS of the highpass
             seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=-1))
@@ -310,13 +314,11 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
             f, Pxx_den = signal.periodogram(seg_psd, fs / dec_factor, axis=1)
             dest['spec_den'].append(Pxx_den)
             dest['f'].append(f)
-            print('proc', time.time()-t0_proc)
 
     else:
 
         sigs, edts, tvecs = segment_data_by_depth(data_dict, num_depth=100)
 
-        t0 = time.time()
         for i, sig in enumerate(sigs):
             ix  = np.arange(sig.shape[-1])
             idx = np.logical_and(ix >= .5 * fs, ix < 4.5 * fs)
@@ -354,7 +356,6 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
                 dest['spec_den'].append(Pxx_den)
                 dest['f'].append(f)
 
-    print(time.time()-t0)
     dest['spk'] = np.asarray(dest['spk'])
     dest['rms'] = np.asarray(dest['rms'])
     dest['spec_den'] = np.asarray(dest['spec_den'])
@@ -508,7 +509,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.data = empty_data_dict()
         for traj in traj_list:
             base_fn = os.path.join(datadir, curr_sess + '-' + traj.text())
-            self.data = get_data(base_fn, dest=self.data)
+            self.data = get_data(base_fn, dest=self.data, version=1)
         self.refresh_pushbutton.setEnabled(True)
         self.update_plots()
 
