@@ -13,6 +13,8 @@ import brpylib
 import quantities as pq
 from neo.io.blackrockio import BlackrockIO
 from utilities import segment_consecutive
+from filterbank import FastFilterBank
+import parpac
 
 DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', 'DBSData'))\
     if platform.system() in ['Linux', 'Darwin'] else os.path.abspath('D:\DBSData')
@@ -33,6 +35,10 @@ hp_cutoff = 250
 beta_cutoff = np.asarray([16, 30])
 rms_thresh = 4.0
 dec_factor = 50
+
+pac_scale = 1000
+loF = (12, 36)
+hiF = (60, 200)
 
 def olafilt(b, x, axis=-1, zi=None):
     ax0, ax1 = x.shape
@@ -68,7 +74,8 @@ def olafilt(b, x, axis=-1, zi=None):
 
 def empty_data_dict():
     return {'labels': [], 'spk': [], 'tvec': [], 'depth': [],
-            'rms': [], 'n_spikes': [], 'spec_den': [], 'f': []}
+            'rms': [], 'n_spikes': [], 'spec_den': [], 'f': [],
+            'pac': [], 'comod': []}
 
 def getRGBAFromCMap(x, c_inds, c_vals, mode='rgb'):
     """
@@ -220,6 +227,9 @@ def load_blackrock_data_brpy(base_fn):
             'ev_depths': np.asarray([float(tmp.split(':')[-1]) for tmp in data_['nev']['comments']['Comment']])}
 
 def get_data(base_fn, dest=None, version=0, load_method='brpy'):
+
+    if base_fn[-1] == '-':
+        base_fn = base_fn[:-1]
     if dest is None:
         dest = empty_data_dict()
 
@@ -231,8 +241,31 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
     fs = data_dict['samp_per_s']
     nyquist = fs / 2
 
+    Nch = data_dict['ana_data'].shape[0]
+
     hfir1 = signal.firwin(num_tap + 1, hp_cutoff, nyq=nyquist, pass_zero=False)
     hfir0 = signal.firwin(num_tap + 1, (2, hp_cutoff), nyq=nyquist, pass_zero=True)
+    ffb0  = FastFilterBank( nprocs     = 1,
+                            factor     = 2**3,
+                            bw_hz      = (np.abs(np.diff(loF))/2)[0],
+                            foi_hz     = [np.mean(loF)],
+                            fs_hz      = fs,
+                            f_ord      = num_tap,
+                            ftype      = 'fir',
+                            n_freqs    = 1,
+                            n_samples  = np.diff(DEF_SEG_INTERVAL) * fs,
+                            n_channels = Nch)
+
+    ffb1  = FastFilterBank( nprocs     = 1,
+                            factor     = 2**3,
+                            bw_hz      = (np.abs(np.diff(hiF))/2)[0],
+                            foi_hz     = [np.mean(hiF)],
+                            fs_hz      = fs,
+                            f_ord      = num_tap,
+                            ftype      = 'fir',
+                            n_freqs    = 1,
+                            n_samples  = np.diff(DEF_SEG_INTERVAL) * fs,
+                            n_channels = Nch)
 
     if version:
         b_new_depth = np.diff(np.hstack((-np.inf, data_dict['ev_depths']))) > 0
@@ -291,12 +324,20 @@ def get_data(base_fn, dest=None, version=0, load_method='brpy'):
             seg_spk = np.atleast_2d(olafilt(hfir1, sig[:,idx], zi=None))[:,5000:]
             seg_psd = np.atleast_2d(olafilt(hfir0, sig[:,idx], zi=None))[:,5000:][:,::dec_factor]
 
+            lo = ffb0.process(sig[:, idx])
+            hi = ffb1.process(sig[:, idx])
+
             seg_tvec = tvecs[i][idx][5000:]
             if seg_spk.shape[-1] >= fs * pq.s * 4 - 5000:
 
                 dest['spk'].append(seg_spk)
                 dest['depth'].append(edts[i])
                 dest['tvec'].append(seg_tvec)
+
+                # Calculate PAC
+                seg_pdn = parpac.pad_mr(np.angle(lo), np.abs(hi))
+                seg_pac = parpac.pac_mi(seg_pdn)[:,0,0] * pac_scale
+                dest['pac'].append(seg_pac)
 
                 # Calculate the RMS of the highpass
                 seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=-1))
@@ -378,6 +419,8 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.glw = pg.GraphicsLayoutWidget(parent=self)
         self.plots = {}
         self.plots['rms'] = []
+        self.plots['pac'] = []
+        self.plots['comod'] = []
         self.plots['spectra'] = []  # We don't yet know how many there will be.
         layout.addWidget(self.glw)
 
@@ -422,6 +465,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             self.last_ev_time = event.time()
             depth = event.currentItem.mapSceneToView(event.scenePos()).x()
             depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
+
             tvec = self.data['tvec'][depth_ix]
             data = self.data['spk'][depth_ix]
 
@@ -435,6 +479,26 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                 pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
                 curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.data['labels'][chan_ix], pen=pen)
                 plt.setYRange(np.min(data), np.max(data))
+            dlg.exec_()
+
+    def on_scene_clicked_pac(self, event):
+        if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
+            self.last_ev_time = event.time()
+            depth = event.currentItem.mapSceneToView(event.scenePos()).x()
+            depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
+
+            print('pac')
+            dlg = QtWidgets.QDialog()
+            dlg.setMinimumSize(800, 600)
+            dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
+            glw = pg.GraphicsLayoutWidget(parent=dlg)
+            dlg.layout().addWidget(glw)
+            for chan_ix in range(data.shape[0]):
+                if len(self.plots['comod']) <= chan_ix:
+                    self.plots['comod'].append(self.glw.addPlot(row=0, col=chan_ix, title=ch_label))
+                    img = pg.ImageItem()
+                    self.plots['comod'][chan_ix].addItem(img)
+
             dlg.exec_()
 
     def analyze(self):
@@ -456,6 +520,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         resort = np.argsort(depths)
         depths = depths[resort]
         rms_dat = np.asarray(self.data['rms'])[resort, :]
+        pac_dat = np.asarray(self.data['pac'])[resort, :]
         # nspk_dat = np.asarray(self.data['n_spikes'])[resort, :]
         spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
         b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
@@ -479,6 +544,16 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                 bg1 = pg.BarGraphItem(x=depths, height=rms_dat[:, chan_ix], width=0.1, brush=pen)
                 self.plots['rms'][chan_ix].addItem(bg1)
                 self.plots['rms'][chan_ix].addLegend(offset=(350, 30))
+
+            if len(self.plots['pac']) <= chan_ix:
+
+                self.plots['pac'].append(self.glw.addPlot(row=1, col=chan_ix, colspan=1, title='PAC', clickable=True))
+                self.plots['pac'][chan_ix].clear()
+                self.plots['pac'][chan_ix].scene().sigMouseClicked.connect(self.on_scene_clicked_pac)
+
+                bg2 = pg.BarGraphItem(x=depths, height=pac_dat[:, chan_ix], width=0.1, brush=pen)
+                self.plots['pac'][chan_ix].addItem(bg2)
+                self.plots['pac'][chan_ix].addLegend(offset=(350, 30))
 
             if len(self.plots['spectra']) <= chan_ix:
                 self.plots['spectra'].append(self.glw.addPlot(row=2, col=chan_ix, title=ch_label))
