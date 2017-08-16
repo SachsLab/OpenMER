@@ -10,12 +10,14 @@ from scipy import signal
 import pyfftw.interfaces.numpy_fft as fft
 import pyqtgraph as pg
 import brpylib
+import quantities as pq
+from neo.io.blackrockio import BlackrockIO
 from utilities import segment_consecutive
 
 DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', 'DBSData'))\
     if platform.system() in ['Linux', 'Darwin'] else os.path.abspath('D:\DBSData')
 
-DEF_SEG_INTERVAL = [0.5, 4.5]
+DEF_SEG_INTERVAL = [0.5, 4.5] * pq.s
 THEMES = {
     'dark': {
         'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
@@ -150,40 +152,21 @@ def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=Fal
             lut[i] = getRGBAFromCMap(x, c_inds, c_vals, mode=grad_dict['mode'])[:n_channels]
     return lut
 
-def load_blackrock_data(base_fn):
-
-    if base_fn[-1] == '-':
-        base_fn = base_fn[:-1]
-
-    data_ = {'nsx': [], 'nev': []}
-    file_ = {'nsx': [], 'nev': []}
-    file_['nsx'] = brpylib.NsxFile(base_fn + '.ns5')
-    data_['nsx'] = file_['nsx'].getdata(elec_ids='all', start_time_s=0, data_time_s='all', downsample=1)
-    file_['nsx'].close()
-
-    file_['nev'] = brpylib.NevFile(base_fn + '.nev')
-    data_['nev'] = file_['nev'].getdata(elec_ids='all', get_waveforms=False)
-    file_['nev'].close()
-
-    return file_, data_
-
 def segment_data_by_depth(data_, num_depth=100):
 
-    sig = data_['nsx']['data']
+    fs = data_['samp_per_s']
+    t = data_['ana_times']
 
-    dtt = np.asarray([float(tmp.split(':')[-1]) for tmp in data_['nev']['comments']['Comment']])
-    dtt_sample_ix = np.asarray(data_['nev']['comments']['TimeStamps'])
+    sig = data_['ana_data']
+
+    dtt = data_['ev_depths']
+    dtt_sample_ix = np.asarray(data_['ev_times'] * fs * pq.s, dtype=np.int32)
 
     label = np.nonzero(dtt[:-1]-dtt[1:])[0]
     tmp = np.ones(dtt.size, dtype=bool)
     tmp[label] = False
     label = tmp.copy()
     label_sorted = segment_consecutive(np.nonzero(label)[0], stepsize=3)
-
-    fs = data_['nsx']['samp_per_s']
-    si = 1 + np.arange(data_['nsx']['data_headers'][0]['NumDataPoints'])
-    t  = si / fs
-    nyquist = fs / 2
 
     count = 0
     tvecs = np.zeros((num_depth,), dtype=object) * np.nan
@@ -202,35 +185,83 @@ def segment_data_by_depth(data_, num_depth=100):
 
     return sigs, edts, tvecs
 
-def get_data(base_fn, dest=None):
+def load_blackrock_data_neo(base_fn):
+    neo_io = BlackrockIO(filename=base_fn)
+    neo_block = neo_io.read_block(lazy=False, cascade=True,
+                                  n_starts=None, n_stops=None, channels='all',
+                                  nsx_to_load=5, scaling='voltage',
+                                  units='none', load_waveforms=False, load_events=True)
+
+    return {'ana_times': neo_block.segments[0].analogsignals[0].times,
+            'ana_data': np.asarray([x for x in neo_block.segments[0].analogsignals])[:, :, 0],
+            'samp_per_s': neo_block.segments[0].analogsignals[0].sampling_rate,
+            'chan_labels': [x.name.decode('utf8') for x in neo_block.segments[0].analogsignals],
+            'ev_times': neo_block.segments[0].events[0].times,
+            'ev_depths': np.asarray([float(x.split(':')[1]) for x in neo_block.segments[0].events[0].labels])}
+
+
+def load_blackrock_data_brpy(base_fn):
+    data_ = {'nsx': [], 'nev': []}
+    file_ = {'nsx': [], 'nev': []}
+    file_['nsx'] = brpylib.NsxFile(base_fn + '.ns5')
+    data_['nsx'] = file_['nsx'].getdata(elec_ids='all', start_time_s=0, data_time_s='all', downsample=1)
+    file_['nsx'].close()
+
+    file_['nev'] = brpylib.NevFile(base_fn + '.nev')
+    data_['nev'] = file_['nev'].getdata(elec_ids='all', get_waveforms=False)
+    file_['nev'].close()
+
+    fs = data_['nsx']['samp_per_s']
+    return {'ana_times': (1 + np.arange(data_['nsx']['data_headers'][0]['NumDataPoints'])) / fs * pq.s,
+            'ana_data': data_['nsx']['data'],
+            'samp_per_s': fs * (1/pq.s),
+            'chan_labels': [x['ElectrodeLabel'] for x in file_['nsx'].extended_headers],
+            'ev_times': np.asarray(data_['nev']['comments']['TimeStamps']) / fs * pq.s,
+            'ev_depths': np.asarray([float(tmp.split(':')[-1]) for tmp in data_['nev']['comments']['Comment']])}
+
+def get_data(base_fn, dest=None, version=0, load_method='brpy'):
     if dest is None:
         dest = empty_data_dict()
 
-    file_, data_ = load_blackrock_data(base_fn)
+    if load_method == 'brpy':
+        data_dict = load_blackrock_data_brpy(base_fn)
+    else:
+        data_dict = load_blackrock_data_neo(base_fn)  # About 4 times slower than modified brPY
 
-    fs = data_['nsx']['samp_per_s']
-    si = 1 + np.arange(data_['nsx']['data_headers'][0]['NumDataPoints'])
-    t  = si / fs
+    fs = data_dict['samp_per_s']
     nyquist = fs / 2
 
-    sigs, edts, tvecs = segment_data_by_depth(data_, num_depth=100)
+    hfir1 = signal.firwin(num_tap + 1, hp_cutoff, nyq=nyquist, pass_zero=False)
+    hfir0 = signal.firwin(num_tap + 1, (2, hp_cutoff), nyq=nyquist, pass_zero=True)
 
-    hfir1 = signal.firwin(num_tap+1, hp_cutoff, nyq=nyquist, pass_zero=False)
-    hfir0 = signal.firwin(num_tap+1, (2, hp_cutoff), nyq=nyquist, pass_zero=True)
+    if version:
+        b_new_depth = np.diff(np.hstack((-np.inf, data_dict['ev_depths']))) > 0
+        b_long_enough = np.hstack((np.diff(data_dict['ev_times'][b_new_depth]) > DEF_SEG_INTERVAL[1], False))
+        dest['depth'] = data_dict['ev_depths'][b_new_depth][b_long_enough]
 
-    for i, sig in enumerate(sigs):
-        ix  = np.arange(sig.shape[-1])
-        idx = np.logical_and(ix >= .5*fs, ix <4.5*fs)
+        seg_start_ix = np.where(b_new_depth)[0][b_long_enough]
+        seg_stop_ix = np.hstack((np.where(b_new_depth)[0][1:],data_dict['ev_times'].size))[b_long_enough]
+        n_segs = len(seg_start_ix)
 
-        seg_spk = np.atleast_2d(olafilt(hfir1, sig[:,idx], zi=None))[:,5000:]
-        seg_psd = np.atleast_2d(olafilt(hfir0, sig[:,idx], zi=None))[:,5000:][:,::dec_factor]
+        t0 = time.time()
+        for seg_ix in range(n_segs):
+            t0_seg = time.time()
+            seg_start_time = data_dict['ev_times'][seg_start_ix[seg_ix]]
+            seg_stop_time = data_dict['ev_times'][seg_stop_ix[seg_ix]] - (1/fs)
+            b_seg = np.logical_and(data_dict['ana_times'] >= seg_start_time, data_dict['ana_times'] < seg_stop_time)
+            sig = data_dict['ana_data'][:, b_seg]
+            tvec = data_dict['ana_times'][b_seg]
+            tvec -= tvec[0]
+            b_interval = np.logical_and(tvec >= DEF_SEG_INTERVAL[0], tvec < (DEF_SEG_INTERVAL[1] - 0.5/fs))
 
-        seg_tvec = tvecs[i][idx][5000:]
-        if seg_spk.shape[-1] >= fs*4-5000:
+            print('segment',time.time()-t0_seg)
+
+            t0_proc = time.time()
+            seg_spk = np.atleast_2d(olafilt(hfir1, sig[:, b_interval], zi=None))[:,num_tap//2:]
+            seg_psd = np.atleast_2d(olafilt(hfir0, sig[:, b_interval], zi=None))[:,num_tap//2:][:, ::dec_factor]
 
             dest['spk'].append(seg_spk)
-            dest['depth'].append(edts[i])
-            dest['tvec'].append(seg_tvec)
+            dest['tvec'].append(data_dict['ana_times'][b_seg][b_interval][num_tap//2:])
 
             # Calculate the RMS of the highpass
             seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=-1))
@@ -246,20 +277,54 @@ def get_data(base_fn, dest=None):
             f, Pxx_den = signal.periodogram(seg_psd, fs / dec_factor, axis=1)
             dest['spec_den'].append(Pxx_den)
             dest['f'].append(f)
+            print('proc', time.time()-t0_proc)
 
-    dest['depth'] = np.asarray(dest['depth'])
+    else:
+
+        sigs, edts, tvecs = segment_data_by_depth(data_dict, num_depth=100)
+
+        t0 = time.time()
+        for i, sig in enumerate(sigs):
+            ix  = np.arange(sig.shape[-1])
+            idx = np.logical_and(ix >= .5 * fs, ix < 4.5 * fs)
+
+            seg_spk = np.atleast_2d(olafilt(hfir1, sig[:,idx], zi=None))[:,5000:]
+            seg_psd = np.atleast_2d(olafilt(hfir0, sig[:,idx], zi=None))[:,5000:][:,::dec_factor]
+
+            seg_tvec = tvecs[i][idx][5000:]
+            if seg_spk.shape[-1] >= fs * pq.s * 4 - 5000:
+
+                dest['spk'].append(seg_spk)
+                dest['depth'].append(edts[i])
+                dest['tvec'].append(seg_tvec)
+
+                # Calculate the RMS of the highpass
+                seg_rms = np.sqrt(np.mean(seg_spk ** 2, axis=-1))
+                dest['rms'].append(seg_rms)
+
+                # Find threshold crossing events at rms_thresh * seg_rms
+                seg_spk_offset = seg_spk + (rms_thresh * seg_rms[:, np.newaxis])
+                b_spike = np.hstack((np.zeros((seg_spk_offset.shape[0], 1), dtype=np.bool),
+                                     np.logical_and(seg_spk_offset[:, :-1] >= 0, seg_spk_offset[:, 1:] < 0)))
+                dest['n_spikes'].append(np.sum(b_spike, axis=1))
+
+                # Calculate the spectrum
+                f, Pxx_den = signal.periodogram(seg_psd, fs / dec_factor, axis=1)
+                dest['spec_den'].append(Pxx_den)
+                dest['f'].append(f)
+
+    print(time.time()-t0)
     dest['spk'] = np.asarray(dest['spk'])
     dest['rms'] = np.asarray(dest['rms'])
     dest['spec_den'] = np.asarray(dest['spec_den'])
     dest['f'] = np.asarray(dest['f'])
     dest['n_spikes'] = np.asarray(dest['n_spikes'])
 
-    new_labels = [x['ElectrodeLabel'] for x in file_['nsx'].extended_headers]
-    if (len(dest['labels']) > 0) and (dest['labels'] != new_labels):
+    if (len(dest['labels']) > 0) and (dest['labels'] != data_dict['chan_labels']):
         # TODO: Raise error that channel labels do not match across files.
         return dest
     else:
-        dest['labels'] = new_labels
+        dest['labels'] = data_dict['chan_labels']
 
     return dest
 
@@ -313,10 +378,6 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.glw = pg.GraphicsLayoutWidget(parent=self)
         self.plots = {}
         self.plots['rms'] = []
-        # self.plots['rms'] = self.glw.addPlot(row=0, col=0, colspan=2, title='RMS', clickable=True)
-        # self.plots['rms'].scene().sigMouseClicked.connect(self.on_scene_clicked)
-        # self.plots['n_spikes'] = self.glw.addPlot(row=0, col=2, colspan=2, title='Spikes', clickable=True)
-        # self.plots['n_spikes'].scene().sigMouseClicked.connect(self.on_scene_clicked)
         self.plots['spectra'] = []  # We don't yet know how many there will be.
         layout.addWidget(self.glw)
 
@@ -359,7 +420,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
     def on_scene_clicked(self, event):
         if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
             self.last_ev_time = event.time()
-            depth = event.currentItem.mapSceneToView(event.scenePos()).y()
+            depth = event.currentItem.mapSceneToView(event.scenePos()).x()
             depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
             tvec = self.data['tvec'][depth_ix]
             data = self.data['spk'][depth_ix]
@@ -409,29 +470,21 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             ch_label = self.data['labels'][chan_ix]
             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
 
-
             if len(self.plots['rms']) <= chan_ix:
+
                 self.plots['rms'].append(self.glw.addPlot(row=0, col=chan_ix, colspan=1, title='RMS', clickable=True))
+                self.plots['rms'][chan_ix].clear()
                 self.plots['rms'][chan_ix].scene().sigMouseClicked.connect(self.on_scene_clicked)
 
-                self.plots['rms'][chan_ix].clear()
-                self.plots['rms'][chan_ix].addLegend(offset=(350, 30))
-
-                bg1 = pg.BarGraphItem(x=depths, height=rms_dat[:, chan_ix], width=0.1, brush='r')
+                bg1 = pg.BarGraphItem(x=depths, height=rms_dat[:, chan_ix], width=0.1, brush=pen)
                 self.plots['rms'][chan_ix].addItem(bg1)
-
-            # curve = self.plots['rms'].plot(x=rms_dat[:, chan_ix], y=depths,
-            #                                name=ch_label, pen=pen, clickable=True)
-            # curve.getViewBox().invertY(True)
-            # curve = self.plots['n_spikes'].plot(x=nspk_dat[:, chan_ix], y=depths,
-            #                                     name=ch_label, pen=pen, clickable=True)
-            # curve.getViewBox().invertY(True)
+                self.plots['rms'][chan_ix].addLegend(offset=(350, 30))
 
             if len(self.plots['spectra']) <= chan_ix:
                 self.plots['spectra'].append(self.glw.addPlot(row=2, col=chan_ix, title=ch_label))
-                # view = pg.ImageView(view=self.plots['spectra'][chan_ix])
                 img = pg.ImageItem()
                 self.plots['spectra'][chan_ix].addItem(img)
+
             # Update ImageView with new data.
             img_dat = np.squeeze(spec_dat[:, chan_ix, :].T)
             img_dat_interp = np.zeros((img_dat.shape[0], len(spec_depths)))
