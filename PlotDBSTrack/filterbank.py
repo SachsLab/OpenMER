@@ -52,8 +52,7 @@ class FastFilterBank(object):
             cf = foi_hz
 
         self.freqs = np.asarray([(f-self.bandwidth/2, f+self.bandwidth/2) for f in cf])
-        print(self.freqs)
-        print(self.freqs.shape)
+
         # Create rules for how to handle the data
         self._encoder_rule()
         self._decoder_rule()
