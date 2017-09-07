@@ -82,7 +82,6 @@ def getRGBAFromCMap(x, c_inds, c_vals, mode='rgb'):
 
 def getLUT(n_pts=512, cm_name='Spectral', cm_library='matplotlib', has_alpha=False):
     """
-
     :param n_pts:
     :param cm_name:
     :param cm_library:
