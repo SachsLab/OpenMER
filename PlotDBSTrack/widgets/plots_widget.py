@@ -22,6 +22,10 @@ class PlotsWidget(QtGui.QWidget):
 
         self.setLayout(self.layout)
 
+    def clear(self):
+        for (i,j),pl in np.ndenumerate(self.pl):
+            pl.clear()
+
     def setup_plots(self, nrow, ncol, title=None, clickable=True):
         self.nrow = nrow
         self.ncol = ncol
@@ -35,12 +39,13 @@ class PlotsWidget(QtGui.QWidget):
                 plot_title = "{}: {}".format(title_k[i], title[title_k[i]][j]) if title is not None else None
                 self.pl[i, j] = self.gl.addPlot(title=plot_title, row=i, col=j, clickable=clickable)
 
+    def plot(self, row_id, col_id, label=None, offset=(350, 30), **kwargs):
+        self.pl[row_id, col_id].plot(**kwargs)
+
     def bar(self, row_id, col_id, label=None, offset=(350, 30), **kwargs):
         """
         Plotting the bar graphs onto Plot Items.
         """
-        self.kwargs = kwargs
-
         bar = BarGraph(label=label, **kwargs)
         self.pl[row_id, col_id].addItem(bar)
 
@@ -72,12 +77,19 @@ class PlotsWidget(QtGui.QWidget):
         self.pl[row_id, col_id].invertX(invert_x)
 
     def clickedBar(self, message):
+        print(message, type(message))
         dlg = QtWidgets.QDialog()
         dlg.setMinimumSize(800, 600)
         dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
         glw = pg.GraphicsLayoutWidget(parent=dlg)
-        dlg.layout().addWidget(glw)
 
-        glw.addPlot(row=0, col=0)
+        self.setup_clicked_plots()
+        dlg.layout().addWidget(self.plw)
+
+        # glw.addPlot(row=0, col=0)
 
         dlg.exec_()
+
+    def setup_clicked_plots(self):
+        self.plw = PlotsWidget()
+        self.plw.setup_plots(3, 1)

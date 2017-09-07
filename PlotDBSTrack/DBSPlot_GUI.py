@@ -22,6 +22,7 @@ from widgets.plots_widget import PlotsWidget
 # DEF_ROOT_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', '..', '..', 'DBSData'))\
 #     if platform.system() in ['Linux', 'Darwin'] else os.path.abspath('D:\DBSData')
 
+DATA_DIR = None
 PRJ_DIR = 'NeuroportDBS'
 GUI_DIR = 'PlotDBSTrack'
 DATANAME_DIR = [os.path.join('..','..','..','DBSData'), \
@@ -42,7 +43,8 @@ for dataname in DATANAME_DIR:
     if os.path.exists(tmp):
         DATA_DIR = tmp
 
-print(DATA_DIR)
+if DATA_DIR is None:
+    DATA_DIR = cwd
 
 THEMES = {
     'dark': {
@@ -62,6 +64,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.show()
 
     def setup_ui(self):
+
         self.setCentralWidget(QtWidgets.QWidget(self))
         layout = QtWidgets.QVBoxLayout()
         self.centralWidget().setLayout(layout)
@@ -99,8 +102,6 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.refresh_pushbutton.setEnabled(False)
         data_layout.addWidget(self.refresh_pushbutton)
         layout.addLayout(data_layout)
-
-        # TODO: Add pyqtgraph plot items to layout.
 
         self.plots = PlotsWidget()
         layout.addWidget(self.plots)
@@ -169,7 +170,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
         for traj in traj_list:
             self.base_fn = os.path.join(datadir, curr_sess + '-' + traj.text())
-            self.find_data(version=0, save=True)
+            self.find_data(version=1, save=True)
 
         self.refresh_pushbutton.setEnabled(True)
 
@@ -177,9 +178,10 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         main_plot_names = ['rms', 'pac', 'spectra']
         title_label = {name: self.data['labels'] for name in main_plot_names}
         self.plots.setup_plots(len(main_plot_names), len(self.data['labels']), title=title_label, clickable=True)
+        self.plots.clear()
         self.update_plots()
 
-    def find_data(self, version=1, save=False):
+    def find_data(self, version=0, save=False):
         filename = os.path.abspath(os.path.join(CACHE_DIR,'__data__{}.npy'.format(self.base_fn.split('/')[-1])))
         found = False
         for tmp in os.listdir(CACHE_DIR):
@@ -219,6 +221,9 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                 temp = stats.zscore(img_dat[ch, f_ix, :], axis=-1)
                 img_dat_interp[ch, f_ix, :] = np.interp(spec_depths, depths, temp)
 
+        print(img_dat_interp.shape, img_dat.shape, spec_dat.shape)
+        print(freqs, freqs.shape)
+        print(spec_depths, spec_depths.shape)
         spec_lim = np.max(np.abs(img_dat_interp))
         colors = [QtGui.QColor(THEMES['dark']['pencolors'][chan_ix]) for chan_ix in range(rms_dat.shape[-1])]
         for ch in range(n_channels):

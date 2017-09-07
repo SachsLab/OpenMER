@@ -156,8 +156,7 @@ class DBSTrackAnalysis(object):
                     # self.data_analysis['n_spikes'].append(np.sum(b_spike, axis=1))
 
                     # Calculate the spectrum
-                    # f, Pxx_den = signal.periodogram(seg_psd, self.fs / dec_factor, nfft=2<<(seg_psd.shape[-1].bit_length()), axis=1)
-                    f, Pxx_den = np.arange(4097), np.asarray(np.random.randn(3, 4097), dtype=np.complex128)
+                    f, Pxx_den = signal.periodogram(seg_psd, self.fs / dec_factor, nfft=2<<(seg_psd.shape[-1].bit_length()), axis=1)
 
                     self.data_analysis['spec_den'].append(Pxx_den)
                     self.data_analysis['f'].append(f)
