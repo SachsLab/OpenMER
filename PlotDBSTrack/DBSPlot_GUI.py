@@ -11,7 +11,7 @@ import pyfftw.interfaces.numpy_fft as fft
 import pyqtgraph as pg
 from qtpy import (QtCore, QtGui, QtWidgets)
 
-import brpylib
+# import brpylib
 import quantities as pq
 from neo.io.blackrockio import BlackrockIO
 from utilities import segment_consecutive
@@ -27,13 +27,14 @@ PRJ_DIR = 'NeuroportDBS'
 GUI_DIR = 'PlotDBSTrack'
 DATANAME_DIR = [os.path.join('..','..','..','DBSData'), \
                 os.path.join('..','..','data_collected'),\
-                os.path.abspath('D:\DBSData')]
+                os.path.abspath('D:\DBSData'),
+                os.path.abspath('E:\SachsLab\Data\DBSData')]
 
 cwd = os.getcwd()
-if cwd.split('/')[-1] == PRJ_DIR:
+if os.path.split(cwd)[-1] == PRJ_DIR:
     CACHE_DIR = os.path.abspath(os.path.join(cwd, GUI_DIR, '__cache__'))
-elif cwd.split('/')[-1] == GUI_DIR:
-    CACHE_DIR = os.path.abspath(cwd, '__cache__')
+elif os.path.split(cwd)[-1] == GUI_DIR:
+    CACHE_DIR = os.path.abspath(os.path.join(cwd, '__cache__'))
 
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
@@ -55,6 +56,7 @@ THEMES = {
         'axiswidth': 1
     }
 }
+
 
 class DBSPlotGUI(QtWidgets.QMainWindow):
     def __init__(self):
@@ -257,6 +259,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
 
         self.plots.add_data(data=self.raw, label='plot')
+
 
 if __name__ == '__main__':
     qapp = QtWidgets.QApplication(sys.argv)
