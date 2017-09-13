@@ -174,7 +174,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
         for traj in traj_list:
             self.base_fn = os.path.join(datadir, curr_sess + '-' + traj.text())
-            self.find_data(version=0, save=True)
+            self.find_data(version=0, save=(platform.system() in ['Linux', 'Darwin']))
 
         self.refresh_pushbutton.setEnabled(True)
 
