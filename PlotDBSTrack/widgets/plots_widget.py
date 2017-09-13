@@ -6,11 +6,22 @@ from qtpy import (QtCore, QtGui, QtWidgets)
 from .image_properties import (getRGBAFromCMap, getLUT)
 from .bar_widget import BarGraph
 
+THEMES = {
+    'dark': {
+        'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
+        'bgcolor': QtCore.Qt.black,
+        'labelcolor': QtCore.Qt.gray,
+        'axiscolor': QtCore.Qt.gray,
+        'axiswidth': 1
+    }
+}
 class PlotsWidget(QtGui.QWidget):
     """
     """
     def __init__(self):
         QtGui.QWidget.__init__(self)
+
+        self.data = {}
 
         self.gv = pg.GraphicsView()
         self.gl = GraphicsLayout()
@@ -25,6 +36,9 @@ class PlotsWidget(QtGui.QWidget):
     def clear(self):
         for (i,j),pl in np.ndenumerate(self.pl):
             pl.clear()
+
+    def add_data(self, data, label='plot'):
+        self.data[label] = {'x':data['time'], 'y': data['data']}
 
     def setup_plots(self, nrow, ncol, title=None, clickable=True):
         self.nrow = nrow
@@ -77,19 +91,25 @@ class PlotsWidget(QtGui.QWidget):
         self.pl[row_id, col_id].invertX(invert_x)
 
     def clickedBar(self, message):
-        print(message, type(message))
+
+        tvec = self.data['plot']['x'][message._last_index[0]]
+        data = self.data['plot']['y'][message._last_index[0]]
+
         dlg = QtWidgets.QDialog()
         dlg.setMinimumSize(800, 600)
         dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
         glw = pg.GraphicsLayoutWidget(parent=dlg)
 
-        self.setup_clicked_plots()
-        dlg.layout().addWidget(self.plw)
+        dlg.layout().addWidget(glw)
+        for ch in range(data.shape[0]):
+            print(data.shape)
+            print(data)
+            plt = glw.addPlot(row=ch, col=0)
+            pen = QtGui.QColor(THEMES['dark']['pencolors'][ch])
+            curve = plt.plot(x=tvec, y= data[ch, :], pen=pen)
 
-        # glw.addPlot(row=0, col=0)
+            # curve = plt.plot(x=tvec, y= data[ch, :], name=self.data['labels'][ch], pen=pen)
+            plt.setYRange(np.min(data), np.max(data))
+            plt.setXRange(np.min(tvec), np.max(tvec))
 
         dlg.exec_()
-
-    def setup_clicked_plots(self):
-        self.plw = PlotsWidget()
-        self.plw.setup_plots(3, 1)

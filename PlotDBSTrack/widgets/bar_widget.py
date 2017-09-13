@@ -1,10 +1,10 @@
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import (GraphicsView, GraphicsLayout, GraphicsObject)
-from pyqtgraph.Qt import (QtCore, QtGui)
+from qtpy import (QtCore, QtGui)
+
 from pyqtgraph.widgets.PlotWidget import PlotWidget
 
-from pyqtgraph.Qt import QtGui, QtCore
 from pyqtgraph.graphicsItems.GraphicsObject import GraphicsObject
 from pyqtgraph import getConfigOption
 from pyqtgraph import functions as fn
@@ -12,7 +12,7 @@ import numpy as np
 
 class BarGraph(pg.BarGraphItem):
 
-    barClicked = QtCore.pyqtSignal(object)
+    barClicked = QtCore.Signal(object)
     def __init__(self, **opts):
 
         self._last_index = np.asarray([0])

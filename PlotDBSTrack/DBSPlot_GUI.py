@@ -97,9 +97,11 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         go_pushbutton = QtWidgets.QPushButton("Go!")
         go_pushbutton.clicked.connect(self.analyze)
         data_layout.addWidget(go_pushbutton)
+
         self.refresh_pushbutton = QtWidgets.QPushButton("Refresh")
         self.refresh_pushbutton.clicked.connect(self.update_plots)
         self.refresh_pushbutton.setEnabled(False)
+
         data_layout.addWidget(self.refresh_pushbutton)
         layout.addLayout(data_layout)
 
@@ -142,26 +144,26 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             self.traj_listwidget.sizeHintForRow(
                 0) * self.traj_listwidget.count() + 2 * self.traj_listwidget.frameWidth())
 
-    def on_scene_clicked(self, event):
-        if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
-            self.last_ev_time = event.time()
-            depth = event.currentItem.mapSceneToView(event.scenePos()).x()
-            depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
-
-            tvec = self.data['tvec'][depth_ix]
-            data = self.data['spk'][depth_ix]
-
-            dlg = QtWidgets.QDialog()
-            dlg.setMinimumSize(800, 600)
-            dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
-            glw = pg.GraphicsLayoutWidget(parent=dlg)
-            dlg.layout().addWidget(glw)
-            for chan_ix in range(data.shape[0]):
-                plt = glw.addPlot(row=chan_ix, col=0)
-                pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
-                curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.data['labels'][chan_ix], pen=pen)
-                plt.setYRange(np.min(data), np.max(data))
-            dlg.exec_()
+    # def on_scene_clicked(self, event):
+    #     if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
+    #         self.last_ev_time = event.time()
+    #         depth = event.currentItem.mapSceneToView(event.scenePos()).x()
+    #         depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
+    #
+    #         tvec = self.data['tvec'][depth_ix]
+    #         data = self.data['spk'][depth_ix]
+    #
+    #         dlg = QtWidgets.QDialog()
+    #         dlg.setMinimumSize(800, 600)
+    #         dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
+    #         glw = pg.GraphicsLayoutWidget(parent=dlg)
+    #         dlg.layout().addWidget(glw)
+    #         for chan_ix in range(data.shape[0]):
+    #             plt = glw.addPlot(row=chan_ix, col=0)
+    #             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
+    #             curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.data['labels'][chan_ix], pen=pen)
+    #             plt.setYRange(np.min(data), np.max(data))
+    #         dlg.exec_()
 
     def analyze(self):
         curr_sess = self.sub_combobox.currentText()
@@ -170,7 +172,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
         for traj in traj_list:
             self.base_fn = os.path.join(datadir, curr_sess + '-' + traj.text())
-            self.find_data(version=1, save=True)
+            self.find_data(version=0, save=True)
 
         self.refresh_pushbutton.setEnabled(True)
 
@@ -183,6 +185,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
     def find_data(self, version=0, save=False):
         filename = os.path.abspath(os.path.join(CACHE_DIR,'__data__{}.npy'.format(self.base_fn.split('/')[-1])))
+        filename2 = os.path.abspath(os.path.join(CACHE_DIR,'__data__{}_.npy'.format(self.base_fn.split('/')[-1])))
         found = False
         for tmp in os.listdir(CACHE_DIR):
             if fnmatch.fnmatch(tmp, filename.split('/')[-1]):
@@ -190,11 +193,15 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
         if found:
             self.data = np.load(filename)[()]
+            self.raw = np.load(filename2)[()]
 
         else:
             self.dta = DBSTrackAnalysis(self.base_fn)
             self.data = self.dta.process(version=version)
+            self.raw = {'data': self.dta.signals,
+                        'time': self.dta.tvecs}
             if save:
+                np.save(filename2, self.raw)
                 np.save(filename, self.data)
 
     def update_plots(self):
@@ -206,23 +213,23 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         pac_dat = np.asarray(self.data['pac'])[resort, :]
 
         import matplotlib.pyplot as plt
-        from matplotlib.colors import LogNorm
 
         spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
 
-        plt.subplot(131)
-        plt.imshow(self.data['spec_den'][:,0,:], aspect='auto')
-        plt.subplot(132)
-        plt.imshow(self.data['spec_den'][:,1,:], aspect='auto')
-        plt.subplot(133)
-        plt.imshow(self.data['spec_den'][:,2,:], aspect='auto')
-        plt.show()
+        # plt.subplot(131)
+        # plt.imshow(self.data['spec_den'][:,0,:], aspect='auto')
+        # plt.subplot(132)
+        # plt.imshow(self.data['spec_den'][:,1,:], aspect='auto')
+        # plt.subplot(133)
+        # plt.imshow(self.data['spec_den'][:,2,:], aspect='auto')
+        # plt.show()
 
         b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
         freqs = self.data['f'][0][b_freq]
         spec_dat = spec_dat[:, :, b_freq]  # Limit to between 0 and 100
         spec_dat = -np.log10(np.square(spec_dat))  # convert to dB; - because LUT has blue a hot (I think?)
-        min_diff = np.min(np.diff(depths))
+        min_diff = np.mean(np.diff(depths))
+
         spec_depths = np.arange(depths[0], depths[-1], min_diff)
 
         n_channels = rms_dat.shape[-1]
@@ -236,15 +243,20 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         spec_lim = np.max(np.abs(img_dat_interp))
         colors = [QtGui.QColor(THEMES['dark']['pencolors'][chan_ix]) for chan_ix in range(rms_dat.shape[-1])]
         for ch in range(n_channels):
+
             self.plots.bar(0, ch, label='rms {}'.format(ch+1), x=depths, height=rms_dat[:,ch], width=.2,
                             pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_pen=pg.mkPen(QtGui.QColor("white")))
+
             self.plots.bar(1, ch, label='pac {}'.format(ch+1), x=depths, height=pac_dat[:,ch], width=.2,
                             pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_brush=pg.mkPen(QtGui.QColor("white")))
+
             self.plots.imshow(2, ch, img_dat_interp[ch,:,:], label='spectra', set_pos=(freqs[0], spec_depths[0]),
                               scale=((freqs[-1] - freqs[0]) / img_dat_interp[ch,:,:].shape[0],
                                      (spec_depths[-1] - spec_depths[0]) / img_dat_interp[ch,:,:].shape[1]),
                               set_levels=(-spec_lim, spec_lim), set_aspect_locked=False, invert_y=True)
 
+
+        self.plots.add_data(data=self.raw, label='plot')
 
 if __name__ == '__main__':
     qapp = QtWidgets.QApplication(sys.argv)

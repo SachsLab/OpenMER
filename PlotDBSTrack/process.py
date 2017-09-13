@@ -158,7 +158,7 @@ class DBSTrackAnalysis(object):
                     # Calculate the spectrum
                     f, Pxx_den = signal.periodogram(seg_psd, self.fs / dec_factor, nfft=2<<(seg_psd.shape[-1].bit_length()), axis=1)
 
-                    self.data_analysis['spec_den'].append(Pxx_den)
+                    self.data_analysis['spec_den'].append(np.sqrt(np.abs(Pxx_den)))
                     self.data_analysis['f'].append(f)
 
         self.data_analysis['spk'] = np.asarray(self.data_analysis['spk'])
