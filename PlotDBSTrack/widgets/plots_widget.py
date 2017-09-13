@@ -16,6 +16,8 @@ THEMES = {
         'axiswidth': 1
     }
 }
+
+
 class PlotsWidget(QtGui.QWidget):
     """
     """
@@ -35,11 +37,11 @@ class PlotsWidget(QtGui.QWidget):
         self.setLayout(self.layout)
 
     def clear(self):
-        for (i,j),pl in np.ndenumerate(self.pl):
+        for _, pl in np.ndenumerate(self.pl):
             pl.clear()
 
     def add_data(self, data, label='plot'):
-        self.data[label] = {'x':data['time'], 'y': data['data']}
+        self.data[label] = {'x': data['time'], 'y': data['data']}
 
     def setup_plots(self, nrow, ncol, title=None, clickable=True):
         self.nrow = nrow
@@ -67,7 +69,7 @@ class PlotsWidget(QtGui.QWidget):
         bar.barClicked.connect(self.clickedBar)
 
     def imshow(self, row_id, col_id, im_data, label=None, set_pos=None, scale=None, set_levels=None,
-                set_aspect_locked=False, invert_y=False, invert_x=False):
+               set_aspect_locked=False, invert_y=False, invert_x=False):
 
         self.lut = getLUT()
         img = pg.ImageItem()
@@ -93,25 +95,23 @@ class PlotsWidget(QtGui.QWidget):
 
     def clickedBar(self, message):
 
-        tvec = self.data['plot']['x'][message._last_index[0]]
-        data = self.data['plot']['y'][message._last_index[0]]
+        tvec = self.data['plot']['x'][message._last_index]
+        data = self.data['plot']['y'][message._last_index]
 
         dlg = QtWidgets.QDialog()
         dlg.setMinimumSize(800, 600)
         dlg.setLayout(QtWidgets.QVBoxLayout(dlg))
         glw = pg.GraphicsLayoutWidget(parent=dlg)
-
         dlg.layout().addWidget(glw)
+        y_range = (np.min(data), np.max(data))
+        x_range = (np.min(tvec), np.min(tvec) + 4)
         for ch in range(data.shape[0]):
-            print(data.shape)
-            print(data)
             plt = glw.addPlot(row=ch, col=0)
             pen = QtGui.QColor(THEMES['dark']['pencolors'][ch])
-            curve = plt.plot(x=tvec, y= data[ch, :], pen=pen)
+            curve = plt.plot(x=tvec, y=data[ch, :], pen=pen)
 
             # curve = plt.plot(x=tvec, y= data[ch, :], name=self.data['labels'][ch], pen=pen)
-            plt.setYRange(np.min(data), np.max(data))
-            print(np.min(tvec))
-            plt.setXRange(np.min(tvec).magnitude, np.min(tvec).magnitude + 4)
+            plt.setYRange(*y_range)
+            plt.setXRange(*x_range)
 
         dlg.exec_()

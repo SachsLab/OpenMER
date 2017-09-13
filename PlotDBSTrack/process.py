@@ -24,6 +24,7 @@ pac_scale = 1000
 loF = (12, 36)
 hiF = (60, 200)
 
+
 class DBSTrackAnalysis(object):
 
     def __init__(self, base_fn, load_method='brpy', dest=None):
@@ -128,8 +129,8 @@ class DBSTrackAnalysis(object):
                 ix  = np.arange(sig.shape[-1])
                 idx = np.logical_and(ix >= .5 * self.fs, ix < 4.5 * self.fs)
 
-                seg_spk = np.atleast_2d(olafilt(self.hfir1, sig[:,idx], zi=None))[:,5000:]
-                seg_psd = np.atleast_2d(olafilt(self.hfir0, sig[:,idx], zi=None))[:,5000:][:,::dec_factor]
+                seg_spk = np.atleast_2d(olafilt(self.hfir1, sig[:, idx], zi=None))[:, 5000:]
+                seg_psd = np.atleast_2d(olafilt(self.hfir0, sig[:, idx], zi=None))[:, 5000:][:, ::dec_factor]
 
                 lo = self.ffb0.process(sig[:, idx])
                 hi = self.ffb1.process(sig[:, idx])
@@ -142,7 +143,7 @@ class DBSTrackAnalysis(object):
 
                     # Calculate PAC
                     seg_pdn = parpac.pad_mr(np.angle(lo), np.abs(hi))
-                    seg_pac = parpac.pac_mi(seg_pdn)[:,0,0] * pac_scale
+                    seg_pac = parpac.pac_mi(seg_pdn)[:, 0, 0] * pac_scale
                     self.data_analysis['pac'].append(seg_pac)
 
                     # Calculate the RMS of the highpass
@@ -156,7 +157,8 @@ class DBSTrackAnalysis(object):
                     # self.data_analysis['n_spikes'].append(np.sum(b_spike, axis=1))
 
                     # Calculate the spectrum
-                    f, Pxx_den = signal.periodogram(seg_psd, self.fs / dec_factor, nfft=2<<(seg_psd.shape[-1].bit_length()), axis=1)
+                    f, Pxx_den = signal.periodogram(seg_psd, self.fs / dec_factor,
+                                                    nfft=2 << (seg_psd.shape[-1].bit_length()), axis=1)
 
                     self.data_analysis['spec_den'].append(np.sqrt(np.abs(Pxx_den)))
                     self.data_analysis['f'].append(f)
@@ -166,6 +168,7 @@ class DBSTrackAnalysis(object):
         self.data_analysis['spec_den'] = np.asarray(self.data_analysis['spec_den'])
         self.data_analysis['f'] = np.asarray(self.data_analysis['f'])
         self.data_analysis['n_spikes'] = np.asarray(self.data_analysis['n_spikes'])
+        self.data_analysis['tvec'] = np.asarray(self.data_analysis['tvec'])
 
         if (len(self.data_analysis['labels']) > 0) and (self.data_analysis['labels'] != self.data_dict['chan_labels']):
             # TODO: Raise error that channel labels do not match across files.
@@ -189,20 +192,20 @@ class DBSTrackAnalysis(object):
         label_sorted = segment_consecutive(np.nonzero(label)[0], stepsize=3)
 
         count = 0
-        self.tvecs   = np.zeros((num_depth,), dtype=object) * np.nan
-        self.signals = np.zeros((num_depth,), dtype=object) * np.nan
-        self.depths  = np.zeros((num_depth,)) * np.nan
+        tvecs   = np.zeros((num_depth,), dtype=object) * np.nan
+        depths = np.zeros((num_depth,)) * np.nan
+        signals = np.zeros((num_depth,), dtype=object) * np.nan
         for v in label_sorted:
             ix0, ix1 = dtt_sample_ix[v[0]], dtt_sample_ix[v[-1]]
             if (ix1-ix0)/self.fs > 3:
-                self.signals[count] = sig[:,ix0:ix1]
-                self.tvecs[count]   = t[ix0:ix1]
-                self.depths[count]  = np.round(dtt[v[0]], 3)
+                signals[count] = sig[:, ix0:ix1]
+                tvecs[count]   = t[ix0:ix1]
+                depths[count]  = np.round(dtt[v[0]], 3)
                 count += 1
 
-        self.signals = self.signals[np.equal(np.zeros(self.depths.size, dtype=bool),np.isnan(self.depths))]
-        self.tvecs  = self.tvecs[np.equal(np.zeros(self.depths.size, dtype=bool),np.isnan(self.depths))]
-        self.depths  = self.depths[np.equal(np.zeros(self.depths.size, dtype=bool),np.isnan(self.depths))]
+        self.signals = signals[np.equal(np.zeros(depths.size, dtype=bool), np.isnan(depths))]
+        self.tvecs  = tvecs[np.equal(np.zeros(depths.size, dtype=bool), np.isnan(depths))]
+        self.depths  = depths[np.equal(np.zeros(depths.size, dtype=bool), np.isnan(depths))]
 
     @staticmethod
     def load_blackrock_data_neo(base_fn):
@@ -245,6 +248,7 @@ class DBSTrackAnalysis(object):
         return {'labels': [], 'spk': [], 'tvec': [], 'depth': [],
                 'rms': [], 'n_spikes': [], 'spec_den': [], 'f': [],
                 'pac': [], 'comod': []}
+
 
 def olafilt(b, x, axis=-1, zi=None):
     ax0, ax1 = x.shape

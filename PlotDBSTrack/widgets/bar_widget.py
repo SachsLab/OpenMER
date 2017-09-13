@@ -14,36 +14,35 @@ class BarGraph(pg.BarGraphItem):
 
     barClicked = QtCore.Signal(object)
     def __init__(self, **opts):
-
-        self._last_index = np.asarray([0])
+        self._last_index = None
+        self._last_y = np.inf
+        self._highlighted_bar = None
         self.highlight = dict(
-            pen = pg.mkPen(QtGui.QColor("orange")),
-            brush = pg.mkBrush(QtGui.QColor("orange"))
+            pen=pg.mkPen(QtGui.QColor("orange")),
+            brush=pg.mkBrush(QtGui.QColor("orange"))
         )
         pg.BarGraphItem.__init__(self, **opts)
 
     def mouseClickEvent(self, event):
-        self.barClicked.emit(self)
+        if event.pos().y() != self._last_y:
+            self.barClicked.emit(self)
+            self._last_y = event.pos().y()
 
     def hoverEvent(self, event):
         view = self.getViewBox()
+        index = np.argmin(np.abs(self.opts['x'] - event.pos().x()))
 
-        index = self._last_index
-        if event.isEnter():
-            if event.currentItem is not None:
-                lp = event.lastPos()
-                p = event.pos()
+        if index != self._last_index:
 
-            diff = np.abs(self.opts['x'] - p.x())
-            index = np.where(diff == np.min(diff))[0]
+            if self._highlighted_bar is not None:
+                view.removeItem(self._highlighted_bar)
+                self._highlighted_bar = None
 
-            if index != self._last_index:
-                self._current_bar = pg.BarGraphItem(x=self.opts['x'][index], height=self.opts['height'][index], width=self.opts['width'],
-                                                    pen=self.highlight['pen'], brush=self.highlight['brush'])
-                self._last_bar = pg.BarGraphItem(x=self.opts['x'][self._last_index], height=self.opts['height'][self._last_index], width=self.opts['width'],
-                                                 pen=self.opts['pen'], brush=self.opts['brush'])
-
-                view.addItem(self._current_bar)
-                view.addItem(self._last_bar)
-
-        self._last_index = index
+            if event.isEnter():
+                temp = pg.BarGraphItem(x=(self.opts['x'][index],),
+                                       height=(self.opts['height'][index],),
+                                       width=self.opts['width'],
+                                       pen=self.highlight['pen'], brush=self.highlight['brush'])
+                view.addItem(temp)
+                self._highlighted_bar = temp
+                self._last_index = index

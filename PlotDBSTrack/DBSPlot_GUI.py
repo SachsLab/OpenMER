@@ -150,10 +150,10 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
     #     if isinstance(event.currentItem, pg.ViewBox) and (event.time() != self.last_ev_time):
     #         self.last_ev_time = event.time()
     #         depth = event.currentItem.mapSceneToView(event.scenePos()).x()
-    #         depth_ix = np.argmin(np.abs(depth - np.asarray(self.data['depth'])))
+    #         depth_ix = np.argmin(np.abs(depth - np.asarray(self.dta.data_analysis['depth'])))
     #
-    #         tvec = self.data['tvec'][depth_ix]
-    #         data = self.data['spk'][depth_ix]
+    #         tvec = self.dta.data_analysis['tvec'][depth_ix]
+    #         data = self.dta.data_analysis['spk'][depth_ix]
     #
     #         dlg = QtWidgets.QDialog()
     #         dlg.setMinimumSize(800, 600)
@@ -163,7 +163,7 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
     #         for chan_ix in range(data.shape[0]):
     #             plt = glw.addPlot(row=chan_ix, col=0)
     #             pen = QtGui.QColor(THEMES['dark']['pencolors'][chan_ix])
-    #             curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.data['labels'][chan_ix], pen=pen)
+    #             curve = plt.plot(x=tvec, y= data[chan_ix, :], name=self.dta.data_analysis['labels'][chan_ix], pen=pen)
     #             plt.setYRange(np.min(data), np.max(data))
     #         dlg.exec_()
 
@@ -180,8 +180,8 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
 
         # Plotting the data
         main_plot_names = ['rms', 'pac', 'spectra']
-        title_label = {name: self.data['labels'] for name in main_plot_names}
-        self.plots.setup_plots(len(main_plot_names), len(self.data['labels']), title=title_label, clickable=True)
+        title_label = {name: self.dta.data_analysis['labels'] for name in main_plot_names}
+        self.plots.setup_plots(len(main_plot_names), len(self.dta.data_analysis['labels']), title=title_label, clickable=True)
         self.plots.clear()
         self.update_plots()
 
@@ -194,40 +194,40 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                 found = True
 
         if found:
-            self.data = np.load(filename)[()]
-            self.raw = np.load(filename2)[()]
+            self.dta.data_analysis = np.load(filename)[()]
+            raw = np.load(filename2)[()]
+            self.dta.signals = raw['data']
+            self.dta.tvecs = raw['time']
 
         else:
             self.dta = DBSTrackAnalysis(self.base_fn)
-            self.data = self.dta.process(version=version)
-            self.raw = {'data': self.dta.signals,
-                        'time': self.dta.tvecs}
+            self.dta.process(version=version)
             if save:
-                np.save(filename2, self.raw)
-                np.save(filename, self.data)
+                np.save(filename2, {'data': self.dta.signals, 'time': self.dta.tvecs})
+                np.save(filename, self.dta.data_analysis)
 
     def update_plots(self):
         # TODO: Delete legend
-        depths = np.asarray(self.data['depth'])
+        depths = np.asarray(self.dta.data_analysis['depth'])
         resort = np.argsort(depths)
         depths = depths[resort]
-        rms_dat = np.asarray(self.data['rms'])[resort, :]
-        pac_dat = np.asarray(self.data['pac'])[resort, :]
+        rms_dat = np.asarray(self.dta.data_analysis['rms'])[resort, :]
+        pac_dat = np.asarray(self.dta.data_analysis['pac'])[resort, :]
 
         import matplotlib.pyplot as plt
 
-        spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
+        spec_dat = np.asarray(self.dta.data_analysis['spec_den'])[resort, :, :]
 
         # plt.subplot(131)
-        # plt.imshow(self.data['spec_den'][:,0,:], aspect='auto')
+        # plt.imshow(self.dta.data_analysis['spec_den'][:,0,:], aspect='auto')
         # plt.subplot(132)
-        # plt.imshow(self.data['spec_den'][:,1,:], aspect='auto')
+        # plt.imshow(self.dta.data_analysis['spec_den'][:,1,:], aspect='auto')
         # plt.subplot(133)
-        # plt.imshow(self.data['spec_den'][:,2,:], aspect='auto')
+        # plt.imshow(self.dta.data_analysis['spec_den'][:,2,:], aspect='auto')
         # plt.show()
 
-        b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
-        freqs = self.data['f'][0][b_freq]
+        b_freq = np.logical_and(self.dta.data_analysis['f'][0] > 0, self.dta.data_analysis['f'][0] <= 100)
+        freqs = self.dta.data_analysis['f'][0][b_freq]
         spec_dat = spec_dat[:, :, b_freq]  # Limit to between 0 and 100
         spec_dat = -np.log10(np.square(spec_dat))  # convert to dB; - because LUT has blue a hot (I think?)
         min_diff = np.mean(np.diff(depths))
@@ -257,8 +257,9 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                                      (spec_depths[-1] - spec_depths[0]) / img_dat_interp[ch,:,:].shape[1]),
                               set_levels=(-spec_lim, spec_lim), set_aspect_locked=False, invert_y=True)
 
-
-        self.plots.add_data(data=self.raw, label='plot')
+        self.plots.add_data(data={'data': self.dta.data_analysis['spk'],
+                                  'time': self.dta.data_analysis['tvec']},
+                            label='plot')
 
 
 if __name__ == '__main__':
