@@ -2,6 +2,7 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph import (GraphicsView, GraphicsLayout)
 from qtpy import (QtCore, QtGui, QtWidgets)
+import quantities as pq
 
 from .image_properties import (getRGBAFromCMap, getLUT)
 from .bar_widget import BarGraph
@@ -110,6 +111,7 @@ class PlotsWidget(QtGui.QWidget):
 
             # curve = plt.plot(x=tvec, y= data[ch, :], name=self.data['labels'][ch], pen=pen)
             plt.setYRange(np.min(data), np.max(data))
-            plt.setXRange(np.min(tvec), np.max(tvec))
+            print(np.min(tvec))
+            plt.setXRange(np.min(tvec).magnitude, np.min(tvec).magnitude + 4)
 
         dlg.exec_()
