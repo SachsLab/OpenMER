@@ -205,7 +205,19 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         rms_dat = np.asarray(self.data['rms'])[resort, :]
         pac_dat = np.asarray(self.data['pac'])[resort, :]
 
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LogNorm
+
         spec_dat = np.asarray(self.data['spec_den'])[resort, :, :]
+
+        plt.subplot(131)
+        plt.imshow(self.data['spec_den'][:,0,:], aspect='auto')
+        plt.subplot(132)
+        plt.imshow(self.data['spec_den'][:,1,:], aspect='auto')
+        plt.subplot(133)
+        plt.imshow(self.data['spec_den'][:,2,:], aspect='auto')
+        plt.show()
+
         b_freq = np.logical_and(self.data['f'][0] > 0, self.data['f'][0] <= 100)
         freqs = self.data['f'][0][b_freq]
         spec_dat = spec_dat[:, :, b_freq]  # Limit to between 0 and 100
@@ -221,9 +233,6 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
                 temp = stats.zscore(img_dat[ch, f_ix, :], axis=-1)
                 img_dat_interp[ch, f_ix, :] = np.interp(spec_depths, depths, temp)
 
-        print(img_dat_interp.shape, img_dat.shape, spec_dat.shape)
-        print(freqs, freqs.shape)
-        print(spec_depths, spec_depths.shape)
         spec_lim = np.max(np.abs(img_dat_interp))
         colors = [QtGui.QColor(THEMES['dark']['pencolors'][chan_ix]) for chan_ix in range(rms_dat.shape[-1])]
         for ch in range(n_channels):
@@ -232,8 +241,8 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             self.plots.bar(1, ch, label='pac {}'.format(ch+1), x=depths, height=pac_dat[:,ch], width=.2,
                             pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_brush=pg.mkPen(QtGui.QColor("white")))
             self.plots.imshow(2, ch, img_dat_interp[ch,:,:], label='spectra', set_pos=(freqs[0], spec_depths[0]),
-                              scale=((freqs[-1] - freqs[0]) / img_dat_interp.shape[0],
-                                     (spec_depths[-1] - spec_depths[0]) / img_dat_interp.shape[1]),
+                              scale=((freqs[-1] - freqs[0]) / img_dat_interp[ch,:,:].shape[0],
+                                     (spec_depths[-1] - spec_depths[0]) / img_dat_interp[ch,:,:].shape[1]),
                               set_levels=(-spec_lim, spec_lim), set_aspect_locked=False, invert_y=True)
 
 
