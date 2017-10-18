@@ -1,9 +1,9 @@
 import time
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
-from PyQt5.QtCore import Qt, pyqtSignal
-from cbsdkConnection import CbSdkConnection
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
+from qtpy.QtCore import Qt, Signal
+from ..my_models.cbsdkConnection import CbSdkConnection
 
 
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
@@ -208,7 +208,7 @@ class CustomWidget(QWidget):
     A simple skeleton widget.
     It is only useful if sub-classed.
     """
-    was_closed = pyqtSignal()
+    was_closed = Signal()
 
     def __init__(self, group_info, group_ix=0, **kwargs):
         super(CustomWidget, self).__init__()

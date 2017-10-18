@@ -1,15 +1,18 @@
 import sys
+import os
 import numpy as np
 from scipy import signal
 import pyaudio
-import PyQt5
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
-from PyQt5.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton, QApplication
-from PyQt5.QtCore import Qt, QTimer
+import qtpy
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
+from qtpy.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton
+from qtpy.QtCore import Qt
 import pyqtgraph as pg
-from cbsdkConnection import CbSdkConnection
-from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
+# Note: If import dbsgui fails, then set the working directory to be this script's directory.
+from dbsgui.my_models.cbsdkConnection import CbSdkConnection
+from dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -17,7 +20,7 @@ from custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, TH
 WINDOWDIMS = [0, 0, 620, 1080]
 WINDOWDIMS_LFP = [1320, 220, 600, 860]
 NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will be updated independent of rest.
-XRANGE = 1.05 # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
+XRANGE = 1.05  # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
 YRANGE = 800  # y-axis range per channel, use +- this value.
 FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 DSFAC = 100
@@ -389,11 +392,13 @@ class SweepWidget(CustomWidget):
 
 
 if __name__ == '__main__':
+    from qtpy.QtWidgets import QApplication
+    from qtpy.QtCore import QTimer
     qapp = QApplication(sys.argv)
     aw = SweepGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
+    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()

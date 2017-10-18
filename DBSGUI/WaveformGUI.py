@@ -2,13 +2,14 @@
 chadwick.boulay@gmail.com
 """
 import sys
+import os
 import numpy as np
-import PyQt5
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QPushButton, QLineEdit, QApplication, QHBoxLayout, QLabel
-from PyQt5.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import QPushButton, QLineEdit, QHBoxLayout, QLabel
 import pyqtgraph as pg
-from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
+# Note: If import dbsgui fails, then set the working directory to be this script's directory.
+from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -172,13 +173,14 @@ class WaveformWidget(CustomWidget):
                 self.wf_info[line_label]['plot'].removeItem(di)
 
 
-
 if __name__ == '__main__':
+    from qtpy.QtWidgets import QApplication
+    from qtpy.QtCore import QTimer
     qapp = QApplication(sys.argv)
     aw = WaveformGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
+    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()

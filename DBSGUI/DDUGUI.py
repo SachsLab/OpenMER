@@ -18,10 +18,8 @@ WINDOWDIMS = [1320, 0, 600, 220]
 class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def __init__(self):
-        QtWidgets.QMainWindow.__init__(self)
-        Ui_MainWindow.__init__(self)
-        # super(MyGUI, self).__init__()
-        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        super(MyGUI, self).__init__()
+        # self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.move(WINDOWDIMS[0], WINDOWDIMS[1])
         self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
         self.setupUi(self)
@@ -75,7 +73,6 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
 
 if __name__ == '__main__':
-    import sys
     qapp = QtWidgets.QApplication(sys.argv)
     window = MyGUI()
     window.show()

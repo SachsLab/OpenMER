@@ -2,13 +2,16 @@
 chadwick.boulay@gmail.com
 """
 import sys
+import os
 import numpy as np
-import PyQt5
-from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+import qtpy
+from qtpy.QtGui import QColor, QFont
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import Qt, QTimer, Signal
 import pyqtgraph as pg
-from custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
+# Note: If import dbsgui fails, then set the working directory to be this script's directory.
+from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -61,7 +64,7 @@ class RasterGUI(CustomGUI):
 
 
 class RasterWidget(CustomWidget):
-    frate_changed = pyqtSignal(str, float)
+    frate_changed = Signal(str, float)
 
     def __init__(self, *args, **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
@@ -223,5 +226,5 @@ if __name__ == '__main__':
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
+    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
