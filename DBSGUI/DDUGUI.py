@@ -12,7 +12,7 @@ from dbsgui.my_models.cbsdkConnection import CbSdkConnection
 
 ui_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui', 'my_widgets', 'ui')
 Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(ui_path, 'ddu_display.ui'))
-WINDOWDIMS = [1320, 0, 600, 220]
+WINDOWDIMS = [1260, 0, 600, 220]
 
 
 class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
