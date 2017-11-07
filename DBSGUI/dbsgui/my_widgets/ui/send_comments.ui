@@ -6,191 +6,164 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>369</width>
-    <height>196</height>
+    <width>330</width>
+    <height>160</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Send Comments</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="formLayoutWidget">
+   <widget class="QWidget" name="horizontalLayoutWidget">
     <property name="geometry">
      <rect>
-      <x>10</x>
-      <y>10</y>
-      <width>341</width>
-      <height>121</height>
+      <x>0</x>
+      <y>0</y>
+      <width>327</width>
+      <height>114</height>
      </rect>
     </property>
-    <layout class="QFormLayout" name="formLayout">
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_hemisphere">
-       <property name="text">
-        <string>Hemisphere</string>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="title">
+        <string>Body Side</string>
        </property>
+       <widget class="QWidget" name="verticalLayoutWidget">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>20</y>
+          <width>32</width>
+          <height>42</height>
+         </rect>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QRadioButton" name="radioButton_L">
+           <property name="text">
+            <string>L</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioButton_R">
+           <property name="text">
+            <string>R</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QComboBox" name="comboBox_hemisphere">
-       <item>
-        <property name="text">
-         <string>Left</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Right</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Unknown</string>
-        </property>
-       </item>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="label_stim_region">
-       <property name="text">
-        <string>Stimulus Region</string>
+     <item>
+      <layout class="QGridLayout" name="gridLayout">
+       <property name="verticalSpacing">
+        <number>2</number>
        </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QComboBox" name="comboBox_stim_region">
-       <item>
-        <property name="text">
-         <string>Upper Limb</string>
-        </property>
+       <item row="0" column="1">
+        <widget class="QLabel" name="label_Passive">
+         <property name="text">
+          <string>Passive Movement</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Upper Arm</string>
-        </property>
+       <item row="0" column="2">
+        <widget class="QLabel" name="label_Other">
+         <property name="text">
+          <string>Other</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Forearm</string>
-        </property>
+       <item row="2" column="2">
+        <widget class="QPushButton" name="pushButton_Other_Head">
+         <property name="text">
+          <string>Head</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Hand</string>
-        </property>
+       <item row="3" column="2">
+        <widget class="QPushButton" name="pushButton_Other_Upper">
+         <property name="text">
+          <string>Upper</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Lower Limb</string>
-        </property>
+       <item row="1" column="2">
+        <widget class="QLineEdit" name="lineEdit_Other"/>
        </item>
-       <item>
-        <property name="text">
-         <string>Thigh</string>
-        </property>
+       <item row="3" column="0">
+        <widget class="QPushButton" name="pushButton_Touch_Upper">
+         <property name="text">
+          <string>Upper</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Lower Leg</string>
-        </property>
+       <item row="4" column="0">
+        <widget class="QPushButton" name="pushButton_Touch_Lower">
+         <property name="text">
+          <string>Lower</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Foot</string>
-        </property>
+       <item row="2" column="0">
+        <widget class="QPushButton" name="pushButton_Touch_Head">
+         <property name="text">
+          <string>Head</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Other</string>
-        </property>
+       <item row="4" column="2">
+        <widget class="QPushButton" name="pushButton_Other_Lower">
+         <property name="text">
+          <string>Lower</string>
+         </property>
+        </widget>
        </item>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="label_stim_type">
-       <property name="text">
-        <string>Stimulus Type</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1">
-      <widget class="QComboBox" name="comboBox_stim_type">
-       <item>
-        <property name="text">
-         <string>Passive Movement</string>
-        </property>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="pushButton_Passive_Head">
+         <property name="text">
+          <string>Head</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Active Movement</string>
-        </property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_Touch">
+         <property name="text">
+          <string>Touch</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Cutaneous</string>
-        </property>
+       <item row="3" column="1">
+        <widget class="QPushButton" name="pushButton_Passive_Upper">
+         <property name="text">
+          <string>Upper</string>
+         </property>
+        </widget>
        </item>
-       <item>
-        <property name="text">
-         <string>Other</string>
-        </property>
+       <item row="4" column="1">
+        <widget class="QPushButton" name="pushButton_Passive_Lower">
+         <property name="text">
+          <string>Lower</string>
+         </property>
+        </widget>
        </item>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QCheckBox" name="checkBox_construct_comment">
-       <property name="text">
-        <string/>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="label_construct_comment">
-       <property name="text">
-        <string>Construct Comment</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="label_extra">
-       <property name="text">
-        <string>Extra</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QLineEdit" name="lineEdit_extra"/>
+      </layout>
      </item>
     </layout>
-   </widget>
-   <widget class="QPushButton" name="pushButton_send">
-    <property name="geometry">
-     <rect>
-      <x>270</x>
-      <y>130</y>
-      <width>81</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Send Comment</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_clear_extra">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>130</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Clear Extra</string>
-    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -198,7 +171,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>369</width>
+     <width>330</width>
      <height>21</height>
     </rect>
    </property>
@@ -218,22 +191,5 @@
   </action>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>pushButton_clear_extra</sender>
-   <signal>clicked()</signal>
-   <receiver>lineEdit_extra</receiver>
-   <slot>clear()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>47</x>
-     <y>162</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>230</x>
-     <y>138</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>

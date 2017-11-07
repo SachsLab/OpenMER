@@ -21,7 +21,15 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Connect signals & slots
         self.action_Connect.triggered.connect(self.on_connect)
-        self.pushButton_send.clicked.connect(self.send_comment)
+        self.pushButton_Touch_Head.clicked.connect(lambda: self.on_button("Touch", "Head"))
+        self.pushButton_Touch_Upper.clicked.connect(lambda: self.on_button("Touch", "Upper"))
+        self.pushButton_Touch_Lower.clicked.connect(lambda: self.on_button("Touch", "Lower"))
+        self.pushButton_Passive_Head.clicked.connect(lambda: self.on_button("Kinesthetic", "Head"))
+        self.pushButton_Passive_Upper.clicked.connect(lambda: self.on_button("Kinesthetic", "Upper"))
+        self.pushButton_Passive_Lower.clicked.connect(lambda: self.on_button("Kinesthetic", "Lower"))
+        self.pushButton_Other_Head.clicked.connect(lambda: self.on_button("Other", "Head"))
+        self.pushButton_Other_Upper.clicked.connect(lambda: self.on_button("Other", "Upper"))
+        self.pushButton_Other_Lower.clicked.connect(lambda: self.on_button("Other", "Lower"))
 
     # No need to disconnect because the instance will do so automatically.
     # def __del__(self):
@@ -44,25 +52,23 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
             self.action_Connect.setEnabled(True)
         self.statusBar().showMessage(msg_str)
 
-    def send_comment(self):
+    def on_button(self, modality, region):
         import json
         from dbsgui.my_models.cbsdkConnection import CbSdkConnection
+        if modality == 'Other':
+            other_text = self.lineEdit_Other.text()
+            if len(other_text) > 0:
+                modality = other_text
         comment_dict = {
-            'Hem': self.comboBox_hemisphere.currentText(),
-            'StimReg': self.comboBox_stim_region.currentText(),
-            'StimType': self.comboBox_stim_type.currentText()
-        } if self.checkBox_construct_comment.isChecked() else {}
-        extra_text = self.lineEdit_extra.text()
-        if extra_text:
-            comment_dict.update({'Extra': extra_text})
+            'Side': 'L' if self.radioButton_L.isChecked() else 'R',
+            'Region': region,
+            'Modality': modality
+        }
         conn = CbSdkConnection()
         if conn.is_connected:
             comment_string = json.dumps(comment_dict, sort_keys=True)
             conn.set_comments(comment_string)
             self.statusBar().showMessage("Sent: " + comment_string)
-
-    def clear_extra(self):
-        self.lineEdit_extra
 
 
 if __name__ == '__main__':
