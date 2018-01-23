@@ -1,36 +1,30 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration file="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\CereStim DBS.prj" location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab" name="CereStim DBS" target="target.mlapps" target-name="Package App">
+  <configuration build-checksum="455859879" file="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\CereStim DBS.prj" location="D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab" name="CereStim DBS" target="target.mlapps" target-name="Package App">
     <param.appname>CereStim DBS</param.appname>
-    <param.authnamewatermark />
-    <param.email />
-    <param.company />
+    <param.authnamewatermark>Chadwick Boulay</param.authnamewatermark>
+    <param.email>chboulay@ohri.ca</param.email>
+    <param.company>Ottawa Hospital Research Institute</param.company>
     <param.icon />
     <param.icons />
-    <param.summary />
+    <param.summary>GUI for convenient operating of Blackrock CereStim96</param.summary>
     <param.description />
     <param.screenshot />
-    <param.version>1.0</param.version>
+    <param.version>1.1</param.version>
     <param.products.name />
     <param.products.id />
     <param.products.version />
-    <param.platforms>
-      <item>win64</item>
-    </param.platforms>
+    <param.platforms />
     <param.output>D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab</param.output>
     <param.guid>ac0ac226-a076-40bb-b03c-ba91d162f0a0</param.guid>
     <unset>
-      <param.authnamewatermark />
-      <param.email />
-      <param.company />
       <param.icon />
       <param.icons />
-      <param.summary />
       <param.description />
       <param.screenshot />
-      <param.version />
       <param.products.name />
       <param.products.id />
       <param.products.version />
+      <param.platforms />
       <param.output />
     </unset>
     <fileset.main>
