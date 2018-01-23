@@ -315,7 +315,8 @@ class SweepWidget(CustomWidget):
             if self.pya_stream.is_active():
                 self.pya_stream.stop_stream()
             self.pya_stream.close()
-        self.audio['buffer'] = np.zeros(int(0.25*self.samplingRate), dtype=np.int16)
+        frames_per_buffer = 1 << (int(0.030*self.samplingRate) - 1).bit_length()
+        self.audio['buffer'] = np.zeros(frames_per_buffer, dtype=np.int16)
         self.audio['write_ix'] = 0
         self.audio['read_ix'] = 0
         self.audio['chan_label'] = None
@@ -323,6 +324,7 @@ class SweepWidget(CustomWidget):
                                                 channels=1,
                                                 rate=self.samplingRate,
                                                 output=True,
+                                                frames_per_buffer=frames_per_buffer,
                                                 stream_callback=self.pyaudio_callback)
 
     def pyaudio_callback(self,
