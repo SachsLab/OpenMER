@@ -5,7 +5,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 from collections import namedtuple
 from cerebus import cbpy
 from pyqtgraph.dockarea import *
-from cbsdkConnection import cbsdkConnection
+from cerebuswrapper import cbsdkConnection
 
 SpikeEventData = namedtuple("SpikeEventData",
                             ["chan", "unit", "ts", "arrival_ts"])

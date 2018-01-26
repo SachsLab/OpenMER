@@ -17,7 +17,7 @@ class ConnectDialog(QtWidgets.QDialog, Ui_mydialog):
             self.spinBox_recv_buff.setValue(6 * 1024 * 1024)
 
     def do_connect(self):
-        from ..my_models.cbsdkConnection import CbSdkConnection
+        from cerebuswrapper import CbSdkConnection
         con_params = {
             'client-addr': self.lineEdit_client_ip.text(),
             'client-port': self.spinBox_client_port.value(),

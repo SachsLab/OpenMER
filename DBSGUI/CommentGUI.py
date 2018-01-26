@@ -33,7 +33,7 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
     # No need to disconnect because the instance will do so automatically.
     # def __del__(self):
-    #     from dbsgui.my_models.cbsdkConnection import CbSdkConnection
+    #     from cerebuswrapper import CbSdkConnection
     #     CbSdkConnection().disconnect()
 
     def on_connect(self):
@@ -44,7 +44,7 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
         self.indicate_connection_state()
 
     def indicate_connection_state(self):
-        from dbsgui.my_models.cbsdkConnection import CbSdkConnection
+        from cerebuswrapper import CbSdkConnection
         msg_str = CbSdkConnection().get_connection_state()
         if msg_str == 'Connected to NSP':
             self.action_Connect.setEnabled(False)
@@ -54,7 +54,7 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def on_button(self, modality, region):
         import json
-        from dbsgui.my_models.cbsdkConnection import CbSdkConnection
+        from cerebuswrapper import CbSdkConnection
         if modality == 'Other':
             other_text = self.lineEdit_Other.text()
             if len(other_text) > 0:

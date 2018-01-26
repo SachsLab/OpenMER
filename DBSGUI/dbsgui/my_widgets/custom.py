@@ -3,7 +3,7 @@ from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
 from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
 from qtpy.QtCore import Qt, Signal
-from ..my_models.cbsdkConnection import CbSdkConnection
+from cerebuswrapper import CbSdkConnection
 
 
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]

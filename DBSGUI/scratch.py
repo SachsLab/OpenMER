@@ -3,7 +3,7 @@ import sys, os
 import time
 dbsgui_path = os.path.abspath(os.path.join('..', 'NeuroportDBS', 'DBSGUI'))
 sys.path.append(dbsgui_path)
-from cbsdkConnection import CbSdkConnection
+from cerebuswrapper import CbSdkConnection
 
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 

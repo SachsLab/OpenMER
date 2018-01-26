@@ -9,9 +9,9 @@ from qtpy.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from qtpy.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton
 from qtpy.QtCore import Qt
 import pyqtgraph as pg
+from cerebuswrapper import CbSdkConnection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_models.cbsdkConnection import CbSdkConnection
 from dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
 
 
