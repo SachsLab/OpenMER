@@ -9,7 +9,7 @@ from cerebuswrapper import CbSdkConnection
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
 THEMES = {
     'dark': {
-        'pencolors': ["cyan", QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
+        'pencolors': ["cyan", QColor(0, 255, 0), "magenta", "red", "yellow", "white"],
         'bgcolor': Qt.black,
         'labelcolor': Qt.gray,
         'axiscolor': Qt.gray,
