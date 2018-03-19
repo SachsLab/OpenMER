@@ -55,9 +55,11 @@ dependencies:
 - numpy=1.13.3=py36_intel_6
 - openmp=2018.0.0=intel_8
 - scipy=0.19.1=np113py36_intel_23
+- pyfftw
 - pip:
   - https://github.com/dashesy/CereLink/releases/download/7.0/cerebus-0.0.3-cp36-cp36m-linux_x86_64.whl
   - git+https://github.com/SachsLab/cerebuswrapper.git
   - mkl-random==1.0.0
   - pyaudio==0.2.11
+  - git+https://github.com/NeuralEnsemble/python-neo.git
 

@@ -25,8 +25,9 @@ from widgets.plots_widget import PlotsWidget
 DATA_DIR = None
 PRJ_DIR = 'NeuroportDBS'
 GUI_DIR = 'PlotDBSTrack'
-DATANAME_DIR = [os.path.join('..','..','..','DBSData'), \
-                os.path.join('..','..','data_collected'),\
+DATANAME_DIR = [os.path.join('..', '..', '..', 'DBSData'),
+                os.path.join('..', '..', 'data_collected'),
+                os.path.join('..', '..', '..', '..', 'Data', 'ClinicalDBS', 'Blackrock'),
                 os.path.abspath('D:\DBSData'),
                 os.path.abspath('E:\SachsLab\Data\DBSData')]
 
@@ -49,7 +50,7 @@ if DATA_DIR is None:
 
 THEMES = {
     'dark': {
-        'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
+        'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "magenta", "red", "yellow", "white"],
         'bgcolor': QtCore.Qt.black,
         'labelcolor': QtCore.Qt.gray,
         'axiscolor': QtCore.Qt.gray,
@@ -186,13 +187,16 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         self.update_plots()
 
     def find_data(self, version=0, save=False):
-        filename = os.path.abspath(os.path.join(CACHE_DIR,'__data__{}.npy'.format(self.base_fn.split('/')[-1])))
-        filename2 = os.path.abspath(os.path.join(CACHE_DIR,'__data__{}_.npy'.format(self.base_fn.split('/')[-1])))
+        filename = os.path.abspath(os.path.join(CACHE_DIR,
+                                                '__data__{}.npy'.format(self.base_fn.split('/')[-1])))
+        filename2 = os.path.abspath(os.path.join(CACHE_DIR,
+                                                 '__data__{}_.npy'.format(self.base_fn.split('/')[-1])))
         found = False
         for tmp in os.listdir(CACHE_DIR):
             if fnmatch.fnmatch(tmp, filename.split('/')[-1]):
                 found = True
 
+        self.dta = DBSTrackAnalysis(self.base_fn)
         if found:
             self.dta.data_analysis = np.load(filename)[()]
             raw = np.load(filename2)[()]
@@ -200,7 +204,6 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
             self.dta.tvecs = raw['time']
 
         else:
-            self.dta = DBSTrackAnalysis(self.base_fn)
             self.dta.process(version=version)
             if save:
                 np.save(filename2, {'data': self.dta.signals, 'time': self.dta.tvecs})
@@ -247,10 +250,10 @@ class DBSPlotGUI(QtWidgets.QMainWindow):
         for ch in range(n_channels):
 
             self.plots.bar(0, ch, label='rms {}'.format(ch+1), x=depths, height=rms_dat[:,ch], width=.2,
-                            pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_pen=pg.mkPen(QtGui.QColor("white")))
+                           pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_pen=pg.mkPen(QtGui.QColor("white")))
 
             self.plots.bar(1, ch, label='pac {}'.format(ch+1), x=depths, height=pac_dat[:,ch], width=.2,
-                            pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_brush=pg.mkPen(QtGui.QColor("white")))
+                           pen=pg.mkPen(colors[ch]), brush=colors[ch], highlight_brush=pg.mkPen(QtGui.QColor("white")))
 
             self.plots.imshow(2, ch, img_dat_interp[ch,:,:], label='spectra', set_pos=(freqs[0], spec_depths[0]),
                               scale=((freqs[-1] - freqs[0]) / img_dat_interp[ch,:,:].shape[0],

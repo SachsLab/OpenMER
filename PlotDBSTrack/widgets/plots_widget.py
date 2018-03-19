@@ -9,7 +9,7 @@ from .bar_widget import BarGraph
 
 THEMES = {
     'dark': {
-        'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "red", "magenta", "yellow", "white"],
+        'pencolors': ["cyan", QtGui.QColor(0, 255, 0), "magenta", "red", "yellow", "white"],
         'bgcolor': QtCore.Qt.black,
         'labelcolor': QtCore.Qt.gray,
         'axiscolor': QtCore.Qt.gray,

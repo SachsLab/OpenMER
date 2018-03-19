@@ -5,7 +5,10 @@ import time
 import numpy as np
 from scipy import signal
 import pyfftw.interfaces.numpy_fft as fft
-import brpylib
+try:
+    import brpylib
+except ImportError:
+    pass
 import quantities as pq
 from neo.io.blackrockio import BlackrockIO
 from utilities import segment_consecutive
@@ -27,13 +30,13 @@ hiF = (60, 200)
 
 class DBSTrackAnalysis(object):
 
-    def __init__(self, base_fn, load_method='brpy', dest=None):
+    def __init__(self, base_fn, load_method='neo', dest=None):
 
         self.data_analysis = self.empty_data_dict() if dest is None else dest
 
         self.base_fn = base_fn[:-1] if base_fn[-1] == '-' else base_fn
 
-        load_ = self.load_blackrock_data_brpy if load_method=='brpy' else self.load_blackrock_data_neo
+        load_ = self.load_blackrock_data_brpy if load_method == 'brpy' else self.load_blackrock_data_neo
         self.data_dict = load_(self.base_fn)
 
         self.fs = self.data_dict['samp_per_s']
@@ -209,18 +212,16 @@ class DBSTrackAnalysis(object):
 
     @staticmethod
     def load_blackrock_data_neo(base_fn):
-        neo_io = BlackrockIO(filename=base_fn)
-        neo_block = neo_io.read_block(lazy=False, cascade=True,
-                                      n_starts=None, n_stops=None, channels='all',
-                                      nsx_to_load=5, scaling='voltage',
-                                      units='none', load_waveforms=False, load_events=True)
+        neo_io = BlackrockIO(filename=base_fn, nsx_to_load=5)
+        neo_block = neo_io.read_block(lazy=False, load_waveforms=False)
+        comments = neo_io.nev_data['Comments']
 
         return {'ana_times': neo_block.segments[0].analogsignals[0].times,
                 'ana_data': np.asarray([x for x in neo_block.segments[0].analogsignals])[:, :, 0],
                 'samp_per_s': neo_block.segments[0].analogsignals[0].sampling_rate,
-                'chan_labels': [x.name.decode('utf8') for x in neo_block.segments[0].analogsignals],
-                'ev_times': neo_block.segments[0].events[0].times,
-                'ev_depths': np.asarray([float(x.split(':')[1]) for x in neo_block.segments[0].events[0].labels])}
+                'chan_labels': [x.name for x in neo_block.segments[0].analogsignals],
+                'ev_times': pq.s * comments['timestamp'] / 30000,
+                'ev_depths': np.asarray([float(x.decode('utf8').split(':')[1]) for x in comments['comment']])}
 
 
     @staticmethod
