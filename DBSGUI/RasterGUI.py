@@ -58,6 +58,7 @@ class RasterGUI(CustomGUI):
                 data = [[], ]
             self.plot_widget.update(chan_label, data)
 
+        # Fetching comments is slow!
         comments = self.cbsdk_conn.get_comments()
         if comments:
             self.plot_widget.parse_comments(comments)
@@ -152,7 +153,7 @@ class RasterWidget(CustomWidget):
 
     def parse_comments(self, comments):
         # comments is a list of lists: [[timestamp, string, rgba],]
-        comment_strings = [x[1] for x in comments]
+        comment_strings = [x[1].decode('utf8') for x in comments]
         dtts = []
         for comm_str in comment_strings:
             if 'DTT:' in comm_str:

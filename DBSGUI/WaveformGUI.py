@@ -52,6 +52,8 @@ class WaveformGUI(CustomGUI):
             this_info = self.plot_widget.wf_info[label]
             temp_wfs, unit_ids = self.cbsdk_conn.get_waveforms(this_info['chan_id'])
             self.plot_widget.update(label, [temp_wfs, unit_ids])
+
+        # Fetching comments is SLOW!
         comments = self.cbsdk_conn.get_comments()
         if comments:
             self.plot_widget.parse_comments(comments)
@@ -140,7 +142,7 @@ class WaveformWidget(CustomWidget):
 
     def parse_comments(self, comments):
         # comments is a list of lists: [[timestamp, string, rgba],]
-        comment_strings = [x[1] for x in comments]
+        comment_strings = [x[1].decode('utf8') for x in comments]
         dtts = []
         for comm_str in comment_strings:
             if 'DTT:' in comm_str:
