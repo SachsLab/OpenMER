@@ -24,11 +24,11 @@
     <param.user.defined.mcr.options />
     <param.target.type>subtarget.standalone</param.target.type>
     <param.support.packages />
-    <param.web.mcr>true</param.web.mcr>
-    <param.package.mcr>false</param.package.mcr>
+    <param.web.mcr>false</param.web.mcr>
+    <param.package.mcr>true</param.package.mcr>
     <param.no.mcr>false</param.no.mcr>
     <param.web.mcr.name>CereStimDBS_web</param.web.mcr.name>
-    <param.package.mcr.name>MyAppInstaller_mcr</param.package.mcr.name>
+    <param.package.mcr.name>CereStimDBSInstaller_mcr</param.package.mcr.name>
     <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
     <param.windows.command.prompt>true</param.windows.command.prompt>
     <param.create.log>false</param.create.log>
@@ -37,6 +37,7 @@
       <param.icon />
       <param.icons />
       <param.authnamewatermark />
+      <param.email />
       <param.company />
       <param.summary />
       <param.description />
@@ -54,10 +55,7 @@
       <param.user.defined.mcr.options />
       <param.target.type />
       <param.support.packages />
-      <param.web.mcr />
-      <param.package.mcr />
       <param.no.mcr />
-      <param.package.mcr.name />
       <param.no.mcr.name />
       <param.windows.command.prompt />
       <param.create.log />
@@ -66,12 +64,13 @@
     <fileset.main>
       <file>${PROJECT_ROOT}\cerestim_dbs.mlapp</file>
     </fileset.main>
-    <fileset.resources />
+    <fileset.resources>
+      <file>${PROJECT_ROOT}\cerestim96.m</file>
+      <file>${PROJECT_ROOT}\stimmex.mexw32</file>
+      <file>${PROJECT_ROOT}\stimmex.mexw64</file>
+    </fileset.resources>
     <fileset.package />
-    <fileset.depfun>
-      <file>D:\Tools\Neurophys\CereStim\CereStim API\cerestim96.m</file>
-      <file>D:\Tools\Neurophys\CereStim\CereStim API\stimmex.mexw64</file>
-    </fileset.depfun>
+    <fileset.depfun />
     <build-deliverables>
       <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="splash.png" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\splash.png</file>
       <file location="${PROJECT_ROOT}\cerestim_dbs\for_testing" name="CereStimDBS.exe" optional="false">D:\Tools\Neurophys\NeuroportDBS\CereStimGUI\matlab\cerestim_dbs\for_testing\CereStimDBS.exe</file>
