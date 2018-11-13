@@ -27,35 +27,62 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
         self.ser.baudrate = 19200
         for port in serial.tools.list_ports.comports():
             self.comboBox_com_port.addItem(port.device)
+        self.comboBox_com_port.addItem("cbsdk playback")
 
         # Connect signals & slots
         self.pushButton_open.clicked.connect(self.open_DDU)
-        self.pushButton_send.clicked.connect(self.start_sending_cbsdk)
+        self.pushButton_send.clicked.connect(self.connect_cbsdk)
 
     # No need to disconnect because the instance will do so automatically.
     # def __del__(self):
     #     from cerebuswrapper import CbSdkConnection
     #     CbSdkConnection().disconnect()
 
-    def start_sending_cbsdk(self):
+    def connect_cbsdk(self):
         if CbSdkConnection().connect() == 0:
             self.pushButton_send.setDisabled(True)
 
     def open_DDU(self):
-        if not self.ser.is_open:
-            self.ser.port = self.comboBox_com_port.currentText()
-            try:
-                self.ser.open()  # TODO: Add timeout; Add error.
-                self.pushButton_open.setText("Close")
-            except serial.serialutil.SerialException:
-                print("Could not open serial port")
+        com_port = self.comboBox_com_port.currentText()
+        cmd_text = self.pushButton_open.text()
+        if cmd_text == 'Open':
+            if com_port == "cbsdk playback":
+                pass
+            else:
+                if not self.ser.is_open:
+                    self.ser.port = com_port
+                    try:
+                        self.ser.open()  # TODO: Add timeout; Add error.
+                        self.pushButton_open.setText("Close")
+                    except serial.serialutil.SerialException:
+                        print("Could not open serial port")
         else:
-            self.ser.close()
-            self.pushButton_open.setText("Open")
+            if com_port == "cbsdk playback":
+                pass
+            else:
+                self.ser.close()
 
     def update(self):
         super(MyGUI, self).update()
-        if self.ser.is_open:
+        if self.comboBox_com_port.currentText() == "cbsdk playback":
+            cbsdk_conn = CbSdkConnection()
+            cbsdk_conn.cbsdk_config = {
+                'reset': True, 'get_events': False, 'get_comments': True,
+                'buffer_parameter': {
+                    'comment_length': 10
+                }
+            }
+            if cbsdk_conn.is_connected:
+                comments = cbsdk_conn.get_comments()
+                comment_strings = [x[1].decode('utf8') for x in comments]
+                dtts = []
+                for comm_str in comment_strings:
+                    if 'DTT:' in comm_str:
+                        dtts.append(float(comm_str[4:]))
+                if len(dtts) > 0:
+                    new_dtt = dtts[-1]
+                    self.lcdNumber.display(new_dtt)
+        elif self.ser.is_open:
             in_str = self.ser.readline().decode('utf-8').strip()
             if in_str:
                 in_value = float(in_str)
