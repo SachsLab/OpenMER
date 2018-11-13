@@ -25,7 +25,7 @@ from widgets.plots_widget import PlotsWidget
 DATA_DIR = None
 PRJ_DIR = 'NeuroportDBS'
 GUI_DIR = 'PlotDBSTrack'
-DATANAME_DIR = [os.path.join('..', '..', '..', 'DBSData'),
+DATANAME_DIR = [os.path.join('..', '..', '..', '..', 'DBSData', 'Blackrock'),
                 os.path.join('..', '..', 'data_collected'),
                 os.path.join('..', '..', '..', '..', 'Data', 'ClinicalDBS', 'Blackrock'),
                 os.path.abspath('D:\DBSData'),
