@@ -53,6 +53,7 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.ser.port = com_port
                     try:
                         self.ser.open()  # TODO: Add timeout; Add error.
+                        self.ser.write('AXON+\r'.encode())
                         self.pushButton_open.setText("Close")
                     except serial.serialutil.SerialException:
                         print("Could not open serial port")
@@ -85,16 +86,19 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
         elif self.ser.is_open:
             in_str = self.ser.readline().decode('utf-8').strip()
             if in_str:
-                in_value = float(in_str)
-                display_string = "{0:.3f}".format(in_value + self.doubleSpinBox_offset.value())
-                self.lcdNumber.display(display_string)
+                try:
+                    in_value = float(in_str)
+                    display_string = "{0:.3f}".format(in_value + self.doubleSpinBox_offset.value())
+                    self.lcdNumber.display(display_string)
 
-                cbsdk_conn = CbSdkConnection()
-                if cbsdk_conn.is_connected and (display_string != self.display_string):
-                    cbsdk_conn.set_comments("DTT:" + display_string)
-                    self.display_string = display_string
-                else:
-                    self.pushButton_send.setText("Send")
+                    cbsdk_conn = CbSdkConnection()
+                    if cbsdk_conn.is_connected and (display_string != self.display_string):
+                        cbsdk_conn.set_comments("DTT:" + display_string)
+                        self.display_string = display_string
+                    else:
+                        self.pushButton_send.setText("Send")
+                except ValueError:
+                    print("DDU result: {}".format(in_str))
 
 
 if __name__ == '__main__':
