@@ -35,7 +35,7 @@ class SweepGUI(CustomGUI):
         self.plot_widget = {}
 
     def on_action_add_plot_triggered(self):
-        group_ix, do_downsample = AddSamplingGroupDialog.do_samplinggroup_dialog()
+        group_ix, do_downsample, b_alt_loc = AddSamplingGroupDialog.do_samplinggroup_dialog()
         if group_ix == -1:
             print("Add group canceled")
             return
@@ -54,7 +54,8 @@ class SweepGUI(CustomGUI):
         # Chart container
         self.plot_widget[(group_ix, do_downsample)] = SweepWidget(group_info,
                                                                   group_ix=group_ix,
-                                                                  downsample=do_downsample)
+                                                                  downsample=do_downsample,
+                                                                  alt_loc=b_alt_loc)
         self.plot_widget[(group_ix, do_downsample)].was_closed.connect(self.on_plot_closed)
 
     def on_plot_closed(self):
@@ -112,6 +113,10 @@ class AddSamplingGroupDialog(QDialog):
         self.downsample_checkbox.setChecked(False)
         layout.addWidget(self.downsample_checkbox)
 
+        self.altloc_checkbox = QCheckBox("Alt. Location")
+        self.altloc_checkbox.setChecked(False)
+        layout.addWidget(self.altloc_checkbox)
+
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
@@ -126,7 +131,8 @@ class AddSamplingGroupDialog(QDialog):
         result = dialog.exec_()
         if result == QDialog.Accepted:
             # Get channel group from widgets and return it
-            return dialog.combo_box.currentIndex(), dialog.downsample_checkbox.checkState() == Qt.Checked
+            return (dialog.combo_box.currentIndex(), dialog.downsample_checkbox.checkState() == Qt.Checked,
+                    dialog.altloc_checkbox.checkState() == Qt.Checked)
         return -1, False
 
 
@@ -136,7 +142,7 @@ class SweepWidget(CustomWidget):
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
         super(SweepWidget, self).__init__(*args, **kwargs)
         this_dims = WINDOWDIMS
-        if 'downsample' in self.plot_config and self.plot_config['downsample']:
+        if 'alt_loc' in self.plot_config and self.plot_config['alt_loc']:
             this_dims = WINDOWDIMS_LFP
         self.move(this_dims[0], this_dims[1])
         self.resize(this_dims[2], this_dims[3])
@@ -203,12 +209,22 @@ class SweepWidget(CustomWidget):
 
     def on_monitor_group_clicked(self, button_id):
         self.reset_audio()
+        this_label = ''
         if button_id == 0:
             self.audio['chan_label'] = 'silence'
             monitor_chan_id = 0
         else:
-            self.audio['chan_label'] = self.group_info[button_id - 1]['label']
+            this_label = self.group_info[button_id - 1]['label']
+            self.audio['chan_label'] = this_label
             monitor_chan_id = self.group_info[button_id - 1]['chan']
+
+        # Reset plot titles
+        for gi in self.group_info:
+            plot_item = self.segmented_series[gi['label']]['plot']
+            label_kwargs = {'color': 'y', 'size': '15pt'}\
+                if gi['label'] == this_label else {'color': None, 'size': '11pt'}
+            plot_item.setTitle(title=plot_item.titleLabel.text, **label_kwargs)
+
         CbSdkConnection().monitor_chan(monitor_chan_id)
 
     def on_thresh_line_moved(self, inf_line):
@@ -219,7 +235,7 @@ class SweepWidget(CustomWidget):
                 cbsdkconn = CbSdkConnection()
                 cbsdkconn.set_channel_info(ss_info['chan_id'], {'spkthrlevel': new_thresh})
 
-    def create_plots(self, theme='dark', downsample=False):
+    def create_plots(self, theme='dark', downsample=False, alt_loc=False):
         # Collect PlotWidget configuration
         self.plot_config['downsample'] = downsample
         self.plot_config['x_range'] = XRANGE
@@ -227,6 +243,7 @@ class SweepWidget(CustomWidget):
         self.plot_config['theme'] = theme
         self.plot_config['color_iterator'] = -1
         self.plot_config['n_segments'] = NPLOTSEGMENTS
+        self.plot_config['alt_loc'] = alt_loc
         if 'do_hp' not in self.plot_config:
             self.plot_config['do_hp'] = False
         self.plot_config['hp_sos'] = signal.butter(FILTERCONFIG['order'],
