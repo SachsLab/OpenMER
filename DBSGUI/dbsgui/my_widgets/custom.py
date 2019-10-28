@@ -6,7 +6,7 @@ from qtpy.QtCore import Qt, Signal
 from cerebuswrapper import CbSdkConnection
 
 
-SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]
+SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000"]  # , "RAW"]  RAW broken in cbsdk
 THEMES = {
     'dark': {
         'pencolors': ["cyan", QColor(0, 255, 0), "magenta", "red", "yellow", "white"],
