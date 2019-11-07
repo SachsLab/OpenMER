@@ -187,7 +187,8 @@ class RasterWidget(CustomWidget):
             rs['old_timestamps'] = np.append(rs['old_timestamps'], rs['latest_timestamps'][move_bool])
             rs['latest_timestamps'] = rs['latest_timestamps'][np.logical_not(move_bool)]
         # Remove spikes that are outside the plot_range
-        remove_bool = rs['old_timestamps'] < (new_t0 - self.x_lim * (self.plot_config['y_range'] - 1))
+        top_row_t0 = new_t0 - self.x_lim * (self.plot_config['y_range'] - 1)
+        remove_bool = rs['old_timestamps'] < top_row_t0
         if np.any(remove_bool):
             rs['old_timestamps'] = rs['old_timestamps'][np.logical_not(remove_bool)]
             rs['count'] -= np.sum(remove_bool)
@@ -212,7 +213,7 @@ class RasterWidget(CustomWidget):
             rs['old'].setData(x=x_vals, y=y_vals)
         # Save some variables
         rs['latest_t0'] = new_t0
-        rs['start_time'] = max(rs['start_time'], rs['last_spike_time'] - (self.x_lim * self.plot_config['y_range']))
+        rs['start_time'] = max(rs['start_time'], rs['last_spike_time'] - top_row_t0)
         # Update frate annotation.
         samples_elapsed = rs['last_spike_time'] - rs['start_time']
         if samples_elapsed > 0:
