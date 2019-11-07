@@ -17,7 +17,7 @@ from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAM
 WINDOWDIMS = [920, 0, 400, 1080]
 XRANGE = [-300, 1140]  # uSeconds
 YRANGE = 250      # uV default
-NWAVEFORMS = 20  # Max number of waveforms to plot.
+NWAVEFORMS = 100  # Default max number of waveforms to plot.
 SIMOK = False     # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 WF_COLORS = ["white", "magenta", "cyan", "yellow", "purple", "green"]
 
