@@ -21,7 +21,7 @@ WINDOWDIMS = [0, 0, 620, 1080]
 WINDOWDIMS_LFP = [1320, 220, 600, 860]
 NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will be updated independent of rest.
 XRANGE = 1.05  # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
-YRANGE = 800  # y-axis range per channel, use +- this value.
+YRANGE = 200  # uV. y-axis range per channel, use +- this value.
 FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
 DSFAC = 100
 SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
@@ -137,6 +137,8 @@ class AddSamplingGroupDialog(QDialog):
 
 
 class SweepWidget(CustomWidget):
+    UNIT_SCALING = 0.25  # Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
+
     def __init__(self, *args, **kwargs):
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
@@ -231,9 +233,10 @@ class SweepWidget(CustomWidget):
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
-                new_thresh = int(inf_line.getYPos())
+                new_thresh = int(inf_line.getYPos() / self.UNIT_SCALING)
                 cbsdkconn = CbSdkConnection()
                 cbsdkconn.set_channel_info(ss_info['chan_id'], {'spkthrlevel': new_thresh})
+        # TODO: If (new required) option is set, also set the other lines.
 
     def create_plots(self, theme='dark', downsample=False, alt_loc=False):
         # Collect PlotWidget configuration
@@ -289,7 +292,7 @@ class SweepWidget(CustomWidget):
             c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
         # Add threshold line
-        thresh_line = pg.InfiniteLine(angle=0, movable=True)
+        thresh_line = pg.InfiniteLine(angle=0, movable=True, label="{value:.0f}", labelOpts={'position': 0.05})
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
         new_plot.addItem(thresh_line)
 
@@ -325,7 +328,7 @@ class SweepWidget(CustomWidget):
             # Get channel info from cbpy to determine threshold
             cbsdkconn = CbSdkConnection()
             full_info = cbsdkconn.get_channel_info(ss_info['chan_id'])
-            ss_info['thresh_line'].setValue(full_info['spkthrlevel'])
+            ss_info['thresh_line'].setValue(full_info['spkthrlevel'] * self.UNIT_SCALING)
 
     def reset_audio(self):
         if self.pya_stream:
@@ -366,6 +369,7 @@ class SweepWidget(CustomWidget):
         """
         ss_info = self.segmented_series[line_label]
         n_in = data.shape[0]
+        data = data * self.UNIT_SCALING
         if self.plot_config['do_hp']:
             data, ss_info['hp_zi'] = signal.sosfilt(self.plot_config['hp_sos'], data, zi=ss_info['hp_zi'])
         if self.plot_config['do_ln']:
