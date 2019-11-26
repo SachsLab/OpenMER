@@ -137,11 +137,11 @@ class RasterWidget(CustomWidget):
             rs = self.rasters[key]
             rs['old'].clear()
             rs['latest'].clear()
-            rs['old_timestamps'] = np.empty(0, dtype=np.uint32)
-            rs['latest_timestamps'] = np.empty(0, dtype=np.uint32)
+            rs['old_timestamps'] = np.empty(0, dtype=np.uint32)     # Row 1 to top row
+            rs['latest_timestamps'] = np.empty(0, dtype=np.uint32)  # Bottom row
             rs['count'] = 0
             rs['start_time'] = start_time
-            rs['latest_t0'] = start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate))
+            rs['r0_tmin'] = start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate))
             rs['last_spike_time'] = start_time
             self.modify_frate(key, 0)
 
@@ -171,53 +171,67 @@ class RasterWidget(CustomWidget):
         :param data: Replace data in the segmented series with these data
         :return:
         """
+        rs = self.rasters[line_label]  # A dictionary of info unique to each channel
+        
+        # Calculate timestamp of last sample in bottom row
         now_time = int(get_now_time())
-        new_t0 = now_time - (now_time % self.x_lim)
-        rs = self.rasters[line_label]
+        new_r0_tmin = now_time - (now_time % self.x_lim)
+
         # Process data
         data = np.uint32(np.concatenate(data))  # For now, put all sorted units into the same unit.
         data = data[data > rs['last_spike_time']]  # Only keep spikes we haven't seen before.
-        rs['latest_timestamps'] = np.append(rs['latest_timestamps'], data)
         rs['count'] += data.size
         if data.size > 0:
             rs['last_spike_time'] = max(data)
+
+        # Add new spikes into the bottom row (== latest_timestamps)
+        rs['latest_timestamps'] = np.append(rs['latest_timestamps'], data)
+
         # Move spikes that do not belong in the bottom row to the upper section (latest)
-        move_bool = rs['latest_timestamps'] < new_t0
-        if np.any(move_bool):
-            rs['old_timestamps'] = np.append(rs['old_timestamps'], rs['latest_timestamps'][move_bool])
-            rs['latest_timestamps'] = rs['latest_timestamps'][np.logical_not(move_bool)]
-        # Remove spikes that are outside the plot_range
-        top_row_t0 = new_t0 - self.x_lim * (self.plot_config['y_range'] - 1)
-        remove_bool = rs['old_timestamps'] < top_row_t0
-        if np.any(remove_bool):
-            rs['old_timestamps'] = rs['old_timestamps'][np.logical_not(remove_bool)]
-            rs['count'] -= np.sum(remove_bool)
+        b_move_old = rs['latest_timestamps'] < new_r0_tmin
+        if np.any(b_move_old):
+            rs['old_timestamps'] = np.append(rs['old_timestamps'], rs['latest_timestamps'][b_move_old])
+            rs['latest_timestamps'] = rs['latest_timestamps'][np.logical_not(b_move_old)]
+
+        # Remove spikes from rs['old_timestamps'] that are outside the plot_range
+        new_tmin = new_r0_tmin - self.x_lim * (self.plot_config['y_range'] - 1)
+        b_drop_old = rs['old_timestamps'] < new_tmin
+        if np.any(b_drop_old):
+            rs['old_timestamps'] = rs['old_timestamps'][np.logical_not(b_drop_old)]
+            rs['count'] -= np.sum(b_drop_old)
+
         # Update bottom section of plot (latest)
-        if (data.size > 0) or np.any(move_bool) or (new_t0 != rs['latest_t0']):
-            # Update latest
-            x_vals = np.repeat(rs['latest_timestamps'] - rs['latest_t0'], 2)
+        if (data.size > 0) or np.any(b_move_old) or (new_r0_tmin != rs['r0_tmin']):
+            x_vals = np.repeat(rs['latest_timestamps'] - new_r0_tmin, 2)
             y_vals = 0.1 * np.ones_like(x_vals)
             y_vals[1::2] += 0.8
             rs['latest'].setData(x=x_vals, y=y_vals)
+
         # Update upper section of plot (old)
-        if np.any(move_bool) or (new_t0 != rs['latest_t0']):
-            # Update old
+        if np.any(b_move_old) or np.any(b_drop_old) or (new_r0_tmin != rs['r0_tmin']):
+            # Get x- and y-vals as though all spikes are to be plotted on second-from-bottom row.
             x_vals = rs['old_timestamps'] % self.x_lim
-            y_vals = 1.1 * np.ones_like(x_vals)
+            y_vals = 1.1 * np.ones_like(x_vals)  # second-from-bottom starts at y=1.1
+            # If a spike is older than row_ix, += 1
             for row_ix in range(1, self.plot_config['y_range']):
-                row_cutoff = new_t0 - (row_ix * self.x_lim)
+                row_cutoff = new_r0_tmin - (row_ix * self.x_lim)
                 y_vals[rs['old_timestamps'] < row_cutoff] += 1
             x_vals = np.repeat(x_vals, 2)
             y_vals = np.repeat(y_vals, 2)
             y_vals[1::2] += 0.8
             rs['old'].setData(x=x_vals, y=y_vals)
-        # Save some variables
-        rs['latest_t0'] = new_t0
-        rs['start_time'] = max(rs['start_time'], rs['last_spike_time'] - top_row_t0)
+
+        # Update some stored variables
+        # r0_tmin is used to determine if we need to make a new row.
+        rs['r0_tmin'] = new_r0_tmin
+        # start_time is the newer between when we started getting spikes in this area,
+        # and what the oldest spike is in this plot.
+        rs['start_time'] = max(rs['start_time'], new_tmin)
+
         # Update frate annotation.
-        samples_elapsed = rs['last_spike_time'] - rs['start_time']
+        samples_elapsed = max(now_time, rs['last_spike_time']) - rs['start_time']
         if samples_elapsed > 0:
-            frate = self.rasters[line_label]['count'] * self.samplingRate / samples_elapsed
+            frate = rs['count'] * self.samplingRate / samples_elapsed
             self.modify_frate(line_label, frate)
 
 
