@@ -6,7 +6,10 @@ from cerebuswrapper import CbSdkConnection
 
 # use the same GUI format as the other ones
 from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QComboBox, QLineEdit, QHBoxLayout, QLabel, QLCDNumber, QDialog, QVBoxLayout, QPushButton
+from qtpy.QtWidgets import QComboBox, QLineEdit, QHBoxLayout, QLabel, QLCDNumber, QDialog, QVBoxLayout, QPushButton, \
+                           QGridLayout, QDialogButtonBox, QCalendarWidget
+
+from qtpy.QtCore import Qt
 
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
@@ -31,6 +34,9 @@ class DepthGUI(CustomGUI):
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
     # is pressed in the default GUI opened when launched (Connect, Add Plot, Quit)
     def on_action_add_plot_triggered(self):
+        subname = AddSubjectDialog.do_add_subject_dialog()
+        print(subname)
+
         self.cbsdk_conn.cbsdk_config = {
             'reset': True,
             'get_continuous': True,
@@ -177,35 +183,45 @@ class DepthWidget(CustomWidget):
 
 
 # Dialogs
-class AddSubject(QDialog):
+class AddSubjectDialog(QDialog):
 
     """
     A modal dialog window with widgets to create a new subject entry in the DB.
     Will return the subject ID.
     """
+
     def __init__(self, parent=None):
-        super(AddSubject, self).__init__(parent)
+        super(AddSubjectDialog, self).__init__(parent)
+        self.setWindowTitle("Enter subject information.")
 
         # Widgets to show/edit connection parameters.
-        layout = QVBoxLayout(self)
+        self.subject_layout = QGridLayout(self)
 
-        # Chan group layout
-        chan_group_layout = QHBoxLayout()
-        chan_group_layout.addWidget(QLabel("Sampling Group"))
-        self.combo_box = QComboBox()
-        self.combo_box.addItems(SAMPLINGGROUPS)
-        self.combo_box.setCurrentIndex(SAMPLINGGROUPS.index("30000"))
-        chan_group_layout.addWidget(self.combo_box)
-        layout.addLayout(chan_group_layout)
+        self.subject_layout.addWidget(QLabel("Name: "), 1, 0, 1, 1)
+        self.name_edit = QLineEdit()
+        self.name_edit.setMaxLength(135)
+        self.subject_layout.addWidget(self.name_edit, 1, 1, 1, 1)
 
-        # Check this box to create a new alternate window. This enables viewing the data twice (e.g., filtered and raw)
-        self.downsample_checkbox = QCheckBox("Downsample")
-        self.downsample_checkbox.setChecked(False)
-        layout.addWidget(self.downsample_checkbox)
+        self.subject_layout.addWidget(QLabel("ID: "), 2, 0, 1, 1)
+        self.id_edit = QLineEdit()
+        self.id_edit.setMaxLength(135)
+        self.subject_layout.addWidget(self.id_edit, 2, 1, 1, 1)
 
-        self.altloc_checkbox = QCheckBox("Alt. Location")
-        self.altloc_checkbox.setChecked(False)
-        layout.addWidget(self.altloc_checkbox)
+        self.subject_layout.addWidget(QLabel("Sex: "), 3, 0, 1, 1)
+        self.sex_combo = QComboBox()
+        self.sex_combo.addItems(['unspecified', 'male', 'female', 'unknown'])
+        self.sex_combo.setCurrentIndex(0)
+        self.subject_layout.addWidget(self.sex_combo, 3, 1, 1, 1)
+
+        self.subject_layout.addWidget(QLabel("Handedness: "), 4, 0, 1, 1)
+        self.hand_combo = QComboBox()
+        self.hand_combo.addItems(['unknown', 'right', 'left', 'equal'])
+        self.hand_combo.setCurrentIndex(0)
+        self.subject_layout.addWidget(self.hand_combo, 4, 1, 1, 1)
+
+        self.subject_layout.addWidget((QLabel("Date of birth: ")), 5, 0, 1, 1)
+        self.dob_calendar = QCalendarWidget()
+        self.subject_layout.addWidget(self.dob_calendar, 5, 1, 1, 1)
 
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
@@ -213,18 +229,23 @@ class AddSubject(QDialog):
             Qt.Horizontal, self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.subject_layout.addWidget(buttons, 7, 0, 1, 2, alignment=Qt.AlignHCenter)
 
     @staticmethod
-    def do_samplinggroup_dialog(parent=None):
-        dialog = AddSamplingGroupDialog(parent)
+    def do_add_subject_dialog(parent=None):
+        dialog = AddSubjectDialog(parent)
         result = dialog.exec_()
         if result == QDialog.Accepted:
-            # Get channel group from widgets and return it
-            return (dialog.combo_box.currentIndex(), dialog.downsample_checkbox.checkState() == Qt.Checked,
-                    dialog.altloc_checkbox.checkState() == Qt.Checked)
+            # convert all fields to dictionary and return it
+            out_dict = {
+                'name': dialog.name_edit.text(),
+                'id': dialog.id_edit.text(),
+                'sex': dialog.sex_combo.currentText(),
+                'handedness': dialog.hand_combo.currentText(),
+                'birthday': dialog.dob_calendar.selectedDate()
+            }
+            return out_dict
         return -1, False
-
 
 
 if __name__ == '__main__':
