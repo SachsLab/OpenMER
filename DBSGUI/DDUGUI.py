@@ -3,13 +3,18 @@ import sys
 import serial
 import serial.tools.list_ports
 from cerebuswrapper import CbSdkConnection
+from pylsl import stream_info, stream_outlet, IRREGULAR_RATE
+
+import datetime
 
 # use the same GUI format as the other ones
 from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QComboBox, QLineEdit, QHBoxLayout, QLabel, QLCDNumber, QDialog, QVBoxLayout, QPushButton, \
-                           QGridLayout, QDialogButtonBox, QCalendarWidget
+from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QPushButton, \
+                           QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
+                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout
 
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, QProcess, Signal, Slot
+from qtpy.QtGui import QImage, QPixmap, QBitmap
 
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
@@ -19,8 +24,14 @@ from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAM
 # from qtpy import QtCore, QtWidgets
 # from qtpy import uic
 
-DEPTHWINDOWDIMS = [1260, 0, 600, 220]
-FEATURESWINDOWDIMS = [1260, 220, 600, 860]
+# Import the test wrapper. Absolute path for now.
+# TODO: proper package and import.
+sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')
+import DB_Wrap
+
+DEPTHWINDOWDIMS = [1260, 0, 600, 1080]
+NSPBUFFERWINDOWDIMS = [1260, 220, 600, 20]
+FEATURESWINDOWDIMS = [1260, 300, 600, 860]
 XRANGE = 20
 
 
@@ -31,12 +42,23 @@ class DepthGUI(CustomGUI):
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.plot_widget = {}
 
+        # DB wrapper
+        self.db_wrapper = DB_Wrap.DBWrapper()
+        self.subject_id = None
+
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
     # is pressed in the default GUI opened when launched (Connect, Add Plot, Quit)
     def on_action_add_plot_triggered(self):
-        subname = AddSubjectDialog.do_add_subject_dialog()
-        print(subname)
+        # Open prompt to input subject details
+        details_dict = AddSubjectDialog.do_add_subject_dialog()
+        if details_dict is None:
+            return
 
+        # Returns the subject_id of either the created subject entry, or if an existing
+        # one is found, then its subject_id.
+        self.subject_id = self.db_wrapper.create_subject(details_dict)
+
+        # Configure CB SDK connection
         self.cbsdk_conn.cbsdk_config = {
             'reset': True,
             'get_continuous': True,
@@ -49,7 +71,29 @@ class DepthGUI(CustomGUI):
 
         group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
 
+        # Single window for all sub-widgets
+        self.plot_window = QWidget()
+        self.plot_window.setWindowFlags(Qt.FramelessWindowHint)
+        self.plot_window.move(DEPTHWINDOWDIMS[0], DEPTHWINDOWDIMS[1])
+        self.plot_window.resize(DEPTHWINDOWDIMS[2], DEPTHWINDOWDIMS[3])
+        self.plot_window.show()
+
+        self.layout = QVBoxLayout(self.plot_window)
+
+        # Add widget to display depth
         self.plot_widget['depth'] = DepthWidget(group_info)
+        self.layout.addWidget(self.plot_widget['depth'])
+        self.plot_widget['depth'].was_closed.connect(self.on_plot_closed)
+
+        # NSP Buffer widget
+        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_id=self.subject_id)
+        self.layout.addWidget(self.plot_widget['nsp_buffer'])
+        self.plot_widget['nsp_buffer'].was_closed.connect(self.on_plot_closed)
+
+        self.layout.addStretch()
+
+        # slots / signals
+        self.plot_widget['depth'].new_depth.connect(self.new_depth_slot)
 
     def on_plot_closed(self):
         del_list = []
@@ -67,67 +111,87 @@ class DepthGUI(CustomGUI):
     # do_plot_update function. This function then calls the update
     # function of all display widgets.
     def do_plot_update(self):
-            self.plot_widget.update()
+        self.plot_widget['depth'].update()
+        self.plot_widget['nsp_buffer'].update()
 
-        # self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
-        # self.move(WINDOWDIMS[0], WINDOWDIMS[1])
-        # self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
-        # self.setupUi(self)
-
-        # self.display_string = None
-        # self.ser = serial.Serial()
-        # self.ser.baudrate = 19200
-        # for port in serial.tools.list_ports.comports():
-        #     self.comboBox_com_port.addItem(port.device)
-        # self.comboBox_com_port.addItem("cbsdk playback")
-
-        # Connect signals & slots
-        # self.pushButton_open.clicked.connect(self.open_DDU)
-        # self.pushButton_send.clicked.connect(self.connect_cbsdk)
-
-    # No need to disconnect because the instance will do so automatically.
-    # def __del__(self):
-    #     from cerebuswrapper import CbSdkConnection
-    #     CbSdkConnection().disconnect()
+    @Slot(float)
+    def new_depth_slot(self, new_value):
+        pass
+        # print("New Depth:" + str(new_value))
 
 
 class DepthWidget(CustomWidget):
+    new_depth = Signal(float)
+
     def __init__(self, *args, **kwargs):
+        # Empty dict for plot options
         self.plot_config = {}
+
         super(DepthWidget, self).__init__(*args, **kwargs)
 
-        self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
-        this_dims = DEPTHWINDOWDIMS
-
-        self.move(this_dims[0], this_dims[1])
-        self.resize(this_dims[2], this_dims[3])
         self.refresh_axes()  # Extra time on purpose.
 
-    def closeEvent(self, evnt):
-        print(evnt)
+        self.display_string = None
+
+        # Serial port config
+        self.ser = serial.Serial()
+        self.ser.baudrate = 19200
+
+        # NSP Config
+        self.do_NSP = True
+
+        # LSL outlet config
+        self.do_LSL = True  # Default is on
+        depth_info = stream_info(name='electrode_depth', type='depth', channel_count=1,
+                                 nominal_srate=IRREGULAR_RATE, source_id='depth1214')
+
+        self.depth_stream = stream_outlet(depth_info)
 
     def create_control_panel(self):
-        print('createcontrolpanel')
+        # define Qt GUI elements
+        layout = QHBoxLayout()
+        self.comboBox_com_port = QComboBox()
+        layout.addWidget(self.comboBox_com_port)
 
-    def connect_cbsdk(self):
-        if CbSdkConnection().connect() == 0:
-            self.pushButton_send.setDisabled(True)
+        self.pushButton_open = QPushButton("Open")
+        layout.addWidget(self.pushButton_open)
+        layout.addStretch()
 
-    def create_plots(self, theme='dark', downsample=False, alt_loc=False):
-        self.plot_config['theme'] = theme
-        self.plot_config['alt_loc'] = alt_loc
-        self.plot_config['downsample'] = downsample
+        self.label_offset = QLabel("Offset: ")
+        layout.addWidget(self.label_offset)
 
-        glw = pg.GraphicsLayoutWidget(parent=self)
-        lcd = QLCDNumber(7, self)
-        lcd.display(1234)
-        self.layout().addWidget(lcd)
+        self.doubleSpinBox_offset = QDoubleSpinBox()
+        self.doubleSpinBox_offset.setMinimum(-100.00)
+        self.doubleSpinBox_offset.setMaximum(100.00)
+        self.doubleSpinBox_offset.setSingleStep(1.00)
+        self.doubleSpinBox_offset.setDecimals(2)
+        self.doubleSpinBox_offset.setValue(10.00)
+        self.doubleSpinBox_offset.setFixedWidth(80)
+        layout.addWidget(self.doubleSpinBox_offset)
 
-    def add_series(self, chan_info):
-        print(self, chan_info)
+        layout.addStretch()
 
-    def refresh_axes(self):
-        self.a = 2
+        self.chk_NSP = QCheckBox("Send to NSP")
+        self.chk_NSP.setChecked(True)
+        layout.addWidget(self.chk_NSP)
+
+        layout.addSpacing(20)
+
+        self.chk_LSL = QCheckBox("Stream to LSL")
+        self.chk_LSL.setChecked(True)
+        layout.addWidget(self.chk_LSL)
+
+        self.layout().addLayout(layout)
+
+        # Populate control panel items
+        for port in serial.tools.list_ports.comports():
+            self.comboBox_com_port.addItem(port.device)
+        self.comboBox_com_port.addItem("cbsdk playback")
+
+        # Connect signals & slots
+        self.pushButton_open.clicked.connect(self.open_DDU)
+        self.chk_NSP.clicked.connect(self.connect_cbsdk)
+        self.chk_LSL.clicked.connect(self.stream_lsl)
 
     def open_DDU(self):
         com_port = self.comboBox_com_port.currentText()
@@ -150,7 +214,38 @@ class DepthWidget(CustomWidget):
             else:
                 self.ser.close()
 
-    def update(self, data):
+    def connect_cbsdk(self):
+        if CbSdkConnection().connect() == 0:
+            self.chk_NSP.setChecked(False)
+        self.do_NSP = self.chk_NSP.isChecked()
+
+    def stream_lsl(self):
+        self.do_LSL = self.chk_LSL.isChecked()
+
+    def create_plots(self, theme='dark'):
+        self.plot_config['theme'] = theme
+
+        # define Qt GUI elements
+        self.lcdNumber = QLCDNumber()
+        self.lcdNumber.setDigitCount(7)
+        self.lcdNumber.setDecMode()
+        self.lcdNumber.setFixedHeight(200)
+
+        # set layout
+        self.layout().addWidget(self.lcdNumber)
+
+    def refresh_axes(self):
+        pass
+
+    def clear(self):
+        pass
+
+    def update(self):
+        # Added new_value handling for playback if we ever want to post-process depth
+        # on previously recorded sessions.
+        new_value = False
+        out_value = None
+
         if self.comboBox_com_port.currentText() == "cbsdk playback":
             cbsdk_conn = CbSdkConnection()
 
@@ -162,24 +257,156 @@ class DepthWidget(CustomWidget):
                     if 'DTT:' in comm_str:
                         dtts.append(float(comm_str[4:]))
                 if len(dtts) > 0:
-                    new_dtt = dtts[-1]
-                    self.lcdNumber.display(new_dtt)
+                    out_value = dtts[-1]
+                    new_value = True
+                    self.lcdNumber.display("{0:.3f}".format(out_value))
+
         elif self.ser.is_open:
             in_str = self.ser.readline().decode('utf-8').strip()
             if in_str:
                 try:
                     in_value = float(in_str)
-                    display_string = "{0:.3f}".format(in_value + self.doubleSpinBox_offset.value())
+                    out_value = in_value + self.doubleSpinBox_offset.value()
+                    display_string = "{0:.3f}".format(out_value)
                     self.lcdNumber.display(display_string)
 
-                    cbsdk_conn = CbSdkConnection()
-                    if cbsdk_conn.is_connected and (display_string != self.display_string):
-                        cbsdk_conn.set_comments("DTT:" + display_string)
+                    # Check if new value
+                    if display_string != self.display_string:
+                        new_value = True
                         self.display_string = display_string
+
+                    # Push to NSP
+                    cbsdk_conn = CbSdkConnection()
+                    if cbsdk_conn.is_connected:
+                        if self.do_NSP and new_value:
+                            cbsdk_conn.set_comments("DTT:" + display_string)
                     else:
-                        self.pushButton_send.setText("Send")
+                        self.chk_NSP.setChecked(False)
+
+                    # Push to LSL
+                    if self.do_LSL and new_value:
+                        self.depth_stream.push_sample([out_value])
+
                 except ValueError:
                     print("DDU result: {}".format(in_str))
+
+        if new_value and out_value:
+            # TODO: remove in final version, this is to debug LSL
+            self.depth_stream.push_sample([out_value])
+            self.new_depth.emit(out_value)
+
+
+class NSPBufferWidget(CustomWidget):
+
+    """
+    The NSP Buffer Widget will run in a QThread since reading the NSP buffer and saving
+    the data to the DB is unlikely to yield a GIL.
+    """
+    def __init__(self, *args, **kwargs):
+        # set status images
+        self.status_off = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_off.png'))
+        self.status_done = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png'))
+        self.status_in_use = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png'))
+
+        # parse arguments (group_info, subject ID)
+        if 'subject_id' in kwargs:
+            self.subject_id = kwargs['subject_id']
+        else:
+            self.subject_id = None
+
+        # define process
+        self.worker = QProcess()
+        self.worker.setProcessChannelMode(QProcess.MergedChannels)
+
+        super(NSPBufferWidget, self).__init__(*args, **kwargs)
+
+    def create_control_panel(self):
+        # define Qt GUI elements
+        layout = QHBoxLayout()
+
+        layout.addSpacing(20)
+
+        layout.addWidget(QLabel("Depth buffer size (s): "))
+        self.edit_buffer_length = QLineEdit("6.000")
+        self.edit_buffer_length.setInputMask("0.000")
+        self.edit_buffer_length.setFixedWidth(40)
+        layout.addWidget(self.edit_buffer_length)
+
+        layout.addSpacing(20)
+
+        layout.addWidget(QLabel("Depth samples size (s): "))
+        self.edit_sample_length = QLineEdit("4.000")
+        self.edit_sample_length.setInputMask("0.000")
+        self.edit_sample_length.setFixedWidth(40)
+        layout.addWidget(self.edit_sample_length)
+
+        layout.addSpacing(20)
+
+        self.chk_remove_artifacts = QCheckBox("Remove artifacts")
+        layout.addWidget(self.chk_remove_artifacts)
+
+        layout.addSpacing(20)
+
+        self.btn_start = QPushButton("Start")
+        self.btn_start.setCheckable(True)
+        layout.addWidget(self.btn_start)
+
+        layout.addSpacing(20)
+
+        self.status_label = QLabel()
+        self.status_label.setPixmap(self.status_off)
+        layout.addWidget(self.status_label)
+
+        layout.addSpacing(20)
+
+        self.layout().addLayout(layout)
+
+        # callbacks
+        self.btn_start.clicked.connect(self.manage_process)
+
+    def manage_process(self):
+        # start process
+        if self.btn_start.isChecked() and self.subject_id is not None:
+            # Disable all Control menu elements
+            self.edit_buffer_length.setEnabled(False)
+            self.edit_sample_length.setEnabled(False)
+            self.chk_remove_artifacts.setEnabled(False)
+            self.status_label.setPixmap(self.status_in_use)
+            self.btn_start.setText("Stop")
+
+            run_command = "python " + os.path.join(os.path.dirname(__file__), "NSP_DB_Process.py")
+            self.worker.start(run_command)
+
+        # stop process
+        else:
+            self.btn_start.setChecked(False)
+            # TODO: Figure out how to terminate gracefully?
+            self.worker.kill()
+            self.worker.waitForFinished()
+
+            self.edit_buffer_length.setEnabled(True)
+            self.edit_sample_length.setEnabled(True)
+            self.chk_remove_artifacts.setEnabled(True)
+            self.status_label.setPixmap(self.status_off)
+            self.btn_start.setText("Start")
+
+    # No GUI
+    def create_plots(self, theme='dark', **kwargs):
+        pass
+
+    def refresh_axes(self):
+        pass
+
+    def clear(self):
+        pass
+
+    def update(self):
+        if self.worker.bytesAvailable() > 0:
+            output = self.worker.readAllStandardOutput().data().decode('UTF-8').strip()
+            if output == 'in_use':
+                self.status_label.setPixmap(self.status_in_use)
+            elif output == 'done':
+                self.status_label.setPixmap(self.status_done)
 
 
 # Dialogs
@@ -187,7 +414,6 @@ class AddSubjectDialog(QDialog):
 
     """
     A modal dialog window with widgets to create a new subject entry in the DB.
-    Will return the subject ID.
     """
 
     def __init__(self, parent=None):
@@ -242,10 +468,11 @@ class AddSubjectDialog(QDialog):
                 'id': dialog.id_edit.text(),
                 'sex': dialog.sex_combo.currentText(),
                 'handedness': dialog.hand_combo.currentText(),
-                'birthday': dialog.dob_calendar.selectedDate()
+                'birthday': dialog.dob_calendar.selectedDate().toPyDate()
             }
+
             return out_dict
-        return -1, False
+        return None
 
 
 if __name__ == '__main__':
