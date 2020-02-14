@@ -5,24 +5,18 @@ import serial.tools.list_ports
 from cerebuswrapper import CbSdkConnection
 from pylsl import stream_info, stream_outlet, IRREGULAR_RATE
 
-import datetime
-
 # use the same GUI format as the other ones
-from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QPushButton, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
                            QCheckBox, QHBoxLayout, QWidget, QVBoxLayout
 
 from qtpy.QtCore import Qt, QProcess, Signal, Slot
-from qtpy.QtGui import QImage, QPixmap, QBitmap
+from qtpy.QtGui import QPixmap
 
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
 from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
-
-# from qtpy import QtCore, QtWidgets
-# from qtpy import uic
 
 # Import the test wrapper. Absolute path for now.
 # TODO: proper package and import.
@@ -30,8 +24,6 @@ sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')
 import DB_Wrap
 
 DEPTHWINDOWDIMS = [1260, 0, 600, 1080]
-NSPBUFFERWINDOWDIMS = [1260, 220, 600, 20]
-FEATURESWINDOWDIMS = [1260, 300, 600, 860]
 XRANGE = 20
 
 
@@ -47,7 +39,7 @@ class DepthGUI(CustomGUI):
         self.subject_id = None
 
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
-    # is pressed in the default GUI opened when launched (Connect, Add Plot, Quit)
+    # is pressed in the default GUI (Connect, Add Plot, Quit)
     def on_action_add_plot_triggered(self):
         # Open prompt to input subject details
         details_dict = AddSubjectDialog.do_add_subject_dialog()
@@ -55,7 +47,7 @@ class DepthGUI(CustomGUI):
             return
 
         # Returns the subject_id of either the created subject entry, or if an existing
-        # one is found, then its subject_id.
+        # one is found.
         self.subject_id = self.db_wrapper.create_subject(details_dict)
 
         # Configure CB SDK connection
@@ -81,19 +73,22 @@ class DepthGUI(CustomGUI):
         self.layout = QVBoxLayout(self.plot_window)
 
         # Add widget to display depth
+        # Same as the old DDUGUI plot.
         self.plot_widget['depth'] = DepthWidget(group_info)
         self.layout.addWidget(self.plot_widget['depth'])
         self.plot_widget['depth'].was_closed.connect(self.on_plot_closed)
 
         # NSP Buffer widget
+        # this widget handles the process creation that scans depth values, buffers the data and sends it to the DB.
         self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_id=self.subject_id)
         self.layout.addWidget(self.plot_widget['nsp_buffer'])
         self.plot_widget['nsp_buffer'].was_closed.connect(self.on_plot_closed)
 
+        # temp stretch to replace feature plots.
         self.layout.addStretch()
 
         # slots / signals
-        self.plot_widget['depth'].new_depth.connect(self.new_depth_slot)
+        # EMPTY
 
     def on_plot_closed(self):
         del_list = []
@@ -111,17 +106,12 @@ class DepthGUI(CustomGUI):
     # do_plot_update function. This function then calls the update
     # function of all display widgets.
     def do_plot_update(self):
+        # since all widgets have different use, they will each handle their own data collection.
         self.plot_widget['depth'].update()
         self.plot_widget['nsp_buffer'].update()
 
-    @Slot(float)
-    def new_depth_slot(self, new_value):
-        pass
-        # print("New Depth:" + str(new_value))
-
 
 class DepthWidget(CustomWidget):
-    new_depth = Signal(float)
 
     def __init__(self, *args, **kwargs):
         # Empty dict for plot options
@@ -144,7 +134,6 @@ class DepthWidget(CustomWidget):
         self.do_LSL = True  # Default is on
         depth_info = stream_info(name='electrode_depth', type='depth', channel_count=1,
                                  nominal_srate=IRREGULAR_RATE, source_id='depth1214')
-
         self.depth_stream = stream_outlet(depth_info)
 
     def create_control_panel(self):
@@ -251,7 +240,10 @@ class DepthWidget(CustomWidget):
 
             if cbsdk_conn.is_connected:
                 comments = cbsdk_conn.get_comments()
-                comment_strings = [x[1].decode('utf8') for x in comments]
+                if comments:
+                    comment_strings = [x[1].decode('utf8') for x in comments]
+                else:
+                    comment_strings = ""
                 dtts = []
                 for comm_str in comment_strings:
                     if 'DTT:' in comm_str:
@@ -293,7 +285,6 @@ class DepthWidget(CustomWidget):
         if new_value and out_value:
             # TODO: remove in final version, this is to debug LSL
             self.depth_stream.push_sample([out_value])
-            self.new_depth.emit(out_value)
 
 
 class NSPBufferWidget(CustomWidget):
@@ -303,6 +294,7 @@ class NSPBufferWidget(CustomWidget):
     the data to the DB is unlikely to yield a GIL.
     """
     def __init__(self, *args, **kwargs):
+
         # set status images
         self.status_off = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_off.png'))
         self.status_done = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png'))
@@ -318,7 +310,16 @@ class NSPBufferWidget(CustomWidget):
         self.worker = QProcess()
         self.worker.setProcessChannelMode(QProcess.MergedChannels)
 
+        self.settings = dict()
+
+        # do super class init here to get group info
         super(NSPBufferWidget, self).__init__(*args, **kwargs)
+
+        # default electrode settings
+        for elec in self.group_info:
+            self.settings[elec['label'].decode('utf-8')] = {
+                'threshold': True,
+                'validity': 90.0}
 
     def create_control_panel(self):
         # define Qt GUI elements
@@ -342,8 +343,8 @@ class NSPBufferWidget(CustomWidget):
 
         layout.addSpacing(20)
 
-        self.chk_remove_artifacts = QCheckBox("Remove artifacts")
-        layout.addWidget(self.chk_remove_artifacts)
+        self.btn_settings = QPushButton("Settings")
+        layout.addWidget(self.btn_settings)
 
         layout.addSpacing(20)
 
@@ -363,6 +364,7 @@ class NSPBufferWidget(CustomWidget):
 
         # callbacks
         self.btn_start.clicked.connect(self.manage_process)
+        self.btn_settings.clicked.connect(self.manage_settings)
 
     def manage_process(self):
         # start process
@@ -370,11 +372,20 @@ class NSPBufferWidget(CustomWidget):
             # Disable all Control menu elements
             self.edit_buffer_length.setEnabled(False)
             self.edit_sample_length.setEnabled(False)
-            self.chk_remove_artifacts.setEnabled(False)
             self.status_label.setPixmap(self.status_in_use)
             self.btn_start.setText("Stop")
+            # NSP_DB_Process expects : subject_id, buffer_length, sample_length, ...
+            # then label threshold validity for each electrode):
+            electrode_settings = ""
+            for key, value in self.settings.items():
+                electrode_settings += key + " " + str(value['threshold']) + " " + str(value['validity']) + " "
 
-            run_command = "python " + os.path.join(os.path.dirname(__file__), "NSP_DB_Process.py")
+            run_command = "python " + os.path.join(os.path.dirname(__file__),
+                                                   "NSP_DB_Process.py " +
+                                                   str(self.subject_id) + " " +
+                                                   self.edit_buffer_length.text() + " " +
+                                                   self.edit_sample_length.text() + " " +
+                                                   electrode_settings)
             self.worker.start(run_command)
 
         # stop process
@@ -386,9 +397,13 @@ class NSPBufferWidget(CustomWidget):
 
             self.edit_buffer_length.setEnabled(True)
             self.edit_sample_length.setEnabled(True)
-            self.chk_remove_artifacts.setEnabled(True)
             self.status_label.setPixmap(self.status_off)
             self.btn_start.setText("Start")
+
+    def manage_settings(self):
+        details_dict = AddSettingsDialog.do_add_settings_dialog(self.settings)
+        if details_dict is None:
+            self.settings = details_dict
 
     # No GUI
     def create_plots(self, theme='dark', **kwargs):
@@ -401,6 +416,8 @@ class NSPBufferWidget(CustomWidget):
         pass
 
     def update(self):
+        # reads the stdout from the process. The script prints either 'in_use' or 'done' to show the current state of
+        # the depth recording.
         if self.worker.bytesAvailable() > 0:
             output = self.worker.readAllStandardOutput().data().decode('UTF-8').strip()
             if output == 'in_use':
@@ -473,6 +490,55 @@ class AddSubjectDialog(QDialog):
 
             return out_dict
         return None
+
+
+class AddSettingsDialog(QDialog):
+
+    """
+    A modal dialog window with widgets to create settings for data filtering.
+    """
+
+    def __init__(self, default_settings, parent=None):
+        super(AddSettingsDialog, self).__init__(parent)
+        self.setWindowTitle("Enter channel settings.")
+
+        self.dict_settings = default_settings
+        # Widgets to show/edit connection parameters.
+        self.settings_layout = QGridLayout(self)
+
+        for idx, (label, sett) in enumerate(self.dict_settings.items()):
+            self.settings_layout.addWidget(QLabel(label), idx, 0, 1, 1)
+            self.dict_settings[label] = {}
+            self.dict_settings[label]['chk_threshold'] = QCheckBox("Threshold")
+            self.dict_settings[label]['chk_threshold'].setChecked(bool(sett['threshold']))
+            self.dict_settings[label]['edit_validity'] = QLineEdit()
+            self.dict_settings[label]['edit_validity'].setText(str(sett['validity']))
+
+            self.settings_layout.addWidget(self.dict_settings[label]['chk_threshold'], idx, 1, 1, 1)
+            self.settings_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
+            self.settings_layout.addWidget(self.dict_settings[label]['edit_validity'], idx, 3, 1, 1)
+
+        # OK and Cancel buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            Qt.Horizontal, self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.settings_layout.addWidget(buttons, 6, 0, 1, 2, alignment=Qt.AlignHCenter)
+
+    @staticmethod
+    def do_add_settings_dialog(settings, parent=None):
+        dialog = AddSettingsDialog(settings, parent)
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
+            # convert all fields to dictionary and return it
+            for key, value in dialog.dict_settings.items():
+                dialog.dict_settings[key] = {}
+                dialog.dict_settings[key]['threshold'] = value['chk_threshold'].isChecked()
+                dialog.dict_settings[key]['validity'] = float(value['edit_validity'].text())
+                dialog.dict_settings[key]['chk_threshold'] = None
+                dialog.dict_settings[key]['edit_validity'] = None
+        return dialog.dict_settings
 
 
 if __name__ == '__main__':
