@@ -13,15 +13,14 @@ from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QP
 from qtpy.QtCore import Qt, QProcess, Signal, Slot
 from qtpy.QtGui import QPixmap
 
-import pyqtgraph as pg
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
+from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS
 
 # Import the test wrapper. Absolute path for now.
 # TODO: proper package and import.
-sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')
-import DB_Wrap
+# sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')  # work comp
+sys.path.append('D:\\SachsLab\\NeuroPort_Dev\\NeuroportDBS_eerfapp_DB\\')  # home comp
+from DB_Wrap import DBWrapper, DepthProcessWrapper
 
 DEPTHWINDOWDIMS = [1260, 0, 600, 1080]
 XRANGE = 20
@@ -33,22 +32,21 @@ class DepthGUI(CustomGUI):
         super(DepthGUI, self).__init__()
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.plot_widget = {}
-
+        self.subject_details = {}
         # DB wrapper
-        self.db_wrapper = DB_Wrap.DBWrapper()
-        self.subject_id = None
+        self.db_wrapper = DBWrapper()
 
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
     # is pressed in the default GUI (Connect, Add Plot, Quit)
     def on_action_add_plot_triggered(self):
         # Open prompt to input subject details
-        details_dict = AddSubjectDialog.do_add_subject_dialog()
-        if details_dict is None:
+        self.subject_details = AddSubjectDialog.do_add_subject_dialog()
+        if self.subject_details is None:
             return
 
-        # Returns the subject_id of either the created subject entry, or if an existing
-        # one is found.
-        self.subject_id = self.db_wrapper.create_subject(details_dict)
+        # Returns true/false whether subject is properly created or not
+        if not self.db_wrapper.create_subject(self.subject_details):
+            print("Subject not created")
 
         # Configure CB SDK connection
         self.cbsdk_conn.cbsdk_config = {
@@ -80,7 +78,7 @@ class DepthGUI(CustomGUI):
 
         # NSP Buffer widget
         # this widget handles the process creation that scans depth values, buffers the data and sends it to the DB.
-        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_id=self.subject_id)
+        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_details=self.subject_details)
         self.layout.addWidget(self.plot_widget['nsp_buffer'])
         self.plot_widget['nsp_buffer'].was_closed.connect(self.on_plot_closed)
 
@@ -289,10 +287,6 @@ class DepthWidget(CustomWidget):
 
 class NSPBufferWidget(CustomWidget):
 
-    """
-    The NSP Buffer Widget will run in a QThread since reading the NSP buffer and saving
-    the data to the DB is unlikely to yield a GIL.
-    """
     def __init__(self, *args, **kwargs):
 
         # set status images
@@ -301,14 +295,12 @@ class NSPBufferWidget(CustomWidget):
         self.status_in_use = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png'))
 
         # parse arguments (group_info, subject ID)
-        if 'subject_id' in kwargs:
-            self.subject_id = kwargs['subject_id']
-        else:
-            self.subject_id = None
 
-        # define process
-        self.worker = QProcess()
-        self.worker.setProcessChannelMode(QProcess.MergedChannels)
+        if 'subject_details' in kwargs:
+            self.subject_details = kwargs['subject_details']
+        else:
+            self.subject_details = None
+        self.depth_wrapper = DepthProcessWrapper(self.subject_details)
 
         self.settings = dict()
 
@@ -316,8 +308,8 @@ class NSPBufferWidget(CustomWidget):
         super(NSPBufferWidget, self).__init__(*args, **kwargs)
 
         # default electrode settings
-        for elec in self.group_info:
-            self.settings[elec['label'].decode('utf-8')] = {
+        for electrode in self.group_info:
+            self.settings[electrode['label'].decode('utf-8')] = {
                 'threshold': True,
                 'validity': 90.0}
 
@@ -368,32 +360,26 @@ class NSPBufferWidget(CustomWidget):
 
     def manage_process(self):
         # start process
-        if self.btn_start.isChecked() and self.subject_id is not None:
+        if self.btn_start.isChecked():
             # Disable all Control menu elements
             self.edit_buffer_length.setEnabled(False)
             self.edit_sample_length.setEnabled(False)
             self.status_label.setPixmap(self.status_in_use)
             self.btn_start.setText("Stop")
-            # NSP_DB_Process expects : subject_id, buffer_length, sample_length, ...
+            # NSP_DB_Process expects : buffer_length, sample_length, ...
             # then label threshold validity for each electrode):
-            electrode_settings = ""
-            for key, value in self.settings.items():
-                electrode_settings += key + " " + str(value['threshold']) + " " + str(value['validity']) + " "
+            settings = self.edit_buffer_length.text() + " " + \
+                self.edit_sample_length.text() + " "
 
-            run_command = "python " + os.path.join(os.path.dirname(__file__),
-                                                   "NSP_DB_Process.py " +
-                                                   str(self.subject_id) + " " +
-                                                   self.edit_buffer_length.text() + " " +
-                                                   self.edit_sample_length.text() + " " +
-                                                   electrode_settings)
-            self.worker.start(run_command)
+            for key, value in self.settings.items():
+                settings += key + " " + str(value['threshold']) + " " + str(value['validity']) + " "
+
+            self.depth_wrapper.manage_depth_worker(settings)
 
         # stop process
         else:
             self.btn_start.setChecked(False)
-            # TODO: Figure out how to terminate gracefully?
-            self.worker.kill()
-            self.worker.waitForFinished()
+            self.depth_wrapper.manage_depth_worker('')
 
             self.edit_buffer_length.setEnabled(True)
             self.edit_sample_length.setEnabled(True)
@@ -416,14 +402,11 @@ class NSPBufferWidget(CustomWidget):
         pass
 
     def update(self):
-        # reads the stdout from the process. The script prints either 'in_use' or 'done' to show the current state of
-        # the depth recording.
-        if self.worker.bytesAvailable() > 0:
-            output = self.worker.readAllStandardOutput().data().decode('UTF-8').strip()
-            if output == 'in_use':
-                self.status_label.setPixmap(self.status_in_use)
-            elif output == 'done':
-                self.status_label.setPixmap(self.status_done)
+        # True means done, false is in_use
+        if self.depth_wrapper.depth_worker_status():
+            self.status_label.setPixmap(self.status_done)
+        else:
+            self.status_label.setPixmap(self.status_in_use)
 
 
 # Dialogs
