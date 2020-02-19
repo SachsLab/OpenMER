@@ -8,7 +8,7 @@ from pylsl import stream_info, stream_outlet, IRREGULAR_RATE
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QPushButton, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
-                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout
+                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QFrame
 
 from qtpy.QtCore import Qt, QProcess, Signal, Slot
 from qtpy.QtGui import QPixmap
@@ -20,10 +20,20 @@ from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS
 # TODO: proper package and import.
 # sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')  # work comp
 sys.path.append('D:\\SachsLab\\NeuroPort_Dev\\NeuroportDBS_eerfapp_DB\\')  # home comp
-from DB_Wrap import DBWrapper, DepthProcessWrapper
+from DB_Wrap import DBWrapper, ProcessWrapper
 
 DEPTHWINDOWDIMS = [1260, 0, 600, 1080]
 XRANGE = 20
+# TODO: Better definition of features to compute?
+# Dict of readable name : [function name, bool OnOff]
+FEATURESETTINGS = {
+    'Beta power': ['beta_pwr', True],
+    'Phase-Amplitude Coupling': ['pac', True],
+    'Noise RMS': ['noise_rms', True],
+    'Power Spectrum': ['fft_spectrum', True]
+}
+DEPTHSETTINGS = {'threshold': True,
+         'validity': 90.0}
 
 
 class DepthGUI(CustomGUI):
@@ -32,7 +42,8 @@ class DepthGUI(CustomGUI):
         super(DepthGUI, self).__init__()
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.plot_widget = {}
-        self.subject_details = {}
+        self.subject_id = -1
+
         # DB wrapper
         self.db_wrapper = DBWrapper()
 
@@ -40,12 +51,13 @@ class DepthGUI(CustomGUI):
     # is pressed in the default GUI (Connect, Add Plot, Quit)
     def on_action_add_plot_triggered(self):
         # Open prompt to input subject details
-        self.subject_details = AddSubjectDialog.do_add_subject_dialog()
-        if self.subject_details is None:
+        subject_details = AddSubjectDialog.do_add_subject_dialog()
+        if subject_details is None:
             return
 
         # Returns true/false whether subject is properly created or not
-        if not self.db_wrapper.create_subject(self.subject_details):
+        self.subject_id = self.db_wrapper.create_subject(subject_details)
+        if self.subject_id == -1:
             print("Subject not created")
 
         # Configure CB SDK connection
@@ -78,7 +90,7 @@ class DepthGUI(CustomGUI):
 
         # NSP Buffer widget
         # this widget handles the process creation that scans depth values, buffers the data and sends it to the DB.
-        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_details=self.subject_details)
+        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_id=self.subject_id)
         self.layout.addWidget(self.plot_widget['nsp_buffer'])
         self.plot_widget['nsp_buffer'].was_closed.connect(self.on_plot_closed)
 
@@ -296,22 +308,27 @@ class NSPBufferWidget(CustomWidget):
 
         # parse arguments (group_info, subject ID)
 
-        if 'subject_details' in kwargs:
-            self.subject_details = kwargs['subject_details']
+        if 'subject_id' in kwargs:
+            self.subject_id = kwargs['subject_id']
         else:
-            self.subject_details = None
-        self.depth_wrapper = DepthProcessWrapper(self.subject_details)
+            self.subject_id = -1
 
-        self.settings = dict()
+        self.depth_wrapper = ProcessWrapper(self.subject_id)
+        self.electrode_settings = dict()
+
+        self.features_wrapper = ProcessWrapper(self.subject_id)
+        self.features_settings = FEATURESETTINGS
+
+        # Start the features processing right now and keep going until the app is closed
+        # we will stop the process when settings are changed and re-start it
+        self.manage_feature_process(True)
 
         # do super class init here to get group info
         super(NSPBufferWidget, self).__init__(*args, **kwargs)
 
         # default electrode settings
         for electrode in self.group_info:
-            self.settings[electrode['label'].decode('utf-8')] = {
-                'threshold': True,
-                'validity': 90.0}
+            self.electrode_settings[electrode['label'].decode('utf-8')] = DEPTHSETTINGS
 
     def create_control_panel(self):
         # define Qt GUI elements
@@ -355,10 +372,10 @@ class NSPBufferWidget(CustomWidget):
         self.layout().addLayout(layout)
 
         # callbacks
-        self.btn_start.clicked.connect(self.manage_process)
+        self.btn_start.clicked.connect(self.manage_depth_process)
         self.btn_settings.clicked.connect(self.manage_settings)
 
-    def manage_process(self):
+    def manage_depth_process(self):
         # start process
         if self.btn_start.isChecked():
             # Disable all Control menu elements
@@ -371,25 +388,40 @@ class NSPBufferWidget(CustomWidget):
             settings = self.edit_buffer_length.text() + " " + \
                 self.edit_sample_length.text() + " "
 
-            for key, value in self.settings.items():
+            for key, value in self.electrode_settings.items():
                 settings += key + " " + str(value['threshold']) + " " + str(value['validity']) + " "
 
-            self.depth_wrapper.manage_depth_worker(settings)
+            self.depth_wrapper.manage_worker('Depth_Process', settings)
 
         # stop process
         else:
             self.btn_start.setChecked(False)
-            self.depth_wrapper.manage_depth_worker('')
+            self.depth_wrapper.manage_worker('', '')
 
             self.edit_buffer_length.setEnabled(True)
             self.edit_sample_length.setEnabled(True)
             self.status_label.setPixmap(self.status_off)
             self.btn_start.setText("Start")
 
+    def manage_feature_process(self, on_off):
+        if on_off:
+            settings = ''
+            for key, value in self.features_settings.items():
+                if value[1]:
+                    settings += value[0] + ' '
+
+            self.features_wrapper.manage_worker('Features_Process', settings)
+        else:
+            self.features_wrapper.manage_worker('', '')
+
     def manage_settings(self):
-        details_dict = AddSettingsDialog.do_add_settings_dialog(self.settings)
-        if details_dict is None:
-            self.settings = details_dict
+        elec_sett, feat_sett = AddSettingsDialog.do_add_settings_dialog(self.electrode_settings, self.features_settings)
+        if elec_sett is not None:
+            self.electrode_settings = elec_sett
+        if feat_sett is not None:
+            self.manage_feature_process(False)
+            self.features_settings = feat_sett
+            self.manage_feature_process(True)
 
     # No GUI
     def create_plots(self, theme='dark', **kwargs):
@@ -403,7 +435,7 @@ class NSPBufferWidget(CustomWidget):
 
     def update(self):
         # True means done, false is in_use
-        if self.depth_wrapper.depth_worker_status():
+        if self.depth_wrapper.worker_status():
             self.status_label.setPixmap(self.status_done)
         else:
             self.status_label.setPixmap(self.status_in_use)
@@ -476,30 +508,54 @@ class AddSubjectDialog(QDialog):
 
 
 class AddSettingsDialog(QDialog):
-
-    """
-    A modal dialog window with widgets to create settings for data filtering.
-    """
-
-    def __init__(self, default_settings, parent=None):
+    def __init__(self, electrode_settings, feature_settings, parent=None):
         super(AddSettingsDialog, self).__init__(parent)
-        self.setWindowTitle("Enter channel settings.")
+        self.setWindowTitle("Enter settings.")
 
-        self.dict_settings = default_settings
+        # settings dicts
+        self.electrodes_settings = electrode_settings
+        self.electrodes_widgets = {}
+
+        self.features_settings = feature_settings
+        self.features_widgets = {}
+
         # Widgets to show/edit connection parameters.
-        self.settings_layout = QGridLayout(self)
+        self.settings_layout = QVBoxLayout(self)
 
-        for idx, (label, sett) in enumerate(self.dict_settings.items()):
-            self.settings_layout.addWidget(QLabel(label), idx, 0, 1, 1)
-            self.dict_settings[label] = {}
-            self.dict_settings[label]['chk_threshold'] = QCheckBox("Threshold")
-            self.dict_settings[label]['chk_threshold'].setChecked(bool(sett['threshold']))
-            self.dict_settings[label]['edit_validity'] = QLineEdit()
-            self.dict_settings[label]['edit_validity'].setText(str(sett['validity']))
+        # Electrode settings
+        self.settings_layout.addWidget(QLabel('Electrodes settings'))
 
-            self.settings_layout.addWidget(self.dict_settings[label]['chk_threshold'], idx, 1, 1, 1)
-            self.settings_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
-            self.settings_layout.addWidget(self.dict_settings[label]['edit_validity'], idx, 3, 1, 1)
+        electrodes_frame = QFrame()
+        electrodes_frame.setFrameShape(QFrame.StyledPanel)
+        self.settings_layout.addWidget(electrodes_frame)
+        electrodes_layout = QGridLayout(self)
+        for idx, (label, sett) in enumerate(self.electrodes_settings.items()):
+            electrodes_layout.addWidget(QLabel(label), idx, 0, 1, 1)
+            self.electrodes_widgets[label] = {}
+            self.electrodes_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
+            self.electrodes_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
+            self.electrodes_widgets[label]['edit_validity'] = QLineEdit()
+            self.electrodes_widgets[label]['edit_validity'].setText(str(sett['validity']))
+
+            electrodes_layout.addWidget(self.electrodes_widgets[label]['chk_threshold'], idx, 1, 1, 1)
+            electrodes_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
+            electrodes_layout.addWidget(self.electrodes_widgets[label]['edit_validity'], idx, 3, 1, 1)
+
+        electrodes_frame.setLayout(electrodes_layout)
+
+        # Features settings
+        self.settings_layout.addWidget(QLabel('Features settings'))
+
+        features_frame = QFrame()
+        features_frame.setFrameShape(QFrame.StyledPanel)
+        self.settings_layout.addWidget(features_frame)
+        features_layout = QGridLayout(self)
+        for idx, (label, sett) in enumerate(self.features_settings.items()):
+            self.features_widgets[label] = QCheckBox(label)
+            self.features_widgets[label].setChecked(sett[1])
+            features_layout.addWidget(self.features_widgets[label], idx, 0, 1, 1)
+
+        features_frame.setLayout(features_layout)
 
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
@@ -507,21 +563,25 @@ class AddSettingsDialog(QDialog):
             Qt.Horizontal, self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        self.settings_layout.addWidget(buttons, 6, 0, 1, 2, alignment=Qt.AlignHCenter)
+        self.settings_layout.addWidget(buttons, alignment=Qt.AlignHCenter)
 
     @staticmethod
-    def do_add_settings_dialog(settings, parent=None):
-        dialog = AddSettingsDialog(settings, parent)
+    def do_add_settings_dialog(electrode_settings, features_settings, parent=None):
+        dialog = AddSettingsDialog(electrode_settings, features_settings, parent)
         result = dialog.exec_()
         if result == QDialog.Accepted:
             # convert all fields to dictionary and return it
-            for key, value in dialog.dict_settings.items():
-                dialog.dict_settings[key] = {}
-                dialog.dict_settings[key]['threshold'] = value['chk_threshold'].isChecked()
-                dialog.dict_settings[key]['validity'] = float(value['edit_validity'].text())
-                dialog.dict_settings[key]['chk_threshold'] = None
-                dialog.dict_settings[key]['edit_validity'] = None
-        return dialog.dict_settings
+            for key, value in dialog.electrodes_widgets.items():
+                dialog.electrodes_settings[key] = {}
+                dialog.electrodes_settings[key]['threshold'] = value['chk_threshold'].isChecked()
+                dialog.electrodes_settings[key]['validity'] = float(value['edit_validity'].text())
+
+            for key, value in dialog.features_widgets.items():
+                dialog.features_settings[key][1] = value.isChecked()
+
+            return dialog.electrodes_settings, dialog.features_settings
+        else:
+            return None, None
 
 
 if __name__ == '__main__':
