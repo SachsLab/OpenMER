@@ -319,12 +319,12 @@ class NSPBufferWidget(CustomWidget):
         self.features_wrapper = ProcessWrapper(self.subject_id)
         self.features_settings = FEATURESETTINGS
 
+        # do super class init here to get group info
+        super(NSPBufferWidget, self).__init__(*args, **kwargs)
+
         # Start the features processing right now and keep going until the app is closed
         # we will stop the process when settings are changed and re-start it
         self.manage_feature_process(True)
-
-        # do super class init here to get group info
-        super(NSPBufferWidget, self).__init__(*args, **kwargs)
 
         # default electrode settings
         for electrode in self.group_info:
