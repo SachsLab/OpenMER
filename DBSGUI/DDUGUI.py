@@ -2,38 +2,40 @@ import os
 import sys
 import serial
 import serial.tools.list_ports
+import numpy as np
+
 from cerebuswrapper import CbSdkConnection
 from pylsl import stream_info, stream_outlet, IRREGULAR_RATE
 
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QPushButton, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
-                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QFrame
+                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QFrame, QStackedWidget, QAction
 
-from qtpy.QtCore import Qt, QProcess, Signal, Slot
-from qtpy.QtGui import QPixmap
+from qtpy.QtCore import Qt, QSharedMemory
+from qtpy.QtGui import QPixmap, QColor, QFont
+import pyqtgraph as pg
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS
+from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
 
 # Import the test wrapper. Absolute path for now.
 # TODO: proper package and import.
-# sys.path.append('D:\\Sachs_Lab\\DBS_dev\\expdb\\')  # work comp
-sys.path.append('D:\\SachsLab\\NeuroPort_Dev\\NeuroportDBS_eerfapp_DB\\')  # home comp
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'expdb')))
 from DB_Wrap import DBWrapper, ProcessWrapper
 
-DEPTHWINDOWDIMS = [1260, 0, 600, 1080]
-XRANGE = 20
-# TODO: Better definition of features to compute?
-# Dict of readable name : [function name, bool OnOff]
-FEATURESETTINGS = {
-    'Beta power': ['beta_pwr', True],
-    'Phase-Amplitude Coupling': ['pac', True],
-    'Noise RMS': ['noise_rms', True],
-    'Power Spectrum': ['fft_spectrum', True]
-}
+DEPTHWINDOWDIMS = [1305, 0, 600, 1080]
+XRANGE = [-1, 120000]
+YRANGE = 200.00
+DEPTHRANGE = [-20, 5]
+
+# TODO: ini file?
+# Default settings. If finds a category of features with the same name, will apply the value here.
+FEATURESETTINGS = {'DBS': True,
+                   'LFP': True}
+
 DEPTHSETTINGS = {'threshold': True,
-         'validity': 90.0}
+                 'validity': 90.0}
 
 
 class DepthGUI(CustomGUI):
@@ -42,10 +44,35 @@ class DepthGUI(CustomGUI):
         super(DepthGUI, self).__init__()
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.plot_widget = {}
-        self.subject_id = -1
 
         # DB wrapper
         self.db_wrapper = DBWrapper()
+
+    # Override create actions to call the clean_exit script
+    def create_actions(self):
+        # Actions
+        self.actions = {
+            'Connect': QAction("Connect", self),
+            'Quit': QAction("Quit", self),
+            'AddPlot': QAction("Add Plot", self)
+        }
+        self.actions['Connect'].triggered.connect(self.on_action_connect_triggered)
+        self.actions['Quit'].triggered.connect(self.clean_exit)
+        self.actions['AddPlot'].triggered.connect(self.on_action_add_plot_triggered)
+
+    def clean_exit(self):
+        if 'nsp_buffer' in self.plot_widget.keys():
+            self.plot_widget['nsp_buffer'].kill_processes()
+
+        del_list = []
+        for key in self.plot_widget:
+            if self.plot_widget[key].awaiting_close:
+                del_list.append(key)
+
+        for key in del_list:
+            del self.plot_widget[key]
+
+        qapp.quit()
 
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
     # is pressed in the default GUI (Connect, Add Plot, Quit)
@@ -56,8 +83,7 @@ class DepthGUI(CustomGUI):
             return
 
         # Returns true/false whether subject is properly created or not
-        self.subject_id = self.db_wrapper.create_subject(subject_details)
-        if self.subject_id == -1:
+        if self.db_wrapper.create_subject(subject_details) == -1:
             print("Subject not created")
 
         # Configure CB SDK connection
@@ -86,31 +112,25 @@ class DepthGUI(CustomGUI):
         # Same as the old DDUGUI plot.
         self.plot_widget['depth'] = DepthWidget(group_info)
         self.layout.addWidget(self.plot_widget['depth'])
-        self.plot_widget['depth'].was_closed.connect(self.on_plot_closed)
+        self.plot_widget['depth'].was_closed.connect(self.clean_exit)
 
         # NSP Buffer widget
         # this widget handles the process creation that scans depth values, buffers the data and sends it to the DB.
-        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info, subject_id=self.subject_id)
+        self.plot_widget['nsp_buffer'] = NSPBufferWidget(group_info)
         self.layout.addWidget(self.plot_widget['nsp_buffer'])
-        self.plot_widget['nsp_buffer'].was_closed.connect(self.on_plot_closed)
+        self.plot_widget['nsp_buffer'].was_closed.connect(self.clean_exit)
+
+        h_line = QLabel()
+        h_line.setFrameShape(QFrame.HLine)
+        self.layout.addWidget(h_line)
+
+        # Features Plot Widget
+        self.plot_widget['features'] = FeaturesPlotWidget(group_info)
+        self.layout.addWidget(self.plot_widget['features'])
+        self.plot_widget['features'].was_closed.connect(self.clean_exit)
 
         # temp stretch to replace feature plots.
-        self.layout.addStretch()
-
-        # slots / signals
-        # EMPTY
-
-    def on_plot_closed(self):
-        del_list = []
-        for key in self.plot_widget:
-            if self.plot_widget[key].awaiting_close:
-                del_list.append(key)
-
-        for key in del_list:
-            del self.plot_widget[key]
-
-        if not self.plot_widget:
-            self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False}
+        self.layout.addSpacing(40)
 
     # The custom GUI class has an update function, which calls the
     # do_plot_update function. This function then calls the update
@@ -119,6 +139,7 @@ class DepthGUI(CustomGUI):
         # since all widgets have different use, they will each handle their own data collection.
         self.plot_widget['depth'].update()
         self.plot_widget['nsp_buffer'].update()
+        self.plot_widget['features'].update()
 
 
 class DepthWidget(CustomWidget):
@@ -174,7 +195,7 @@ class DepthWidget(CustomWidget):
         self.chk_NSP.setChecked(True)
         layout.addWidget(self.chk_NSP)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.chk_LSL = QCheckBox("Stream to LSL")
         self.chk_LSL.setChecked(True)
@@ -229,6 +250,7 @@ class DepthWidget(CustomWidget):
         self.lcdNumber.setDigitCount(7)
         self.lcdNumber.setDecMode()
         self.lcdNumber.setFixedHeight(200)
+        self.lcdNumber.display("{0:.3f}".format(-20))
 
         # set layout
         self.layout().addWidget(self.lcdNumber)
@@ -285,15 +307,11 @@ class DepthWidget(CustomWidget):
                     else:
                         self.chk_NSP.setChecked(False)
 
-                    # Push to LSL
-                    if self.do_LSL and new_value:
-                        self.depth_stream.push_sample([out_value])
-
                 except ValueError:
                     print("DDU result: {}".format(in_str))
 
-        if new_value and out_value:
-            # TODO: remove in final version, this is to debug LSL
+        # Push to LSL
+        if self.do_LSL and new_value:
             self.depth_stream.push_sample([out_value])
 
 
@@ -306,20 +324,23 @@ class NSPBufferWidget(CustomWidget):
         self.status_done = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png'))
         self.status_in_use = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png'))
 
-        # parse arguments (group_info, subject ID)
+        # read current subject value from the DBWrapper singleton.
+        self.subject_id = DBWrapper().current_subject.subject_id
 
-        if 'subject_id' in kwargs:
-            self.subject_id = kwargs['subject_id']
-        else:
-            self.subject_id = -1
+        self.depth_wrapper = ProcessWrapper('Depth_Process')
+        self.depth_settings = {'subject_id': self.subject_id, 'electrode_settings': {}}
 
-        self.depth_wrapper = ProcessWrapper(self.subject_id)
-        self.electrode_settings = dict()
+        self.features_wrapper = ProcessWrapper('Features_Process')
+        self.features_settings = {'subject_id': self.subject_id, 'features': {}}
 
-        self.features_wrapper = ProcessWrapper(self.subject_id)
-        self.features_settings = FEATURESETTINGS
+        # Check if default values are defined
+        for cat in DBWrapper().all_features.keys():
+            if cat in FEATURESETTINGS:
+                self.features_settings['features'][cat] = FEATURESETTINGS[cat]
+            else:
+                self.features_settings['features'][cat] = False
 
-        # do super class init here to get group info
+        # do super class init here to set group info
         super(NSPBufferWidget, self).__init__(*args, **kwargs)
 
         # Start the features processing right now and keep going until the app is closed
@@ -328,13 +349,13 @@ class NSPBufferWidget(CustomWidget):
 
         # default electrode settings
         for electrode in self.group_info:
-            self.electrode_settings[electrode['label'].decode('utf-8')] = DEPTHSETTINGS
+            self.depth_settings['electrode_settings'][electrode['label'].decode('utf-8')] = DEPTHSETTINGS
 
     def create_control_panel(self):
         # define Qt GUI elements
         layout = QHBoxLayout()
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         layout.addWidget(QLabel("Depth buffer size (s): "))
         self.edit_buffer_length = QLineEdit("6.000")
@@ -342,7 +363,7 @@ class NSPBufferWidget(CustomWidget):
         self.edit_buffer_length.setFixedWidth(40)
         layout.addWidget(self.edit_buffer_length)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         layout.addWidget(QLabel("Depth samples size (s): "))
         self.edit_sample_length = QLineEdit("4.000")
@@ -350,24 +371,24 @@ class NSPBufferWidget(CustomWidget):
         self.edit_sample_length.setFixedWidth(40)
         layout.addWidget(self.edit_sample_length)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.btn_settings = QPushButton("Settings")
         layout.addWidget(self.btn_settings)
 
-        layout.addSpacing(20)
+        layout.addStretch()
 
         self.btn_start = QPushButton("Start")
         self.btn_start.setCheckable(True)
         layout.addWidget(self.btn_start)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.status_label = QLabel()
         self.status_label.setPixmap(self.status_off)
         layout.addWidget(self.status_label)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.layout().addLayout(layout)
 
@@ -383,20 +404,22 @@ class NSPBufferWidget(CustomWidget):
             self.edit_sample_length.setEnabled(False)
             self.status_label.setPixmap(self.status_in_use)
             self.btn_start.setText("Stop")
-            # NSP_DB_Process expects : buffer_length, sample_length, ...
-            # then label threshold validity for each electrode):
-            settings = self.edit_buffer_length.text() + " " + \
-                self.edit_sample_length.text() + " "
+            # NSP_DB_Process expects a dict:
+            #   subject_id: set in __init__
+            #   buffer_length: set here
+            #   sample_length: set here
+            #   electrode_settings: {label: [bool threshold, validity]}): set in manage_settings
+            self.depth_settings['buffer_length'] = float(self.edit_buffer_length.text())
+            self.depth_settings['sample_length'] = float(self.edit_sample_length.text())
 
-            for key, value in self.electrode_settings.items():
-                settings += key + " " + str(value['threshold']) + " " + str(value['validity']) + " "
+            self.depth_wrapper.send_settings(self.depth_settings)
 
-            self.depth_wrapper.manage_worker('Depth_Process', settings)
+            self.depth_wrapper.start_worker()
 
         # stop process
         else:
             self.btn_start.setChecked(False)
-            self.depth_wrapper.manage_worker('', '')
+            self.depth_wrapper.kill_worker()
 
             self.edit_buffer_length.setEnabled(True)
             self.edit_sample_length.setEnabled(True)
@@ -405,23 +428,16 @@ class NSPBufferWidget(CustomWidget):
 
     def manage_feature_process(self, on_off):
         if on_off:
-            settings = ''
-            for key, value in self.features_settings.items():
-                if value[1]:
-                    settings += value[0] + ' '
-
-            self.features_wrapper.manage_worker('Features_Process', settings)
+            self.features_wrapper.send_settings(self.features_settings)
+            self.features_wrapper.start_worker()
         else:
-            self.features_wrapper.manage_worker('', '')
+            self.features_wrapper.kill_worker()
 
     def manage_settings(self):
-        elec_sett, feat_sett = AddSettingsDialog.do_add_settings_dialog(self.electrode_settings, self.features_settings)
-        if elec_sett is not None:
-            self.electrode_settings = elec_sett
-        if feat_sett is not None:
-            self.manage_feature_process(False)
-            self.features_settings = feat_sett
-            self.manage_feature_process(True)
+        # passes pointers to dictionaries so no need to return
+        if AddSettingsDialog.do_add_settings_dialog(self.depth_settings, self.features_settings):
+            self.depth_wrapper.send_settings(self.depth_settings)
+            self.features_wrapper.send_settings(self.features_settings)
 
     # No GUI
     def create_plots(self, theme='dark', **kwargs):
@@ -434,11 +450,645 @@ class NSPBufferWidget(CustomWidget):
         pass
 
     def update(self):
-        # True means done, false is in_use
-        if self.depth_wrapper.worker_status():
-            self.status_label.setPixmap(self.status_done)
+        # True means done, false is in_use, None
+        output = self.depth_wrapper.worker_status()
+        if output is not None:
+            if output:
+                self.status_label.setPixmap(self.status_done)
+            else:
+                self.status_label.setPixmap(self.status_in_use)
+
+    def kill_processes(self):
+        self.depth_wrapper.kill_worker()
+        self.features_wrapper.kill_worker()
+
+
+class FeaturesPlotWidget(CustomWidget):
+
+    def __init__(self, *args, **kwargs):
+        # Empty dict for plot options
+        self.plot_config = {}
+        self.y_range = YRANGE
+        # base class calls create_control_panel. Need to have variables set before hand.
+
+        # List all feature categories
+        self.feature_categories = DBWrapper().all_features.keys()
+
+        # shared memory to display the currently monitored electrode
+        self.monitored_channel_mem = QSharedMemory()
+        self.monitored_channel_mem.setKey("MonitoredChannelMemory")
+        self.monitored_channel_mem.attach(QSharedMemory.ReadOnly)
+        self.segmented_series = {}
+        self.latest_datum = 0
+
+        super(FeaturesPlotWidget, self).__init__(*args, **kwargs)
+
+        self.read_from_shared_memory()
+        self.refresh_axes()  # Extra time on purpose.
+
+    def create_control_panel(self):
+        # define Qt GUI elements
+        layout = QHBoxLayout()
+
+        layout.addSpacing(10)
+        layout.addWidget(QLabel("Features: "))
+        self.feature_select = QComboBox()
+        self.feature_select.addItem('Raw')
+        self.feature_select.addItems(self.feature_categories)
+        self.feature_select.setCurrentIndex(0)
+        layout.addWidget(self.feature_select)
+
+        layout.addSpacing(10)
+
+        layout.addWidget(QLabel("for electrode: "))
+        self.chan_select = QComboBox()
+        self.chan_select.addItem("None")
+        self.chan_select.addItems([x['label'].decode('utf-8') for x in self.group_info])
+        self.chan_select.setEnabled(False)
+        # self.chan_select.setCurrentIndex(int(self.sweep_settings[0]) if self.sweep_settings is not None else 1)
+        layout.addWidget(self.chan_select)
+        layout.addSpacing(10)
+
+        layout.addWidget(QLabel("+/-"))
+        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        layout.addWidget(self.range_edit)
+        layout.addSpacing(10)
+
+        self.do_hp = QCheckBox('HP')
+        self.do_hp.setChecked(True)
+        layout.addWidget(self.do_hp)
+        layout.addSpacing(10)
+
+        self.sweep_control = QCheckBox("Match SweepGUI channel.")
+        self.sweep_control.setChecked(True)
+        self.sweep_control.setEnabled(self.monitored_channel_mem.isAttached())
+        layout.addWidget(self.sweep_control)
+
+        layout.addSpacing(10)
+
+        self.layout().addLayout(layout)
+
+        # callbacks
+        self.chan_select.currentIndexChanged.connect(self.manage_feat_chan_select)
+        self.feature_select.currentIndexChanged.connect(self.manage_feat_chan_select)
+        self.sweep_control.clicked.connect(self.manage_sweep_control)
+        self.range_edit.editingFinished.connect(self.manage_range_edit)
+
+    def manage_feat_chan_select(self):
+        self.plot_stack.setCurrentIndex(
+            self.stack_dict[self.chan_select.currentText()][self.feature_select.currentText()][0])
+
+    def manage_sweep_control(self):
+        if self.sweep_control.isChecked():
+            self.chan_select.setEnabled(False)
+            self.do_hp.setEnabled(False)
+            self.range_edit.setEnabled(False)
+            self.read_from_shared_memory()
         else:
-            self.status_label.setPixmap(self.status_in_use)
+            self.chan_select.setEnabled(True)
+            self.do_hp.setEnabled(True)
+            self.range_edit.setEnabled(True)
+
+    def manage_range_edit(self):
+        # need to do it like this because if we simply read the QLineEdit.text() on update calls, it breaks during
+        # typing the new range values.
+        self.y_range = float(self.range_edit.text())
+
+    def create_plots(self, theme='dark'):
+        # Collect PlotWidget configuration
+        self.plot_config['theme'] = theme
+        self.plot_config['color_iterator'] = -1
+        self.plot_config['x_range'] = XRANGE
+        self.plot_config['y_range'] = YRANGE
+        self.plot_config['depth_range'] = DEPTHRANGE
+        self.plot_config['do_hp'] = True
+
+        self.plot_stack = QStackedWidget()
+
+        self.stack_dict = {}
+        # generate a dict {chan_label: {Feature:[stack idx, latest_datum]}}
+
+        labels = ['None']
+        labels.extend([x['label'].decode('utf-8') for x in self.group_info])
+        features = ['Raw']
+        features.extend(self.feature_categories)
+        stack_idx = 0
+        for lbl_idx, lbl in enumerate(labels):
+            self.stack_dict[lbl] = {}
+            self.plot_config['color_iterator'] = lbl_idx - 1
+            self.plot_config['title'] = lbl
+            for feat in features:
+                self.stack_dict[lbl][feat] = [stack_idx, 0]
+                # TODO: not hard-coding??
+                if feat == 'Raw':
+                    self.plot_stack.addWidget(RawPlotWidget(dict(self.plot_config)))
+                elif feat == 'DBS':
+                    self.plot_stack.addWidget(DBSPlotWidget(dict(self.plot_config)))
+                elif feat == 'LFP':
+                    self.plot_stack.addWidget(LFPPlotWidget(dict(self.plot_config)))
+                stack_idx += 1
+
+        self.layout().addWidget(self.plot_stack)
+        self.plot_stack.setCurrentIndex(0)
+
+    def refresh_axes(self):
+        pass
+
+    def clear(self):
+        self.latest_datum = 0
+        # self.new_plot.clear()
+
+    def update(self):
+        if self.sweep_control.isChecked():
+            self.read_from_shared_memory()
+
+        curr_chan_idx = self.chan_select.currentIndex() - 1
+        curr_chan_lbl = self.chan_select.currentText()
+        if curr_chan_idx != -1:
+            curr_feat = self.feature_select.currentText()
+            do_hp = self.do_hp.isChecked()
+
+            if do_hp != self.plot_stack.currentWidget().plot_config['do_hp'] or \
+                    self.y_range != self.plot_stack.currentWidget().plot_config['y_range']:
+                self.plot_stack.currentWidget().clear_plot()
+                self.stack_dict[curr_chan_lbl][curr_feat][1] = 0
+                self.plot_stack.currentWidget().plot_config['do_hp'] = do_hp
+                self.plot_stack.currentWidget().plot_config['y_range'] = self.y_range
+
+            curr_datum = self.stack_dict[curr_chan_lbl][curr_feat][1]
+            if curr_feat == 'Raw':
+                all_data = DBWrapper().load_depth_data(chan_id=curr_chan_idx,
+                                                       gt=curr_datum,
+                                                       do_hp=do_hp,
+                                                       return_uV=True)
+            else:
+                all_data = DBWrapper().load_features_data(category=curr_feat,
+                                                          chan_id=curr_chan_idx,
+                                                          gt=curr_datum)
+
+            if all_data:
+                self.plot_stack.currentWidget().update_plot(all_data)
+                self.stack_dict[curr_chan_lbl][curr_feat][1] = max(all_data.keys())
+
+    def read_from_shared_memory(self):
+        if self.monitored_channel_mem.isAttached():
+            self.monitored_channel_mem.lock()
+            settings = np.frombuffer(self.monitored_channel_mem.data(), dtype=np.float)[-3:]
+            self.chan_select.setCurrentIndex(int(settings[0]))
+            # if self.plot_config['y_range'] != settings[1] or self.plot_config['do_hp'] != bool(settings[2]):
+            #     self.clear()
+            self.range_edit.setText(str(settings[1]))
+            self.manage_range_edit()
+            self.do_hp.setChecked(bool(settings[2]))
+            self.monitored_channel_mem.unlock()
+        else:
+            self.monitored_channel_mem.attach()
+            self.sweep_control.setChecked(False)
+            self.manage_sweep_control()
+
+
+class RawPlotWidget(QWidget):
+    def __init__(self, plot_config, *args, **kwargs):
+        super(RawPlotWidget, self).__init__(*args, **kwargs)
+
+        self.plot_config = plot_config
+        self.pen_color = QColor(THEMES[self.plot_config['theme']]['pencolors'][self.plot_config['color_iterator']])
+
+        # Create and add GraphicsLayoutWidget
+        self.layout = QGridLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        # create GLW for the depth plot
+        depth_glw = pg.GraphicsLayoutWidget(parent=self)
+        self.layout.addWidget(depth_glw, 0, 0, 8, 1)
+
+        # depth_GLW settings
+        self.depth_plot = depth_glw.addPlot(enableMenu=False)
+        self.depth_plot.invertY()
+        self.depth_plot.setMouseEnabled(x=False, y=False)
+        self.depth_plot.setYRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
+        self.depth_plot.setXRange(-5, 5, padding=0)
+        self.depth_plot.getAxis('bottom').setStyle(tickLength=0, showValues=False)
+        self.depth_plot.getAxis('bottom').setPen((255, 255, 255, 255))
+        font = QFont()
+        font.setPixelSize(20)
+        font.setBold(True)
+        self.depth_plot.getAxis('left').tickFont = font
+        self.depth_plot.getAxis('left').setPen((255, 255, 255, 255))
+        self.depth_plot.getAxis('left').setStyle(tickLength=0)
+
+        # Plot vertical line and "target" (i.e. 0) line
+        self.depth_plot.plot(np.zeros(100), np.arange(self.plot_config['depth_range'][0],
+                                                      self.plot_config['depth_range'][1],
+                                                      .25))
+        self.depth_plot.plot([-5, 5], [0, 0], pen='y')
+
+        self.fill_bar = self.depth_plot.plot([-5, 5],
+                                             [self.plot_config['depth_range'][0], self.plot_config['depth_range'][0]],
+                                             fillLevel=self.plot_config['depth_range'][0], brush=(255, 255, 255, 100))
+
+        self.depth_bar = pg.InfiniteLine(angle=0,
+                                         bounds=[self.plot_config['depth_range'][0],
+                                                 self.plot_config['depth_range'][1]],
+                                         pos=self.plot_config['depth_range'][0],
+                                         movable=True,
+                                         pen='w')
+        self.depth_bar.sigDragged.connect(self.depth_bar_drag)
+
+        self.depth_plot.addItem(self.depth_bar)
+
+        # Prepare plot data
+        self.data_layout = QVBoxLayout()
+        self.layout.addLayout(self.data_layout, 0, 1, 8, 5)
+        self.layout.setColumnStretch(0, 1)
+        self.layout.setColumnStretch(1, 5)
+        self.depth = self.plot_config['depth_range'][0]
+
+        self.data_figures = []
+        self.data_plots = []
+        self.depth_data = {}
+
+        for i in range(8):
+            tmp = pg.GraphicsLayoutWidget()
+            self.data_layout.addWidget(tmp)
+            tmp = tmp.addPlot()
+            tmp.hideAxis('bottom')
+            tmp.hideAxis('left')
+            tmp.setMouseEnabled(x=False, y=False)
+            tmp.setXRange(plot_config['x_range'][0], self.plot_config['x_range'][1])
+            tmp.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            self.data_figures.append(tmp)
+            self.data_plots.append(tmp.plot(pen=self.pen_color))
+
+    def depth_bar_drag(self):
+        # set fill area to be the first 8 depths found above the line
+        all_depths = np.sort([x for x in self.depth_data.keys()])
+        curr_value = self.depth_bar.value()
+        diffs = abs(all_depths - curr_value)
+
+        # lock to closest depth value
+        idx, = np.where(diffs == min(diffs))[0]
+        self.depth_bar.setValue(all_depths[idx])
+        self.plot_depth_values()
+
+    # Update plot is only for new datum
+    def update_plot(self, all_data):
+        if all_data is not None:
+            # all_data is a dict {datum_id: [depth, np array of data]}
+            for _, depth_data in all_data.items():
+                # append data
+                if depth_data[0] not in self.depth_data.keys():
+                    self.depth_data[depth_data[0]] = depth_data[1]
+
+                # plot depth
+                self.depth_plot.plot(x=[0], y=[depth_data[0]], symbol='o', symbolBrush=self.pen_color,
+                                     pen=self.pen_color)
+                new_depth = depth_data[0]
+
+            # assign depth
+            self.depth = new_depth
+
+            # move draggable bar to new depth
+            self.depth_bar.setValue(new_depth)
+            self.plot_depth_values()
+
+    def plot_depth_values(self):
+        # get current index of selected depth
+        all_depths = np.sort([x for x in self.depth_data.keys()])
+        curr_value = self.depth_bar.value()
+
+        # lock to closest depth value
+        idx, = np.where(all_depths == curr_value)[0]
+
+        # plot last 8 depth data
+        # make fill bar around 8 depths above the currently selected one
+        top_idx = max(0, idx - 7)
+        self.fill_bar.setData(x=[-5, 5], y=[all_depths[idx], all_depths[idx]], fillLevel=all_depths[top_idx])
+
+        plot_idx = 1
+        while plot_idx <= 8:
+            if idx >= top_idx:
+                self.data_plots[-plot_idx].setData(y=self.depth_data[all_depths[idx]])
+                self.data_figures[-plot_idx].setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            else:
+                self.data_plots[-plot_idx].setData(y=[])
+                self.data_figures[-plot_idx].setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            idx -= 1
+            plot_idx += 1
+
+        # if len(all_depths) >= 8:
+        #     fill_bar = all_depths[-8]
+        # else:
+        #     fill_bar = -20
+        # # self.depth_bar.setData(x=[-2.5, 2.5], y=[new_depth, new_depth], fillLevel=fill_bar)
+
+    def clear_plot(self):
+        self.depth_data = {}
+
+
+class DBSPlotWidget(QWidget):
+    def __init__(self, plot_config, *args, **kwargs):
+        super(DBSPlotWidget, self).__init__(*args, **kwargs)
+
+        self.plot_config = plot_config
+        self.pen_color = QColor(THEMES[self.plot_config['theme']]['pencolors'][self.plot_config['color_iterator']])
+
+        # Create and add GraphicsLayoutWidget
+        self.layout = QGridLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        # create GLW for the depth plot
+        rms_glw = pg.GraphicsLayoutWidget(parent=self)
+        self.layout.addWidget(rms_glw, 0, 0, 1, 1)
+
+        beta_pwr_glw = pg.GraphicsLayoutWidget(parent=self)
+        self.layout.addWidget(beta_pwr_glw, 1, 0, 1, 1)
+
+        # spacer
+        self.layout.addWidget(QLabel(), 3, 0, 1, 1)
+        self.layout.setRowStretch(0, 1)
+        self.layout.setRowStretch(1, 1)
+        self.layout.setRowStretch(3, 3)
+
+        # rms settings
+        self.rms_plot = rms_glw.addPlot(enableMenu=False)
+        self.rms_plot.setTitle(title='Noise RMS', **{'color': 'w', 'size': '16pt'})
+        self.rms_plot.plot([0, 0], [0, 50], pen='y')
+        self.rms_plot.setMouseEnabled(x=False, y=False)
+        self.rms_plot.setYRange(0, 50, padding=0)
+        self.rms_plot.setXRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
+
+        # beta pwr settings
+        self.bp_plot = beta_pwr_glw.addPlot(enableMenu=False)
+        self.bp_plot.setTitle(title='Beta Power', **{'color': 'w', 'size': '16pt'})
+        self.bp_plot.plot([0, 0], [0, 1000000], pen='y')
+        self.bp_plot.setMouseEnabled(x=False, y=False)
+        # self.bp_plot.setYRange(0, 50, padding=0)
+        self.bp_plot.setXRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
+
+        font = QFont()
+        font.setPixelSize(20)
+        font.setBold(True)
+
+        # X Axis
+        self.rms_plot.getAxis('bottom').setStyle(showValues=False)
+        self.rms_plot.getAxis('bottom').setPen((255, 255, 255, 255))
+
+        self.bp_plot.getAxis('bottom').tickFont = font
+        self.bp_plot.getAxis('bottom').setPen((255, 255, 255, 255))
+        self.bp_plot.getAxis('bottom').setStyle(tickTextOffset=10)
+
+        # Y Axis
+        self.rms_plot.getAxis('left').tickFont = font
+        self.rms_plot.getAxis('left').setPen((255, 255, 255, 255))
+
+        self.bp_plot.getAxis('left').tickFont = font
+        self.bp_plot.getAxis('left').setPen((255, 255, 255, 255))
+
+        self.depth_data = {}
+
+    def update_plot(self, all_data):
+        if all_data is not None:
+            # all_data is a dict {datum_id: [depth, np array of data]}
+            for idx, depth_data in all_data.items():
+                # append data
+                for key in depth_data:
+                    if key != 'depth':
+                        self.depth_data[depth_data['depth']] = {key: depth_data[key]}
+
+                # plot depth
+                self.rms_plot.plot(x=[depth_data['depth']], y=[depth_data['NoiseRMS'][1][0]], symbol='o',
+                                   symbolBrush=self.pen_color, pen=self.pen_color)
+                self.bp_plot.plot(x=[depth_data['depth']], y=[depth_data['BetaPower'][1][0]], symbol='o',
+                                  symbolBrush=self.pen_color, pen=self.pen_color)
+
+                new_depth = depth_data['depth']
+
+            # assign depth
+            self.depth = new_depth
+
+    def clear_plot(self):
+        self.depth_data = {}
+
+
+class LFPPlotWidget(QWidget):
+    def __init__(self, plot_config, *args, **kwargs):
+        super(LFPPlotWidget, self).__init__(*args, **kwargs)
+
+        self.plot_config = plot_config
+        self.pen_color = QColor(THEMES[self.plot_config['theme']]['pencolors'][self.plot_config['color_iterator']])
+
+        # Create and add GraphicsLayoutWidget
+        self.layout = QGridLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        # create GLW for the depth plot
+        alpha_glw = pg.GraphicsLayoutWidget(parent=self)
+        self.layout.addWidget(alpha_glw, 0, 0, 1, 1)
+
+        self.layout.addWidget(QLabel(), 1, 0, 1, 1)
+        self.layout.setRowStretch(0, 1)
+        self.layout.setRowStretch(1, 1)
+
+        # beta pwr settings
+        self.alpha_plot = alpha_glw.addPlot(enableMenu=False)
+        self.alpha_plot.setTitle(title='Alpha', **{'color': 'w', 'size': '16pt'})
+        self.alpha_plot.plot([0, 0], [0, 10], pen='y')
+        self.alpha_plot.setMouseEnabled(x=False, y=False)
+        self.alpha_plot.setYRange(0, 10, padding=0)
+        self.alpha_plot.setXRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
+
+        font = QFont()
+        font.setPixelSize(20)
+        font.setBold(True)
+
+        # X Axis
+        self.alpha_plot.getAxis('bottom').setStyle(showValues=True)
+        self.alpha_plot.getAxis('bottom').tickFont = font
+        self.alpha_plot.getAxis('bottom').setStyle(tickTextOffset=10)
+        self.alpha_plot.getAxis('bottom').setPen((255, 255, 255, 255))
+
+        # Y Axis
+        self.alpha_plot.getAxis('left').tickFont = font
+        self.alpha_plot.getAxis('left').setPen((255, 255, 255, 255))
+
+        self.depth_data = {}
+
+        # # depth_GLW settings
+        # self.depth_plot = depth_glw.addPlot(enableMenu=False)
+        # self.depth_plot.invertY()
+        # self.depth_plot.setMouseEnabled(x=False, y=False)
+        # self.depth_plot.setYRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
+        # self.depth_plot.setXRange(-5, 5, padding=0)
+        # self.depth_plot.getAxis('bottom').setStyle(tickLength=0, showValues=False)
+        # self.depth_plot.getAxis('bottom').setPen((255, 255, 255, 255))
+        # font = QFont()
+        # font.setPixelSize(20)
+        # font.setBold(True)
+        # self.depth_plot.getAxis('left').tickFont = font
+        # self.depth_plot.getAxis('left').setPen((255, 255, 255, 255))
+        # self.depth_plot.getAxis('left').setStyle(tickLength=0)
+        #
+        # # Plot vertical line and "target" (i.e. 0) line
+        # self.depth_plot.plot(np.zeros(100), np.arange(self.plot_config['depth_range'][0],
+        #                                               self.plot_config['depth_range'][1],
+        #                                               .25))
+        # self.depth_plot.plot([-5, 5], [0, 0], pen='y')
+        #
+        # self.fill_bar = self.depth_plot.plot([-5, 5],
+        #                                      [self.plot_config['depth_range'][0], self.plot_config['depth_range'][0]],
+        #                                      fillLevel=self.plot_config['depth_range'][0], brush=(255, 255, 255, 100))
+        #
+        # self.depth_bar = pg.InfiniteLine(angle=0,
+        #                                  bounds=[self.plot_config['depth_range'][0],
+        #                                          self.plot_config['depth_range'][1]],
+        #                                  pos=self.plot_config['depth_range'][0],
+        #                                  movable=True,
+        #                                  pen='w')
+        # self.depth_bar.sigDragged.connect(self.depth_bar_drag)
+        #
+        # self.depth_plot.addItem(self.depth_bar)
+        #
+        # # Prepare plot data
+        # self.data_layout = QVBoxLayout()
+        # self.layout.addLayout(self.data_layout, 0, 1, 8, 5)
+        # self.layout.setColumnStretch(0, 1)
+        # self.layout.setColumnStretch(1, 5)
+        # self.depth = self.plot_config['depth_range'][0]
+        #
+        # self.data_figures = []
+        # self.data_plots = []
+        # self.depth_data = {}
+        #
+        # for i in range(8):
+        #     tmp = pg.GraphicsLayoutWidget()
+        #     self.data_layout.addWidget(tmp)
+        #     tmp = tmp.addPlot()
+        #     # tmp.hideAxis('left')
+        #     tmp.setMouseEnabled(x=False, y=False)
+        #     tmp.setXRange(-5, 0)
+        #     tmp.getAxis('bottom').setTicks([
+        #             [(-np.log(120), '120'),
+        #              (-np.log(60), '60'),
+        #              (-np.log(30), '30'),
+        #              (-np.log(15), '15'),
+        #              (-np.log(5), '5'),
+        #              (-np.log(1), '1')], []]
+        #     )
+        #     # tmp.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+        #     self.data_figures.append(tmp)
+        #     self.data_plots.append(tmp.plot(pen=self.pen_color))
+
+    # def depth_bar_drag(self):
+    #     # set fill area to be the first 8 depths found above the line
+    #     all_depths = np.sort([x for x in self.depth_data.keys()])
+    #     curr_value = self.depth_bar.value()
+    #     diffs = abs(all_depths - curr_value)
+    #
+    #     # lock to closest depth value
+    #     idx, = np.where(diffs == min(diffs))[0]
+    #     self.depth_bar.setValue(all_depths[idx])
+    #     self.plot_depth_values()
+
+    # Update plot is only for new datum
+    def update_plot(self, all_data):
+        if all_data is not None:
+            # all_data is a dict {datum_id: [depth, [xvec, data]}
+            for idx, depth_data in all_data.items():
+                # append data
+                for key in depth_data:
+                    if key != 'depth':
+                        self.depth_data[depth_data['depth']] = {key: depth_data[key]}
+
+                # f_range = [1, 120]
+                f_stops = [(-np.Inf, 1.0), (58, 62), (116, 124), (150, np.Inf)]
+
+                freqs = self.depth_data[depth_data['depth']]['MultiTaperSpectrum'][0]
+                b_freqs = np.ones((len(freqs),), dtype=bool)
+                for f_s in f_stops:
+                    b_freqs[np.logical_and(freqs >= f_s[0], freqs <= f_s[1])] = False
+
+                pwr = self.depth_data[depth_data['depth']]['MultiTaperSpectrum'][1]
+                # b_freqs = np.logical_and(freqs >= f_range[0], freqs <= f_range[1])
+                #
+                # freqs = freqs[tuple(f_slice)] * np.ones(blk[b_freqs, ...].shape)
+                A = np.vstack([-np.log(freqs[b_freqs].flatten()), np.ones(freqs[b_freqs].size)]).T
+                alpha, b = np.linalg.lstsq(A,
+                                           np.log(pwr[b_freqs].flatten()))[0]
+                # plt.scatter(-np.log(freqs.flatten()), np.log(blk[b_freqs, ...].data.flatten()))
+                tmp = np.arange(-5, 0, 0.1)
+
+                self.alpha_plot.plot(x=[depth_data['depth']], y=[alpha], symbol='o',
+                                   symbolBrush=self.pen_color, pen=self.pen_color)
+
+                # plot depth
+                # self.depth_plot.plot(x=[0], y=[depth_data['depth']], symbol='o', symbolBrush=self.pen_color,
+                #                      pen=self.pen_color)
+                new_depth = depth_data['depth']
+
+            # assign depth
+            self.depth = new_depth
+
+            # move draggable bar to new depth
+            # self.depth_bar.setValue(new_depth)
+            # self.plot_depth_values()
+
+    # def plot_depth_values(self):
+    #     # get current index of selected depth
+    #     all_depths = np.sort([x for x in self.depth_data.keys()])
+    #     # curr_value = self.depth_bar.value()
+    #
+    #     # lock to closest depth value
+    #     if len(all_depths) > 0:
+    #
+    #         # if curr_value not in all_depths:
+    #         #     curr_value = all_depths[-1]
+    #         #     self.depth_bar.setValue(curr_value)
+    #
+    #         # idx, = np.where(all_depths == curr_value)[0]
+    #
+    #         # plot last 8 depth data
+    #         # make fill bar around 8 depths above the currently selected one
+    #         # top_idx = max(0, idx - 7)
+    #         # self.fill_bar.setData(x=[-5, 5], y=[all_depths[idx], all_depths[idx]], fillLevel=all_depths[top_idx])
+    #
+    #         plot_idx = 1
+    #         while plot_idx <= 8:
+    #             if idx >= top_idx:
+    #                 f_range = [1, 120]
+    #                 freqs = self.depth_data[all_depths[idx]]['MultiTaperSpectrum'][0]
+    #                 pwr = self.depth_data[all_depths[idx]]['MultiTaperSpectrum'][1]
+    #                 b_freqs = np.logical_and(freqs >= f_range[0], freqs <= f_range[1])
+    #                 #
+    #                 # freqs = freqs[tuple(f_slice)] * np.ones(blk[b_freqs, ...].shape)
+    #                 A = np.vstack([-np.log(freqs[b_freqs].flatten()), np.ones(freqs[b_freqs].size)]).T
+    #                 alpha, b = np.linalg.lstsq(A,
+    #                                            np.log(pwr[b_freqs].flatten()))[0]
+    #                 # plt.scatter(-np.log(freqs.flatten()), np.log(blk[b_freqs, ...].data.flatten()))
+    #                 tmp = np.arange(-5, 0, 0.1)
+    #                 # plt.plot(tmp, tmp*alpha + b)
+    #                 self.data_plots[-plot_idx].setData(x=-np.log(freqs[b_freqs].flatten()),
+    #                                                    y=np.log(pwr[b_freqs].flatten()))
+    #                 legend = self.data_figures[-plot_idx].addLegend()
+    #                 legend.addItem(self.data_plots[-plot_idx], str(alpha))
+    #                 # self.data_plots[-plot_idx].setData(x=tmp,
+    #                 #                                    y=tmp*alpha + b)
+    #                 self.data_figures[-plot_idx].setXRange(-5, 0)
+    #                 self.data_figures[-plot_idx].setYRange(0, 25)
+    #             else:
+    #                 self.data_plots[-plot_idx].setData(y=[])
+    #                 # self.data_figures[-plot_idx].setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+    #             idx -= 1
+    #             plot_idx += 1
+    #
+    #         # if len(all_depths) >= 8:
+    #         #     fill_bar = all_depths[-8]
+    #         # else:
+    #         #     fill_bar = -20
+    #         # # self.depth_bar.setData(x=[-2.5, 2.5], y=[new_depth, new_depth], fillLevel=fill_bar)
+
+    def clear_plot(self):
+        self.depth_data = {}
 
 
 # Dialogs
@@ -457,6 +1107,7 @@ class AddSubjectDialog(QDialog):
 
         self.subject_layout.addWidget(QLabel("Name: "), 1, 0, 1, 1)
         self.name_edit = QLineEdit()
+        self.name_edit.setText("Guilmer")
         self.name_edit.setMaxLength(135)
         self.subject_layout.addWidget(self.name_edit, 1, 1, 1, 1)
 
@@ -528,18 +1179,19 @@ class AddSettingsDialog(QDialog):
         electrodes_frame = QFrame()
         electrodes_frame.setFrameShape(QFrame.StyledPanel)
         self.settings_layout.addWidget(electrodes_frame)
-        electrodes_layout = QGridLayout(self)
-        for idx, (label, sett) in enumerate(self.electrodes_settings.items()):
-            electrodes_layout.addWidget(QLabel(label), idx, 0, 1, 1)
-            self.electrodes_widgets[label] = {}
-            self.electrodes_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
-            self.electrodes_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
-            self.electrodes_widgets[label]['edit_validity'] = QLineEdit()
-            self.electrodes_widgets[label]['edit_validity'].setText(str(sett['validity']))
+        electrodes_layout = QGridLayout()
+        if 'electrode_settings' in self.electrodes_settings.keys():
+            for idx, (label, sett) in enumerate(self.electrodes_settings['electrode_settings'].items()):
+                electrodes_layout.addWidget(QLabel(label), idx, 0, 1, 1)
+                self.electrodes_widgets[label] = {}
+                self.electrodes_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
+                self.electrodes_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
+                self.electrodes_widgets[label]['edit_validity'] = QLineEdit()
+                self.electrodes_widgets[label]['edit_validity'].setText(str(sett['validity']))
 
-            electrodes_layout.addWidget(self.electrodes_widgets[label]['chk_threshold'], idx, 1, 1, 1)
-            electrodes_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
-            electrodes_layout.addWidget(self.electrodes_widgets[label]['edit_validity'], idx, 3, 1, 1)
+                electrodes_layout.addWidget(self.electrodes_widgets[label]['chk_threshold'], idx, 1, 1, 1)
+                electrodes_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
+                electrodes_layout.addWidget(self.electrodes_widgets[label]['edit_validity'], idx, 3, 1, 1)
 
         electrodes_frame.setLayout(electrodes_layout)
 
@@ -549,11 +1201,19 @@ class AddSettingsDialog(QDialog):
         features_frame = QFrame()
         features_frame.setFrameShape(QFrame.StyledPanel)
         self.settings_layout.addWidget(features_frame)
-        features_layout = QGridLayout(self)
-        for idx, (label, sett) in enumerate(self.features_settings.items()):
-            self.features_widgets[label] = QCheckBox(label)
-            self.features_widgets[label].setChecked(sett[1])
-            features_layout.addWidget(self.features_widgets[label], idx, 0, 1, 1)
+        features_layout = QGridLayout()
+
+        # Add an option to toggle all features
+        self.all_features = QCheckBox('All')
+        self.all_features.setChecked(False)
+        self.all_features.clicked.connect(self.toggle_all)
+        features_layout.addWidget(self.all_features, 0, 0, 1, 1)
+        if 'features' in self.features_settings.keys():
+            for idx, (label, sett) in enumerate(self.features_settings['features'].items()):
+                self.features_widgets[label] = QCheckBox(label)
+                self.features_widgets[label].setChecked(sett)
+                self.features_widgets[label].clicked.connect(self.toggle)
+                features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
 
         features_frame.setLayout(features_layout)
 
@@ -565,6 +1225,14 @@ class AddSettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         self.settings_layout.addWidget(buttons, alignment=Qt.AlignHCenter)
 
+    def toggle_all(self):
+        for label, sett in self.features_widgets.items():
+            self.features_widgets[label].setChecked(self.all_features.isChecked())
+
+    def toggle(self):
+        if any([not x.isChecked() for x in self.features_widgets.values()]):
+            self.all_features.setChecked(False)
+
     @staticmethod
     def do_add_settings_dialog(electrode_settings, features_settings, parent=None):
         dialog = AddSettingsDialog(electrode_settings, features_settings, parent)
@@ -572,16 +1240,15 @@ class AddSettingsDialog(QDialog):
         if result == QDialog.Accepted:
             # convert all fields to dictionary and return it
             for key, value in dialog.electrodes_widgets.items():
-                dialog.electrodes_settings[key] = {}
-                dialog.electrodes_settings[key]['threshold'] = value['chk_threshold'].isChecked()
-                dialog.electrodes_settings[key]['validity'] = float(value['edit_validity'].text())
+                dialog.electrodes_settings['electrode_settings'][key] = {}
+                dialog.electrodes_settings['electrode_settings'][key]['threshold'] = value['chk_threshold'].isChecked()
+                dialog.electrodes_settings['electrode_settings'][key]['validity'] = float(value['edit_validity'].text())
 
             for key, value in dialog.features_widgets.items():
-                dialog.features_settings[key][1] = value.isChecked()
-
-            return dialog.electrodes_settings, dialog.features_settings
+                dialog.features_settings['features'][key] = value.isChecked()
+            return True
         else:
-            return None, None
+            return False
 
 
 if __name__ == '__main__':
@@ -593,7 +1260,7 @@ if __name__ == '__main__':
     window.show()
     timer = QTimer()
     timer.timeout.connect(window.update)
-    timer.start(100)
+    timer.start(50)
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
