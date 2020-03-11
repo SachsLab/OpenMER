@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from DB_Wrap import DBWrapper, ProcessWrapper
 
 DEPTHWINDOWDIMS = [1305, 0, 600, 1080]
-XRANGE = [-1, 120000]
+XRANGE = [-1500, 120000]
 YRANGE = 200.00
 DEPTHRANGE = [-20, 5]
 
@@ -678,17 +678,17 @@ class RawPlotWidget(QWidget):
         # depth_GLW settings
         self.depth_plot = depth_glw.addPlot(enableMenu=False)
         self.depth_plot.invertY()
-        # self.depth_plot.setMouseEnabled(x=False, y=False)
+        self.depth_plot.setMouseEnabled(x=False, y=False)
         self.depth_plot.setYRange(self.plot_config['depth_range'][0], self.plot_config['depth_range'][1], padding=0)
         self.depth_plot.setXRange(-5, 5, padding=0)
         self.depth_plot.getAxis('bottom').setStyle(tickLength=0, showValues=False)
         self.depth_plot.getAxis('bottom').setPen((255, 255, 255, 255))
         font = QFont()
-        font.setPixelSize(20)
+        font.setPixelSize(16)
         font.setBold(True)
         self.depth_plot.getAxis('left').tickFont = font
         self.depth_plot.getAxis('left').setPen((255, 255, 255, 255))
-        self.depth_plot.getAxis('left').setStyle(tickLength=0)
+        # self.depth_plot.getAxis('left').setStyle(tickLength=0)
 
         self.depth_plot.scene().sigMouseMoved.connect(self.mouse_moved)
 
@@ -712,6 +712,10 @@ class RawPlotWidget(QWidget):
         self.depth_bar.sigDragged.connect(self.depth_bar_drag)
 
         self.depth_plot.addItem(self.depth_bar)
+        self.depth_text = pg.TextItem(text='', color='w', fill=(0, 0, 0, 0))
+        self.depth_text.setAnchor((.5, 1.5))
+        self.depth_plot.addItem(self.depth_text)
+        self.depth_text.setZValue(1)
         #
         # self.fill_bar = pg.LinearRegionItem(values=[-18, -20], orientation=pg.LinearRegionItem.Horizontal,
         #                                     brush=(255, 255, 255, 100), movable=True, bounds=[-20, 5])
@@ -730,7 +734,7 @@ class RawPlotWidget(QWidget):
         self.data_figures = []
         self.data_plots = []
         self.depth_data = {}
-
+        self.data_texts = []
         for i in range(8):
             tmp = pg.GraphicsLayoutWidget()
             self.data_layout.addWidget(tmp)
@@ -742,9 +746,27 @@ class RawPlotWidget(QWidget):
             tmp.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
             self.data_figures.append(tmp)
             self.data_plots.append(tmp.plot(pen=self.pen_color, autoDownsample=True))
+            tmp_txt = pg.TextItem(text="", angle=90, color='w')
+            tmp_txt.setX(0)
+            tmp_txt.setY(0)
+            tmp_txt.setAnchor((0.5, 1))
+            tmp_txt.setZValue(1)
+            tmp.addItem(tmp_txt)
+            self.data_texts.append(tmp_txt)
 
     def mouse_moved(self, evt):
-        print(self.depth_plot.scene().itemAt(evt.x(), evt.y(), QTransform()))
+        item = self.depth_plot.scene().itemAt(evt.x(), evt.y(), QTransform())
+        if hasattr(item, 'getData'):
+            depth = item.getData()[1][0]
+            if depth in self.depth_data.keys():
+                self.depth_text.setText("{0:.3f}".format(depth))
+                self.depth_text.setX(0)
+                self.depth_text.setY(depth)
+                self.depth_text.fill.setColor(QColor(0, 0, 0, 175))
+                a = 2
+        else:
+            self.depth_text.setText("")
+            self.depth_text.fill.setColor(QColor(0, 0, 0, 0))
 
     def fill_bar_update(self):
         # Set the current value depending on how the region is changed.
@@ -828,9 +850,11 @@ class RawPlotWidget(QWidget):
             if idx >= top_idx:
                 self.data_plots[-plot_idx].setData(y=self.depth_data[all_depths[idx]])
                 self.data_figures[-plot_idx].setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+                self.data_texts[-plot_idx].setText("{0:.3f}".format(all_depths[idx]))
             else:
                 self.data_plots[-plot_idx].setData(y=[])
                 self.data_figures[-plot_idx].setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+                self.data_texts[-plot_idx].setText("")
             idx -= 1
             plot_idx += 1
 
