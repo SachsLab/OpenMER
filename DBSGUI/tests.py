@@ -1,112 +1,113 @@
 import os
 import sys
-import numpy as np
-# use the same GUI format as the other ones
-from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QLCDNumber, QDialog, QPushButton, \
-                           QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
-                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QFrame, QMainWindow
-from qtpy.QtGui import QFont
-
-import pyqtgraph as pg
+import serial
+import serial.tools.list_ports
+from qtpy import QtCore, QtWidgets
+from qtpy import uic
+from cerebuswrapper import CbSdkConnection
 
 
-class TestGUI(QMainWindow):
+# Load GUI from Qt designer .ui file.
+ui_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui', 'my_widgets', 'ui')
+Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(ui_path, 'ddu_display.ui'))
+WINDOWDIMS = [1260, 0, 600, 220]
+
+
+class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def __init__(self):
-        super(TestGUI, self).__init__()
+        super(MyGUI, self).__init__()
+        # self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
+        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
+        self.setupUi(self)
 
-        self.setWindowTitle('Neuroport DBS - Electrodes Depth')
-        self.widget = TestWidget()
-        self.setCentralWidget(self.widget)
+        self.display_string = None
+        self.ser = serial.Serial()
+        self.ser.baudrate = 19200
+        for port in serial.tools.list_ports.comports():
+            self.comboBox_com_port.addItem(port.device)
+        self.comboBox_com_port.addItem("cbsdk playback")
 
-    # The custom GUI class has an update function, which calls the
-    # do_plot_update function. This function then calls the update
-    # function of all display widgets.
-    def do_plot_update(self):
-        self.widget.new_depth()
+        # Connect signals & slots
+        self.pushButton_open.clicked.connect(self.open_DDU)
+        self.pushButton_send.clicked.connect(self.connect_cbsdk)
 
+    # No need to disconnect because the instance will do so automatically.
+    # def __del__(self):
+    #     from cerebuswrapper import CbSdkConnection
+    #     CbSdkConnection().disconnect()
 
-class TestWidget(QWidget):
-    def __init__(self):
-        super(TestWidget, self).__init__()
-        self.layout = QGridLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        depth_widget = pg.GraphicsLayoutWidget(parent=self)
-        self.layout.addWidget(depth_widget, 0, 0, 8, 1)
+    def connect_cbsdk(self):
+        if CbSdkConnection().connect() == 0:
+            self.pushButton_send.setDisabled(True)
 
-        self.depth_plot = depth_widget.addPlot()
-        self.depth_plot.plot(np.zeros(100), np.arange(-20, 5, .25))
-        self.depth_plot.plot([-5, 5], [0, 0], pen='y')
-        self.depth_bar = self.depth_plot.plot([-2.5, 2.5], [-20, -20], fillLevel=-20, brush=(255, 255, 255, 100))
-        self.depth_plot.invertY()
-        self.depth_plot.setMouseEnabled(x=False, y=False)
-        self.depth_plot.setYRange(-20, 5, padding=0)
-        self.depth_plot.setXRange(-5, 5, padding=0)
-        self.depth_plot.getAxis('bottom').setStyle(tickLength=0, showValues=False)
-        self.depth_plot.getAxis('bottom').setPen((255, 255, 255, 255))
-        font = QFont()
-        font.setPixelSize(20)
-        font.setBold(True)
-        self.depth_plot.getAxis('left').tickFont = font
-        self.depth_plot.getAxis('left').setPen((255, 255, 255, 255))
-        self.depth_plot.getAxis('left').setStyle(tickLength=0)
-
-        self.data_layout = QVBoxLayout()
-        self.layout.addLayout(self.data_layout, 0, 1, 8, 5)
-        self.layout.setColumnStretch(0, 1)
-        self.layout.setColumnStretch(1, 5)
-        self.depth = -20
-
-        self.data_plots = []
-        self.depth_data = {}
-
-        for i in range(8):
-            tmp = pg.GraphicsLayoutWidget()
-            self.data_layout.addWidget(tmp)
-            tmp = tmp.addPlot()
-            tmp.hideAxis('bottom')
-            tmp.hideAxis('left')
-            tmp.setMouseEnabled(x=False, y=False)
-            self.data_plots.append(tmp.plot())
-
-    def new_depth(self):
-        if self.depth < 5:
-            new_depth = self.depth + 2*np.random.rand()
-            data = np.ones((int(abs(new_depth))))
-
-            self.depth_data[new_depth] = data
-
-            # plot depth
-            self.depth_plot.plot([0], [new_depth], symbol='o')
-
-            # plot data
-            all_depths = [x for x in self.depth_data.keys()]
-
-            idx = 1
-            while idx <= min(len(all_depths), 8):
-                self.data_plots[-idx].setData(y=self.depth_data[all_depths[-idx]])
-                idx += 1
-
-            if len(all_depths) >= 8:
-                fill_bar = all_depths[-8]
+    def open_DDU(self):
+        com_port = self.comboBox_com_port.currentText()
+        cmd_text = self.pushButton_open.text()
+        if cmd_text == 'Open':
+            if com_port == "cbsdk playback":
+                pass
             else:
-                fill_bar = -20
-            self.depth_bar.setData(x=[-2.5, 2.5], y=[new_depth, new_depth], fillLevel=fill_bar)
+                if not self.ser.is_open:
+                    self.ser.port = com_port
+                    try:
+                        self.ser.open()  # TODO: Add timeout; Add error.
+                        self.ser.write('AXON+\r'.encode())
+                        self.pushButton_open.setText("Close")
+                    except serial.serialutil.SerialException:
+                        print("Could not open serial port")
+        else:
+            if com_port == "cbsdk playback":
+                pass
+            else:
+                self.ser.close()
 
-            # assign depth
-            self.depth = new_depth
+    def update(self):
+        super(MyGUI, self).update()
+        if self.comboBox_com_port.currentText() == "cbsdk playback":
+            cbsdk_conn = CbSdkConnection()
+            cbsdk_conn.cbsdk_config = {
+                'reset': True, 'get_events': False, 'get_comments': True,
+                'buffer_parameter': {
+                    'comment_length': 10
+                }
+            }
+            if cbsdk_conn.is_connected:
+                comments = cbsdk_conn.get_comments()
+                comment_strings = [x[1].decode('utf8') for x in comments]
+                dtts = []
+                for comm_str in comment_strings:
+                    if 'DTT:' in comm_str:
+                        dtts.append(float(comm_str[4:]))
+                if len(dtts) > 0:
+                    new_dtt = dtts[-1]
+                    self.lcdNumber.display(new_dtt)
+        elif self.ser.is_open:
+            in_str = self.ser.readline().decode('utf-8').strip()
+            if in_str:
+                try:
+                    in_value = float(in_str)
+                    display_string = "{0:.3f}".format(in_value + self.doubleSpinBox_offset.value())
+                    self.lcdNumber.display(display_string)
+
+                    cbsdk_conn = CbSdkConnection()
+                    if cbsdk_conn.is_connected and (display_string != self.display_string):
+                        cbsdk_conn.set_comments("DTT:" + display_string)
+                        self.display_string = display_string
+                    else:
+                        self.pushButton_send.setText("Send")
+                except ValueError:
+                    print("DDU result: {}".format(in_str))
 
 
 if __name__ == '__main__':
-    from qtpy.QtWidgets import QApplication
-    from qtpy.QtCore import QTimer
-
-    qapp = QApplication(sys.argv)
-    window = TestGUI()
+    qapp = QtWidgets.QApplication(sys.argv)
+    window = MyGUI()
     window.show()
-    timer = QTimer()
-    timer.timeout.connect(window.do_plot_update)
-    timer.start(5000)
+    timer = QtCore.QTimer()
+    timer.timeout.connect(window.update)
+    timer.start(100)
 
-    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QApplication.instance().exec_()
+    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+        QtWidgets.QApplication.instance().exec_()
