@@ -1,4 +1,3 @@
-import os
 import sys
 import serial
 import serial.tools.list_ports
