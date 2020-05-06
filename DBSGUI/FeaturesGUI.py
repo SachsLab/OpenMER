@@ -16,6 +16,7 @@ from cerebuswrapper import CbSdkConnection
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
 from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
 from feature_plots import *
+from SettingsDialog import SettingsDialog
 
 # Import the test wrapper.
 # TODO: proper package and import.
@@ -30,9 +31,6 @@ DEPTHRANGE = [-20, 5]
 
 # TODO: ini file?
 # Default settings. If finds a category of features with the same name, will apply the value here.
-FEATURESETTINGS = {'DBS': True,
-                   'LFP': True}
-
 DEPTHSETTINGS = {'threshold': True,
                  'validity': 90.0}
 
@@ -43,6 +41,12 @@ class FeaturesGUI(CustomGUI):
         super(FeaturesGUI, self).__init__()
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.plot_widget = None
+
+        # settings dictionaries
+        self.subject_settings = {}
+        self.procedure_settings = {}
+        self.buffer_settings = {}
+        self.features_settings = {}
 
         # DB wrapper
         self.db_wrapper = DBWrapper()
@@ -75,40 +79,16 @@ class FeaturesGUI(CustomGUI):
         # NSP info, None if not connected
         self.group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
 
-        # List all feature categories
-        self.feature_categories = self.db_wrapper.all_features.keys()
+        # we only need to set the default values for the depth buffer here since it requires electrode
+        # information. The rest accepts empty dicts
+        self.buffer_settings['buffer_length'] = '6.000'
+        self.buffer_settings['sample_length'] = '4.000'
+        self.buffer_settings['run_buffer'] = False
+        self.buffer_settings['electrode_settings'] = {}
 
-        # Default settings for subject.
-        self.subject_settings = {'name': '',
-                                 'hemisphere': 'unknown',
-                                 'pass': 1,
-                                 'id': '',
-                                 'sex': 'unknown',
-                                 'handedness': 'unknown',
-                                 'birthday': None}
-
-        # default settings for depth process
-        self.depth_settings = {'subject_id': None,
-                               'hemisphere': 'unknown',
-                               'pass': 1,
-                               'buffer_length': '6.000',
-                               'sample_length': '4.000',
-                               'run_buffer': True,  # add the option to not run it to display a previous pass
-                               'electrode_settings': {}}
         if self.group_info:
             for electrode in self.group_info:
-                self.depth_settings['electrode_settings'][electrode['label'].decode('utf-8')] = DEPTHSETTINGS
-
-        # default features settings
-        self.features_settings = {'subject_id': None,
-                                  'features': {}}
-
-        # Check if default values are defined
-        for cat in self.feature_categories:
-            if cat in FEATURESETTINGS:
-                self.features_settings['features'][cat] = FEATURESETTINGS[cat]
-            else:
-                self.features_settings['features'][cat] = False
+                self.buffer_settings['electrode_settings'][electrode['label'].decode('utf-8')] = DEPTHSETTINGS
 
         # Open settings dialog and update DBWrapper subject and settings dicts
         if not self.manage_settings():
@@ -143,28 +123,30 @@ class FeaturesGUI(CustomGUI):
 
     def manage_settings(self):
         # Open prompt to input subject details
-        AddSettingsDialog.do_add_settings_dialog(self.subject_settings,
-                                                 self.depth_settings,
-                                                 self.features_settings)
+        win = SettingsDialog(self.subject_settings,
+                             self.procedure_settings,
+                             self.buffer_settings,
+                             self.features_settings)
+        result = win.exec_()
+        if result == QDialog.Accepted:
+            win.update_settings()
+        else:
+            return False
 
         # Create or load subject
         # Returns subject_id/-1 whether subject is properly created or not
-        sub_id = self.db_wrapper.create_subject(self.subject_settings)
+        sub_id = self.db_wrapper.load_or_create_subject(self.subject_settings)
 
         if sub_id == -1:
             print("Subject not created.")
             return False
         else:
             self.subject_settings['subject_id'] = sub_id
-            self.depth_settings['subject_id'] = sub_id
-            self.features_settings['subject_id'] = sub_id
+            self.procedure_settings['subject_id'] = sub_id
+            proc_id = self.db_wrapper.load_or_create_procedure(self.procedure_settings)
 
-            self.depth_settings['hemisphere'] = self.subject_settings['hemisphere']
-            self.depth_settings['pass'] = self.subject_settings['pass']
-
-            # set hemisphere and pass information
-            self.db_wrapper.set_current_hemisphere(self.subject_settings['hemisphere'])
-            self.db_wrapper.set_current_pass(self.subject_settings['pass'])
+            self.buffer_settings['procedure_id'] = proc_id
+            self.features_settings['procedure_id'] = proc_id
 
             return True
 
@@ -176,7 +158,8 @@ class FeaturesGUI(CustomGUI):
 
     def send_settings(self):
         self.plot_widget.process_settings(self.subject_settings,
-                                          self.depth_settings,
+                                          self.procedure_settings,
+                                          self.buffer_settings,
                                           self.features_settings)
 
 
@@ -192,6 +175,7 @@ class FeaturesPlotWidget(CustomWidget):
 
         # Settings
         self.subject_settings = None
+        self.procedure_settings = None
         self.depth_settings = None
         self.features_settings = None
 
@@ -232,6 +216,7 @@ class FeaturesPlotWidget(CustomWidget):
 
         layout.addWidget(QLabel("Features: "))
         self.feature_select = QComboBox()
+        self.feature_select.setMinimumWidth(60)
         self.feature_select.addItem('Raw')
         # self.feature_select.addItems(self.feature_categories)
         self.feature_select.setCurrentIndex(0)
@@ -239,7 +224,7 @@ class FeaturesPlotWidget(CustomWidget):
 
         layout.addSpacing(10)
 
-        layout.addWidget(QLabel("for electrode: "))
+        layout.addWidget(QLabel("Electrode: "))
         self.chan_select = QComboBox()
         self.chan_select.addItem("None")
         # if self.group_info:
@@ -332,8 +317,9 @@ class FeaturesPlotWidget(CustomWidget):
             self.features_wrapper.kill_worker()
             self.features_process_running = False
 
-    def process_settings(self, sub_sett, depth_sett, feat_sett):
+    def process_settings(self, sub_sett, proc_sett, depth_sett, feat_sett):
         self.subject_settings = dict(sub_sett)
+        self.procedure_settings = dict(proc_sett)
         self.depth_settings = dict(depth_sett)
         self.features_settings = dict(feat_sett)
 
@@ -341,7 +327,7 @@ class FeaturesPlotWidget(CustomWidget):
         # to load the channel names from the DB. Also we want to keep the FeaturesGUI unaware of the DB channels.
         if len(self.depth_settings['electrode_settings']) == 0:
             self.depth_settings['electrode_settings'] = {}
-            for lbl in DBWrapper().channel_labels():
+            for lbl in DBWrapper().list_channel_labels():
                 self.depth_settings['electrode_settings'][lbl] = DEPTHSETTINGS
             CbSdkConnection().is_simulating = True
 
@@ -407,11 +393,15 @@ class FeaturesPlotWidget(CustomWidget):
                 self.stack_dict[lbl][feat] = [stack_idx, 0]
                 # TODO: not hard-coding??
                 if feat == 'Raw':
-                    self.plot_stack.addWidget(RawPlotWidget(dict(self.plot_config)))
+                    self.plot_stack.addWidget(RawPlots(dict(self.plot_config)))
                 elif feat == 'DBS':
-                    self.plot_stack.addWidget(DBSPlotWidget(dict(self.plot_config)))
+                    self.plot_stack.addWidget(DBSPlots(dict(self.plot_config)))
                 elif feat == 'LFP':
-                    self.plot_stack.addWidget(LFPPlotWidget(dict(self.plot_config)))
+                    self.plot_stack.addWidget(LFPPlots(dict(self.plot_config)))
+                elif feat == 'Spikes':
+                    self.plot_stack.addWidget(SpikePlots(dict(self.plot_config)))
+                else:
+                    self.plot_stack.addWidget(NullPlotWidget(dict(self.plot_config)))
                 stack_idx += 1
 
         self.plot_stack.setCurrentIndex(0)
@@ -486,213 +476,6 @@ class FeaturesPlotWidget(CustomWidget):
             self.monitored_channel_mem.attach()
             self.sweep_control.setChecked(False)
             self.manage_sweep_control()
-
-
-# Dialogs
-class AddSettingsDialog(QDialog):
-    def __init__(self, subject_settings, depth_settings, features_settings, parent=None):
-        super(AddSettingsDialog, self).__init__(parent)
-        self.setWindowTitle("Enter settings.")
-
-        # settings dicts
-        self.subject_settings = subject_settings
-
-        self.depth_settings = depth_settings
-        self.depth_widgets = {}
-
-        self.features_settings = features_settings
-        self.features_widgets = {}
-
-        # Widgets to show/edit parameters.
-        self.settings_layout = QGridLayout(self)
-
-        # Subject Settings =============================================================================================
-        subject_layout = QGridLayout()
-        subject_layout.setColumnMinimumWidth(2, 60)
-
-        subject_layout.addWidget(QLabel("Name: "), 1, 0, 1, 1)
-        self.name_edit = QComboBox()
-        self.name_edit.setEditable(True)
-        self.name_edit.addItem('')
-        self.name_edit.addItems(DBWrapper().load_all_subjects())
-        self.name_edit.currentIndexChanged.connect(self.load_subject)
-        subject_layout.addWidget(self.name_edit, 1, 1, 1, 4)
-
-        self.id_edit = QLineEdit()
-        self.id_edit.setMaxLength(50)
-        subject_layout.addWidget(QLabel("Id: "), 2, 0, 1, 1)
-        subject_layout.addWidget(self.id_edit, 2, 1, 1, 4)
-
-        self.hem_edit = QComboBox()
-        self.hem_edit.addItems(["left", "right", "unknown"])
-        subject_layout.addWidget(QLabel("Hemisphere: "), 3, 0, 1, 1)
-        subject_layout.addWidget(self.hem_edit, 3, 1, 1, 1)
-
-        subject_layout.addWidget(QLabel("Pass: "), 3, 3, 1, 1)
-        self.pass_edit = QDoubleSpinBox()
-        self.pass_edit.setMinimum(0)
-        self.pass_edit.setDecimals(0)
-        self.pass_edit.setMaximumWidth(80)
-        subject_layout.addWidget(self.pass_edit, 3, 4, 1, 1)
-
-        subject_layout.addWidget(QLabel("Sex: "), 4, 0, 1, 1)
-        self.sex_combo = QComboBox()
-        self.sex_combo.addItems(['unspecified', 'male', 'female', 'unknown'])
-        subject_layout.addWidget(self.sex_combo, 4, 1, 1, 1)
-
-        subject_layout.addWidget(QLabel("Handedness: "), 4, 3, 1, 1)
-        self.hand_combo = QComboBox()
-        self.hand_combo.addItems(['unknown', 'right', 'left', 'equal'])
-        self.hand_combo.setMaximumWidth(80)
-        subject_layout.addWidget(self.hand_combo, 4, 4, 1, 1)
-
-        subject_layout.addWidget((QLabel("Date of birth: ")), 5, 0, 1, 1)
-        self.dob_calendar = QCalendarWidget()
-        subject_layout.addWidget(self.dob_calendar, 5, 1, 1, 4)
-
-        self.settings_layout.addWidget(QLabel("Subject settings."), 0, 0, 1, 5)
-        subject_frame = QFrame()
-        subject_frame.setFrameShape(QFrame.StyledPanel)
-        subject_frame.setLayout(subject_layout)
-        self.settings_layout.addWidget(subject_frame, 1, 0, 5, 5)
-
-        self.update_subject()
-
-        # Electrode settings ===========================================================================================
-        self.settings_layout.addWidget(QLabel('Depth process settings'), 0, 6, 1, 5)
-
-        depth_layout = QGridLayout()
-        if self.depth_settings:
-            if 'electrode_settings' in self.depth_settings.keys():
-                for idx, (label, sett) in enumerate(self.depth_settings['electrode_settings'].items()):
-                    depth_layout.addWidget(QLabel(label), idx, 0, 1, 1)
-                    self.depth_widgets[label] = {}
-                    self.depth_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
-                    self.depth_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
-                    self.depth_widgets[label]['edit_validity'] = QLineEdit()
-                    self.depth_widgets[label]['edit_validity'].setText(str(sett['validity']))
-
-                    depth_layout.addWidget(self.depth_widgets[label]['chk_threshold'], idx, 1, 1, 1)
-                    depth_layout.addWidget(QLabel('Validity Threshold (%)'), idx, 2, 1, 1)
-                    depth_layout.addWidget(self.depth_widgets[label]['edit_validity'], idx, 3, 1, 1)
-
-            depth_layout.addWidget(QLabel("Depth buffer size (s): "), 6, 0, 1, 1)
-            self.edit_buffer_length = QLineEdit(self.depth_settings['buffer_length'])
-            self.edit_buffer_length.setInputMask("0.000")
-            self.edit_buffer_length.setFixedWidth(40)
-            depth_layout.addWidget(self.edit_buffer_length, 6, 1, 1, 1)
-
-            depth_layout.addWidget(QLabel("Depth samples size (s): "), 7, 0, 1, 1)
-            self.edit_sample_length = QLineEdit(self.depth_settings['sample_length'])
-            self.edit_sample_length.setInputMask("0.000")
-            self.edit_sample_length.setFixedWidth(40)
-            depth_layout.addWidget(self.edit_sample_length, 7, 1, 1, 1)
-
-            self.run_buffer = QCheckBox('Run depth buffer')
-            self.run_buffer.setChecked(len(self.depth_settings['electrode_settings']) != 0)
-            self.run_buffer.setEnabled(len(self.depth_settings['electrode_settings']) != 0)
-            depth_layout.addWidget(self.run_buffer, 8, 0, 1, 1)
-
-        depth_frame = QFrame()
-        depth_frame.setFrameShape(QFrame.StyledPanel)
-        self.settings_layout.addWidget(depth_frame, 1, 6, 2, 5)
-        depth_frame.setLayout(depth_layout)
-
-        # Features settings ============================================================================================
-        self.settings_layout.addWidget(QLabel('Features settings'), 3, 6, 1, 5)
-
-        features_layout = QGridLayout()
-
-        # Add an option to toggle all features
-        self.all_features = QCheckBox('All')
-        self.all_features.setChecked(False)
-        self.all_features.clicked.connect(self.toggle_all)
-        features_layout.addWidget(self.all_features, 0, 0, 1, 1)
-        if 'features' in self.features_settings.keys():
-            for idx, (label, sett) in enumerate(self.features_settings['features'].items()):
-                self.features_widgets[label] = QCheckBox(label)
-                self.features_widgets[label].setChecked(sett)
-                self.features_widgets[label].clicked.connect(self.toggle)
-                features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
-
-        features_frame = QFrame()
-        features_frame.setFrameShape(QFrame.StyledPanel)
-        features_frame.setLayout(features_layout)
-        self.settings_layout.addWidget(features_frame, 4, 6, 2, 5)
-
-        # OK and Cancel buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
-            Qt.Horizontal, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        self.settings_layout.addWidget(buttons, 7, 0, 1, 10, alignment=Qt.AlignHCenter)
-
-    def update_subject(self):
-        self.name_edit.setCurrentText(self.read_dict_value(self.subject_settings, 'name'))
-        self.id_edit.setText(self.read_dict_value(self.subject_settings, 'id'))
-        self.hem_edit.setCurrentText(self.read_dict_value(self.subject_settings, 'hemisphere'))
-        pass_value = self.read_dict_value(self.subject_settings, 'pass')
-        self.pass_edit.setValue(int(pass_value) if pass_value != '' else 1)
-        self.sex_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'sex'))
-        self.hand_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'handedness'))
-        dob = self.read_dict_value(self.subject_settings, 'birthday')
-        if dob not in [None, '']:
-            q_dob = QDate.fromString(dob, 'yyyy-MM-d')
-            self.dob_calendar.setSelectedDate(q_dob)
-        else:
-            self.dob_calendar.setSelectedDate(QDate.currentDate())
-
-    def load_subject(self):
-        curr_name = self.name_edit.currentText()
-        if curr_name != '':
-            self.subject_settings = DBWrapper().load_subject_details(curr_name)
-        else:
-            self.subject_settings = {}
-
-        self.update_subject()
-
-    @staticmethod
-    def read_dict_value(dictionary, value):
-        return str(dictionary[value]) if value in dictionary.keys() else ''
-
-    def toggle_all(self):
-        for label, sett in self.features_widgets.items():
-            self.features_widgets[label].setChecked(self.all_features.isChecked())
-
-    def toggle(self):
-        if any([not x.isChecked() for x in self.features_widgets.values()]):
-            self.all_features.setChecked(False)
-
-    @staticmethod
-    def do_add_settings_dialog(subject_settings, depth_settings, features_settings, parent=None):
-        dialog = AddSettingsDialog(subject_settings, depth_settings, features_settings, parent)
-        result = dialog.exec_()
-        if result == QDialog.Accepted:
-            # subject
-            subject_settings['name'] = dialog.name_edit.currentText()
-            subject_settings['hemisphere'] = dialog.hem_edit.currentText()
-            subject_settings['pass'] = '{:.0f}'.format(dialog.pass_edit.value())
-            subject_settings['id'] = dialog.id_edit.text()
-            subject_settings['sex'] = dialog.sex_combo.currentText()
-            subject_settings['handedness'] = dialog.hand_combo.currentText()
-            subject_settings['birthday'] = dialog.dob_calendar.selectedDate().toPyDate()
-
-            # convert all fields to dictionary and return it
-            depth_settings['buffer_length'] = dialog.edit_buffer_length.text()
-            depth_settings['sample_length'] = dialog.edit_sample_length.text()
-            depth_settings['run_buffer'] = dialog.run_buffer.isChecked()
-
-            for key, value in dialog.depth_widgets.items():
-                depth_settings['electrode_settings'][key] = {}
-                depth_settings['electrode_settings'][key]['threshold'] = value['chk_threshold'].isChecked()
-                depth_settings['electrode_settings'][key]['validity'] = float(value['edit_validity'].text())
-
-            for key, value in dialog.features_widgets.items():
-                features_settings['features'][key] = value.isChecked()
-            return True
-        else:
-            return False
 
 
 if __name__ == '__main__':

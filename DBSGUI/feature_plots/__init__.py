@@ -1,3 +1,7 @@
-from .FeaturePlotWidgets import RawPlotWidget, DBSPlotWidget, LFPPlotWidget
+from .FeaturePlotWidgets import *
 
-__all__ = ['RawPlotWidget', 'DBSPlotWidget', 'LFPPlotWidget']
+__all__ = ['RawPlots',
+           'DBSPlots',
+           'LFPPlots',
+           'SpikePlots',
+           'NullPlotWidget']

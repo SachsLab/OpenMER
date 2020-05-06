@@ -49,14 +49,14 @@ class LSLDepthGUI(QMainWindow):
         h_layout.addWidget(self.pushButton_send)
         h_layout.addStretch()
 
-        quit_btn = QPushButton('X')
-        quit_btn.setMaximumWidth(20)
-        quit_btn.clicked.connect(qapp.quit)
-        pal = QPalette()
-        pal.setColor(QPalette.Button, QColor(255, 0, 0, 255))
-        quit_btn.setAutoFillBackground(True)
-        quit_btn.setPalette(pal)
-        h_layout.addWidget(quit_btn)
+        # quit_btn = QPushButton('X')
+        # quit_btn.setMaximumWidth(20)
+        # quit_btn.clicked.connect(qapp.quit)
+        # pal = QPalette()
+        # pal.setColor(QPalette.Button, QColor(255, 0, 0, 255))
+        # quit_btn.setAutoFillBackground(True)
+        # quit_btn.setPalette(pal)
+        # h_layout.addWidget(quit_btn)
 
         v_layout.addLayout(h_layout)
 
