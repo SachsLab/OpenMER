@@ -21,17 +21,20 @@ DEFAULTPLOT = {
     'y_axis': True,
     'x_range': None,  # None for auto-scale, list otherwise
     'y_range': [0, 1],
+    'y_tick_labels': None,
+    'c_lim': [0, 1],
     'auto_scale': False,
     'interactive': True,
     'marker_line': 0.0,
     'error_bars': False,
     'pen_color': QColor(255, 255, 255),
-    'text_anchor': (2, 0.5),
+    'text_anchor': (2, 1),
     # to get data
     'x_name': None,
     'y_name': None,
     'post_processing': None,
-    'swap_xy': False
+    'swap_xy': False,
+    'image_plot': False
 }
 FEAT_VS_DEPTH = {**DEFAULTPLOT,
                  'x_range': [-20, 5],
@@ -48,6 +51,14 @@ DEPTH = {**DEFAULTPLOT,
          'interactive': True,
          'swap_xy': True,
          'text_anchor': (0.5, 2)}
+SPECTRUM = {**DEFAULTPLOT,
+            'x_range': [-20, 5],
+            'y_ticks': True,
+            'interactive': False,
+            'x_name': 'depth',
+            # 'y_label': 'Frequencies (Hz)',
+            'image_plot': True
+            }
 
 
 class BasePlotWidget(QWidget):
@@ -59,6 +70,21 @@ class BasePlotWidget(QWidget):
         self.glw = pg.GraphicsLayoutWidget()
         self.layout.addWidget(self.glw)
         self.plot = self.glw.addPlot(enableMenu=False)
+        if self.plot_config['image_plot']:
+            self.img = pg.ImageItem()
+            self.plot.addItem(self.img)
+
+            pos = np.array(self.plot_config['c_lim'])
+            color = np.array([[0, 0, 0, 255], self.plot_config['pen_color'].getRgb()], dtype=np.ubyte)
+            c_map = pg.ColorMap(pos, color)
+            lut = c_map.getLookupTable(pos[0], pos[1], 1024)
+
+            self.img.setLookupTable(lut)
+            self.img.setLevels(pos)
+
+            self.img.scale(1/1000, 1)
+            self.img.setPos(-20, 0)
+
         self.line = None
         self.text = None
 
@@ -108,7 +134,8 @@ class BasePlotWidget(QWidget):
         self.plot.getAxis('left').setStyle(showValues=self.plot_config['y_ticks'])
         self.plot.getAxis('left').tickFont = font
         self.plot.getAxis('left').setPen((255, 255, 255, 255))
-
+        if self.plot_config['y_tick_labels']:
+            self.plot.getAxis('left').setTicks(self.plot_config['y_tick_labels'])
         if self.plot_config['interactive']:
             self.plot.scene().sigMouseMoved.connect(self.mouse_moved)
             if self.plot_config['swap_xy']:
@@ -186,15 +213,19 @@ class BasePlotWidget(QWidget):
                     # [x, y, valid].
                     # should return an array with values to plot
                     if self.plot_config['post_processing'] and not self.plot_config['error_bars']:
-                        y = self.plot_config['post_processing'](y)
+                        y = self.plot_config['post_processing'](x, y)
                     elif self.plot_config['post_processing'] and self.plot_config['error_bars']:
-                        y, eb = self.plot_config['post_processing'](y)
+                        y, eb = self.plot_config['post_processing'](x, y)
                         self.plot.addItem(pg.ErrorBarItem(x=[x], y=y, height=eb, pen=self.plot_config['pen_color']))
                     else:
                         y = y[1]
 
-                    self.plot.plot(x=[x], y=y, symbol='o', symbolSize=6,
-                                   symbolBrush=symbol_brush, symbolPen=self.plot_config['pen_color'])
+                    if not self.plot_config['image_plot']:
+                        self.plot.plot(x=[x], y=y, symbol='o', symbolSize=6,
+                                       symbolBrush=symbol_brush, symbolPen=self.plot_config['pen_color'])
+                    else:
+                        self.img.setImage(y, autoLevels=False)
+
                     if self.plot_config['auto_scale']:
                         self.plot.enableAutoRange(axis=pg.ViewBox.YAxis)
 
@@ -438,11 +469,11 @@ class DBSPlots(QWidget):
         self.layout.setRowStretch(2, 1)
 
     @staticmethod
-    def beta_process(data):
+    def beta_process(x, data):
         return 10 * np.log10(data[1])
 
     @staticmethod
-    def pac_process(data):
+    def pac_process(x, data):
         # data contains peak, mean, variance
         return data[1][:1], data[1][-1:]
 
@@ -469,41 +500,167 @@ class LFPPlots(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
 
         # create GLW for the depth plot
-        alpha_sett = {**FEAT_VS_DEPTH,
-                      'title': 'Spectrum slope (alpha)',
-                      'x_ticks': True,
-                      'x_name': 'depth',
-                      'y_name': 'MultiTaperSpectrum',
-                      'y_range': [0, 10],
-                      'post_processing': self.alpha_process,
-                      'pen_color': self.pen_color}
-        self.alpha_plot = BasePlotWidget(alpha_sett)
-        self.layout.addWidget(self.alpha_plot, 0, 0, 1, 1)
+        pwr_sett = {**SPECTRUM,
+                    'title': 'Power Spectrum (dB)',
+                    'x_ticks': False,
+                    'x_name': 'depth',
+                    'y_name': 'LFPSpectrumAndEpisodes',
+                    'y_range': [0, 21],
+                    'y_tick_labels': [[(1, 4), (6, 8), (11, 16), (16, 32), (21, 64), (26, 128), (31, 256)]],
+                    'c_lim': [50, 150],
+                    'post_processing': self.spectrum_process,
+                    'pen_color': self.pen_color
+                    }
+        self.spectro_plot = BasePlotWidget(pwr_sett)
+        self.layout.addWidget(self.spectro_plot, 0, 0, 1, 1)
 
-        self.layout.addWidget(QLabel(), 1, 0, 1, 1)
+        beta_sett = {**FEAT_VS_DEPTH,
+                     'interactive': True,
+                     'title': 'Beta power (dB)',
+                     'y_name': 'LFPSpectrumAndEpisodes',
+                     'post_processing': self.beta_process,
+                     'pen_color': self.pen_color}
+        self.bp_plot = BasePlotWidget(beta_sett)
+        self.layout.addWidget(self.bp_plot, 1, 0, 1, 1)
+
+        pep_sett = {**SPECTRUM,
+                    'title': 'P_episodes',
+                    'x_ticks': False,
+                    'x_name': 'depth',
+                    'y_name': 'LFPSpectrumAndEpisodes',
+                    'y_range': [0, 21],
+                    'y_tick_labels': [[(1, 4), (6, 8), (11, 16), (16, 32), (21, 64)]],
+                    'c_lim': [0, 1],
+                    'post_processing': self.episodes_process,
+                    'pen_color': self.pen_color
+                    }
+        self.episodes_plot = BasePlotWidget(pep_sett)
+        self.layout.addWidget(self.episodes_plot, 2, 0, 1, 1)
+
+        beta_ep_sett = {**FEAT_VS_DEPTH,
+                        'x_ticks': True,
+                        'interactive': True,
+                        'title': 'Beta episodes',
+                        'y_name': 'LFPSpectrumAndEpisodes',
+                        'post_processing': self.beta_ep_process,
+                        'pen_color': self.pen_color}
+        self.b_ep_plot = BasePlotWidget(beta_ep_sett)
+        self.layout.addWidget(self.b_ep_plot, 3, 0, 1, 1)
+
+        # self.layout.addWidget(QLabel(), 4, 0, 1, 1)
         self.layout.setRowStretch(0, 1)
         self.layout.setRowStretch(1, 1)
+        self.layout.setRowStretch(2, 1)
+        self.layout.setRowStretch(3, 1)
+
+        # 0.001 mm steps
+        self.spectrum_x = np.arange(pwr_sett['x_range'][0] * 1000,
+                                    pwr_sett['x_range'][1] * 1000, 1, dtype=np.int)
+        self.spectrum_depths = np.array(np.round(pwr_sett['x_range'][0]*1000), dtype=np.int)
+        self.spectrum_data = np.zeros((pwr_sett['y_range'][1], self.spectrum_x.shape[0]))
+
+        self.episodes_depths = np.array(np.round(pep_sett['x_range'][0] * 1000), dtype=np.int)
+        self.episodes_data = np.zeros((pep_sett['y_range'][1], self.spectrum_x.shape[0]))
 
         self.depth_data = {}
 
+    def spectrum_process(self, x, data):
+        # data is a chan x values array where n values=62 representing 31 power frequency points and 31 p_episode points
+        new_depth = np.round(x*1000)
+        # new_values = data[1][data[0].shape[0]:]
+        new_values = 10 * np.log10(data[1][:data[0].shape[0]])
+        new_values = new_values[:21]
+
+        prev_depths = self.spectrum_depths[self.spectrum_depths < new_depth]
+        if prev_depths.shape[0] > 0:
+            prev_depth = prev_depths.max()
+            prev_values = self.spectrum_data[:, self.spectrum_x == prev_depth].flatten()
+
+            depth_diff = new_depth - prev_depth
+            values_diff = new_values - prev_values
+
+            delta = np.arange(0, depth_diff + 1, 1) / depth_diff
+
+            self.spectrum_data[:, np.logical_and(self.spectrum_x >= prev_depth, self.spectrum_x <= new_depth)] = \
+                np.add(np.atleast_2d(prev_values).T, (np.atleast_2d(values_diff).T * delta))
+
+        next_depths = self.spectrum_depths[self.spectrum_depths > new_depth]
+        if next_depths.shape[0] > 0:
+            next_depth = next_depths.min()
+            next_values = self.spectrum_data[:, self.spectrum_x == next_depth].flatten()
+
+            depth_diff = next_depth - new_depth
+            values_diff = next_values - new_values
+
+            delta = np.arange(0, depth_diff + 1, 1) / depth_diff
+
+            self.spectrum_data[:, np.logical_and(self.spectrum_x >= new_depth, self.spectrum_x <= next_depth)] = \
+                np.add(np.atleast_2d(new_values).T, (np.atleast_2d(values_diff).T * delta))
+
+        # append new depth
+        self.spectrum_depths = np.insert(self.spectrum_depths,
+                                         np.where(self.spectrum_depths == prev_depth)[0] + 1,
+                                         new_depth)
+
+        return self.spectrum_data.T
+
     @staticmethod
-    def alpha_process(data):
-        f_stops = [(-np.Inf, 1.0), (58, 62), (116, 124), (150, np.Inf)]
+    def beta_ep_process(x, data):
+        new_values = data[1][data[0].shape[0]:]
+        ep = np.mean(new_values[np.logical_and(data[0] >= 13, data[0] <= 30)])
+        return [ep]
 
-        freqs = data[0]
-        b_freqs = np.ones(freqs.shape[0], dtype=bool)
-        for f_s in f_stops:
-            b_freqs[np.logical_and(freqs >= f_s[0], freqs <= f_s[1])] = False
+    @staticmethod
+    def beta_process(x, data):
+        new_values = data[1][:data[0].shape[0]]
+        pwr = np.mean(new_values[np.logical_and(data[0] >= 13, data[0] <= 30)])
+        return [np.log10(pwr)]
 
-        pwr = data[1]
+    def episodes_process(self, x, data):
+        # data is a chan x values array where n values=62 representing 31 power frequency points and 31 p_episode points
+        new_depth = np.round(x*1000)
+        new_values = data[1][data[0].shape[0]:]
+        new_values = new_values[:21]
+        # new_values = 10*np.log10(data[1][:data[0].shape[0]])
 
-        a = np.vstack([-np.log(freqs[b_freqs].flatten()), np.ones(freqs[b_freqs].size)]).T
-        alpha, b = np.linalg.lstsq(a,
-                                   np.log(pwr[b_freqs].flatten()), rcond=None)[0]
-        return [alpha]
+        prev_depths = self.episodes_depths[self.episodes_depths < new_depth]
+        if prev_depths.shape[0] > 0:
+            prev_depth = prev_depths.max()
+            prev_values = self.episodes_data[:, self.spectrum_x == prev_depth].flatten()
+
+            depth_diff = new_depth - prev_depth
+            values_diff = new_values - prev_values
+
+            delta = np.arange(0, depth_diff + 1, 1) / depth_diff
+
+            self.episodes_data[:, np.logical_and(self.spectrum_x >= prev_depth, self.spectrum_x <= new_depth)] = \
+                np.add(np.atleast_2d(prev_values).T, (np.atleast_2d(values_diff).T * delta))
+
+        next_depths = self.episodes_depths[self.episodes_depths > new_depth]
+        if next_depths.shape[0] > 0:
+            next_depth = next_depths.min()
+            next_values = self.episodes_data[:, self.spectrum_x == next_depth].flatten()
+
+            depth_diff = next_depth - new_depth
+            values_diff = next_values - new_values
+
+            delta = np.arange(0, depth_diff + 1, 1) / depth_diff
+
+            self.episodes_data[:, np.logical_and(self.spectrum_x >= new_depth, self.spectrum_x <= next_depth)] = \
+                np.add(np.atleast_2d(new_values).T, (np.atleast_2d(values_diff).T * delta))
+
+        # append new depth
+        self.episodes_depths = np.insert(self.episodes_depths,
+                                         np.where(self.episodes_depths == prev_depth)[0] + 1,
+                                         new_depth)
+
+        return self.episodes_data.T
 
     def update_plot(self, all_data):
-        self.alpha_plot.update_plot(all_data)
+        self.spectro_plot.update_plot(all_data)
+        self.bp_plot.update_plot(all_data)
+        self.episodes_plot.update_plot(all_data)
+        self.b_ep_plot.update_plot(all_data)
 
 
 class SpikePlots(QWidget):
@@ -521,7 +678,7 @@ class SpikePlots(QWidget):
         rms_sett = {**FEAT_VS_DEPTH,
                     'title': 'Noise RMS (' + u'\u03BC' + 'V)',
                     'y_name': 'DBSSpikeFeatures',
-                    'post_processing': lambda x: [x[1][0]],
+                    'post_processing': lambda x,y : [y[1][0]],
                     'pen_color': self.pen_color}
 
         self.rms_plot = BasePlotWidget(rms_sett)
@@ -531,7 +688,7 @@ class SpikePlots(QWidget):
         rate_sett = {**FEAT_VS_DEPTH,
                      'title': 'Rate (Hz)',
                      'y_name': 'DBSSpikeFeatures',
-                     'post_processing': lambda x: [x[1][1]],
+                     'post_processing': lambda x, y: [y[1][1]],
                      'pen_color': self.pen_color}
 
         self.rate_plot = BasePlotWidget(rate_sett)
@@ -541,7 +698,7 @@ class SpikePlots(QWidget):
         burst_sett = {**FEAT_VS_DEPTH,
                       'title': 'Burst Index',
                       'y_name': 'DBSSpikeFeatures',
-                      'post_processing': lambda x: [x[1][2]],
+                      'post_processing': lambda x, y: [y[1][2]],
                       'pen_color': self.pen_color}
 
         self.burst_plot = BasePlotWidget(burst_sett)
@@ -552,7 +709,7 @@ class SpikePlots(QWidget):
                    'title': 'Fano Factor',
                    'x_ticks': True,
                    'y_name': 'DBSSpikeFeatures',
-                   'post_processing': lambda x: [x[1][3]],
+                   'post_processing': lambda x, y: [y[1][3]],
                    'pen_color': self.pen_color}
 
         self.ff_plot = BasePlotWidget(ff_sett)
