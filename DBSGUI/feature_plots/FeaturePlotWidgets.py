@@ -1,7 +1,7 @@
 import numpy as np
 
 # use the same GUI format as the other ones
-from qtpy.QtWidgets import QLabel, QGridLayout, QWidget, QVBoxLayout
+from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout
 
 from qtpy.QtGui import QColor, QFont
 
@@ -9,6 +9,7 @@ import pyqtgraph as pg
 from dbsgui.my_widgets.custom import THEMES
 
 pen_colors = THEMES['dark']['pencolors']
+DEPTHRANGE = [-20, 5]
 
 # Plot settings dictionaries
 DEFAULTPLOT = {
@@ -37,7 +38,7 @@ DEFAULTPLOT = {
     'image_plot': False
 }
 FEAT_VS_DEPTH = {**DEFAULTPLOT,
-                 'x_range': [-20, 5],
+                 'x_range': DEPTHRANGE,
                  'y_ticks': True,
                  'interactive': True,
                  'auto_scale': True,
@@ -45,14 +46,14 @@ FEAT_VS_DEPTH = {**DEFAULTPLOT,
 DEPTH = {**DEFAULTPLOT,
          'x_range': [-5, 5],
          'x_axis': False,
-         'y_range': [-20, 5],
+         'y_range': DEPTHRANGE,
          'y_name': 'depth',
          'y_ticks': True,
          'interactive': True,
          'swap_xy': True,
          'text_anchor': (0.5, 2)}
 SPECTRUM = {**DEFAULTPLOT,
-            'x_range': [-20, 5],
+            'x_range': DEPTHRANGE,
             'y_ticks': True,
             'interactive': False,
             'x_name': 'depth',
@@ -83,7 +84,7 @@ class BasePlotWidget(QWidget):
             self.img.setLevels(pos)
 
             self.img.scale(1/1000, 1)
-            self.img.setPos(-20, 0)
+            self.img.setPos(DEPTHRANGE[0], 0)
 
         self.line = None
         self.text = None
@@ -569,7 +570,7 @@ class LFPPlots(QWidget):
         new_depth = np.round(x*1000)
         # new_values = data[1][data[0].shape[0]:]
         new_values = 10 * np.log10(data[1][:data[0].shape[0]])
-        new_values = new_values[:21]
+        new_values = new_values[:21]  # limit to 64 Hz
 
         prev_depths = self.spectrum_depths[self.spectrum_depths < new_depth]
         if prev_depths.shape[0] > 0:
