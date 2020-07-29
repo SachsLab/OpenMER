@@ -25,7 +25,7 @@ from DB_Wrap import DBWrapper, ProcessWrapper
 
 WINDOWDIMS = [1260, 250, 660, 830]
 
-XRANGE = [-1500, 120000]
+XRANGE = [-3500, 120000]  # 3500?, don't know why -1500 is not working anymore...
 YRANGE = 200.00
 DEPTHRANGE = [-20, 5]
 
@@ -227,49 +227,56 @@ class FeaturesPlotWidget(CustomWidget):
         layout.addWidget(QLabel("Electrode: "))
         self.chan_select = QComboBox()
         self.chan_select.addItem("None")
-        # if self.group_info:
-        #     self.channel_labels = [x['label'].decode('utf-8') for x in self.group_info]
-        # else:  # offline implementation
-        #     self.channel_labels = DBWrapper().channel_labels()
-        #     CbSdkConnection().is_simulating = True
-        # self.chan_select.addItems(self.channel_labels)
+
         self.chan_select.setMinimumWidth(75)
         self.chan_select.setEnabled(False)
         layout.addWidget(self.chan_select)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         layout.addWidget(QLabel("+/-"))
         self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
         self.range_edit.setMaximumWidth(50)
         layout.addWidget(self.range_edit)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.do_hp = QCheckBox('HP')
         self.do_hp.setChecked(True)
         layout.addWidget(self.do_hp)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
 
         self.sweep_control = QCheckBox("Match SweepGUI.")
         self.sweep_control.setChecked(True)
         self.sweep_control.setEnabled(self.monitored_channel_mem.isAttached())
         layout.addWidget(self.sweep_control)
 
-        layout.addStretch()
+        # layout.addStretch()
+        layout.addSpacing(10)
 
         self.btn_settings = QPushButton("Settings")
         layout.addWidget(self.btn_settings)
 
-        layout.addSpacing(20)
+        layout.addSpacing(10)
+
+        self.buffer_process_label = QLabel('B')
+        self.buffer_process_label.setAlignment(Qt.AlignCenter)
+        self.buffer_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
+        layout.addWidget(self.buffer_process_label)
+
+        self.features_process_label = QLabel('F')
+        self.features_process_label.setAlignment(Qt.AlignCenter)
+        self.features_process_label.setStyleSheet("QLabel {background-color : red; color : white}")
+        layout.addWidget(self.features_process_label)
+
+        layout.addSpacing(10)
 
         self.status_label = QLabel()
         self.status_label.setPixmap(self.status_off)
         layout.addWidget(self.status_label)
 
         layout.addSpacing(10)
-
         self.layout().addLayout(layout)
 
         # callbacks
@@ -426,6 +433,18 @@ class FeaturesPlotWidget(CustomWidget):
         else:
             self.status_label.setPixmap(self.status_off)
 
+        if self.depth_wrapper.is_running():
+            self.buffer_process_label.setStyleSheet("QLabel { background-color : green; color : white}")
+        else:
+            self.depth_process_running = False
+            self.buffer_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
+
+        if self.features_wrapper.is_running():
+            self.features_process_label.setStyleSheet("QLabel { background-color : green; color : white}")
+        else:
+            self.features_process_running = False
+            self.features_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
+
         if self.sweep_control.isChecked():
             self.read_from_shared_memory()
 
@@ -452,9 +471,8 @@ class FeaturesPlotWidget(CustomWidget):
                 all_data = DBWrapper().load_features_data(category=curr_feat,
                                                           chan_lbl=curr_chan_lbl,
                                                           gt=curr_datum)
-
             if all_data:
-                self.plot_stack.currentWidget().update_plot(all_data)
+                self.plot_stack.currentWidget().update_plot(dict(all_data))
                 self.stack_dict[curr_chan_lbl][curr_feat][1] = max(all_data.keys())
 
     def kill_processes(self):
@@ -487,7 +505,7 @@ if __name__ == '__main__':
     window.show()
     timer = QTimer()
     timer.timeout.connect(window.update)
-    timer.start(50)
+    timer.start(100)
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()

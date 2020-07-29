@@ -438,7 +438,9 @@ class SettingsDialog(QDialog):
         # signals
         self.subject_widget.subject_change.connect(self.proc_widget.change_subject)
         # update procedures when re-opening settings window
-        if self.subject_settings['subject_id'] not in [None, '']:
+        if 'subject_id' not in self.subject_settings.keys():
+            self.subject_widget.check_subject()
+        elif self.subject_settings['subject_id'] not in [None, '']:
             self.proc_widget.change_subject(self.subject_settings['subject_id'], block=True)
 
         # OK and Cancel buttons

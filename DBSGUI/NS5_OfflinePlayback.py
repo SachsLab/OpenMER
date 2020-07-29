@@ -149,7 +149,8 @@ if __name__ == '__main__':
 
     id_re = re.compile(r"\<Id\>(?P<Id>\d+)\<\/Id>")
 
-    base_dir = 'D:\\SachsLab\\NeuroPort_Dev\\Data\\'
+    # base_dir = 'D:\\SachsLab\\NeuroPort_Dev\\Data\\'
+    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\STN\\'
     files_dict = {}
 
     for root, dirs, files in os.walk(base_dir, topdown=False):

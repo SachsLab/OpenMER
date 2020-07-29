@@ -5,7 +5,8 @@ import numpy as np
 
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLabel, QLCDNumber, QPushButton, QDoubleSpinBox, \
-                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QMainWindow
+                           QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QMainWindow, \
+                           QFrame, QGridLayout
 
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QPalette, QColor
@@ -53,7 +54,7 @@ class DepthGUI(QMainWindow):
         self.doubleSpinBox_offset.setMaximum(100.00)
         self.doubleSpinBox_offset.setSingleStep(1.00)
         self.doubleSpinBox_offset.setDecimals(2)
-        self.doubleSpinBox_offset.setValue(10.00)
+        self.doubleSpinBox_offset.setValue(-10.00)
         self.doubleSpinBox_offset.setFixedWidth(80)
         h_layout.addWidget(self.doubleSpinBox_offset)
 
@@ -69,7 +70,13 @@ class DepthGUI(QMainWindow):
         self.chk_LSL.setChecked(True)
         h_layout.addWidget(self.chk_LSL)
 
-        h_layout.addSpacing(40)
+        h_layout.addSpacing(10)
+
+        send_btn = QPushButton("Send")
+        send_btn.clicked.connect(self.send)
+
+        h_layout.addWidget(send_btn)
+        h_layout.addSpacing(10)
 
         quit_btn = QPushButton('X')
         quit_btn.setMaximumWidth(20)
@@ -83,12 +90,28 @@ class DepthGUI(QMainWindow):
         v_layout.addLayout(h_layout)
 
         # define Qt GUI elements
-        self.lcdNumber = QLCDNumber()
-        self.lcdNumber.setDigitCount(7)
-        self.lcdNumber.setDecMode()
-        self.lcdNumber.setFixedHeight(200)
-        self.lcdNumber.display("{0:.3f}".format(-20))
-        v_layout.addWidget(self.lcdNumber)
+        # add a frame for the LCD numbers
+        self.lcd_frame = QFrame()
+        self.lcd_frame.setFrameShape(1)
+        lcd_layout = QGridLayout()
+        self.lcd_frame.setLayout(lcd_layout)
+
+        # RAW reading from DDU
+        self.raw_ddu = QLCDNumber()
+        self.raw_ddu.setDigitCount(7)
+        self.raw_ddu.setFrameShape(0)
+        self.raw_ddu.setSmallDecimalPoint(True)
+        self.raw_ddu.setFixedHeight(50)
+        self.raw_ddu.display("{0:.3f}".format(0))
+        lcd_layout.addWidget(self.raw_ddu, 0, 3, 2, 3)
+
+        self.offset_ddu = QLCDNumber()
+        self.offset_ddu.setDigitCount(7)
+        self.offset_ddu.setFixedHeight(150)
+        self.offset_ddu.display("{0:.3f}".format(-10))
+        self.offset_ddu.setFrameShape(0)
+        lcd_layout.addWidget(self.offset_ddu, 2, 0, 5, 6)
+        v_layout.addWidget(self.lcd_frame)
 
         self.plot_widget.setLayout(v_layout)
 
@@ -111,6 +134,7 @@ class DepthGUI(QMainWindow):
 
         # NSP Config
         self.do_NSP = True
+        self.connect_cbsdk()
 
         # LSL outlet config
         self.do_LSL = True  # Default is on
@@ -140,7 +164,7 @@ class DepthGUI(QMainWindow):
                 self.ser.close()
 
     def connect_cbsdk(self):
-        if CbSdkConnection().connect() == 0:
+        if CbSdkConnection().connect() != 0:
             self.chk_NSP.setChecked(False)
         self.do_NSP = self.chk_NSP.isChecked()
 
@@ -169,16 +193,19 @@ class DepthGUI(QMainWindow):
                 if len(dtts) > 0:
                     out_value = dtts[-1]
                     new_value = True
-                    self.lcdNumber.display("{0:.3f}".format(out_value))
+                    self.offset_ddu.display("{0:.3f}".format(out_value))
+                    self.raw_ddu.display("{0:.3f}".format(out_value))
 
         elif self.ser.is_open:
             in_str = self.ser.readline().decode('utf-8').strip()
             if in_str:
                 try:
                     in_value = float(in_str)
+                    self.raw_ddu.display("{0:.3f}".format(in_value))
+
                     out_value = in_value + self.doubleSpinBox_offset.value()
                     display_string = "{0:.3f}".format(out_value)
-                    self.lcdNumber.display(display_string)
+                    self.offset_ddu.display(display_string)
 
                     # Check if new value
                     if display_string != self.display_string:
@@ -199,6 +226,10 @@ class DepthGUI(QMainWindow):
         # Push to LSL
         if self.do_LSL and new_value:
             self.depth_stream.push_sample([out_value])
+
+    def send(self):
+        self.display_string = None  # make sure the update function runs
+        self.update()
 
 
 if __name__ == '__main__':
