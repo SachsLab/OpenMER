@@ -456,19 +456,3 @@ class SettingsDialog(QDialog):
         self.proc_widget.to_dict()
         self.buff_widget.to_dict()
         self.feat_widget.to_dict()
-
-
-# if __name__ == '__main__':
-#     from qtpy.QtWidgets import QApplication
-#
-#     qapp = QApplication(sys.argv)
-#     sub = dict()
-#     proc = dict()
-#     buff = dict()
-#     feat = dict()
-#     window = AddSettingsDialog(sub, proc, buff, feat)
-#     result = window.exec_()
-#     if result == QDialog.Accepted:
-#         window.update_settings()
-#
-#     print(proc)

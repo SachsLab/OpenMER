@@ -4,10 +4,9 @@ import numpy as np
 
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QPushButton, \
-                           QGridLayout, QDialogButtonBox, QCalendarWidget, QDoubleSpinBox, \
-                           QCheckBox, QHBoxLayout, QFrame, QStackedWidget, QAction
+                           QCheckBox, QHBoxLayout, QStackedWidget, QAction
 
-from qtpy.QtCore import Qt, QSharedMemory, QDate, Signal
+from qtpy.QtCore import Qt, QSharedMemory, Signal
 
 from qtpy.QtGui import QPixmap
 
@@ -317,7 +316,7 @@ class FeaturesPlotWidget(CustomWidget):
             self.depth_process_running = False
 
     def manage_feature_process(self, on_off):
-        if on_off and not  self.features_process_running:
+        if on_off and not self.features_process_running:
             self.features_wrapper.start_worker()
             self.features_process_running = True
         else:
@@ -344,7 +343,7 @@ class FeaturesPlotWidget(CustomWidget):
             self.feature_select.removeItem(1)
         self.feature_select.addItems(self.features_settings['features'].keys())
 
-        # set new chanels
+        # set new channels
         self.chan_select.setCurrentIndex(0)  # None
         while self.chan_select.count() > 1:
             self.chan_select.removeItem(1)
@@ -484,8 +483,6 @@ class FeaturesPlotWidget(CustomWidget):
             self.monitored_channel_mem.lock()
             settings = np.frombuffer(self.monitored_channel_mem.data(), dtype=np.float)[-3:]
             self.chan_select.setCurrentIndex(int(settings[0]))
-            # if self.plot_config['y_range'] != settings[1] or self.plot_config['do_hp'] != bool(settings[2]):
-            #     self.clear()
             self.range_edit.setText(str(settings[1]))
             self.manage_range_edit()
             self.do_hp.setChecked(bool(settings[2]))

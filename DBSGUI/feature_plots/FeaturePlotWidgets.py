@@ -362,7 +362,6 @@ class RawPlots(QWidget):
             self.plot_depth_values()
 
     def plot_depth_values(self):
-
         # get current index of selected depth
         all_depths = np.sort([x for x in self.depth_pdi.keys()])
         curr_value = self.depth_bar.value()

@@ -1,7 +1,6 @@
 import sys
 import serial
 import serial.tools.list_ports
-import numpy as np
 
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLabel, QLCDNumber, QPushButton, QDoubleSpinBox, \
