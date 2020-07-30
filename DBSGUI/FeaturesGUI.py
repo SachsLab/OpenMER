@@ -259,15 +259,23 @@ class FeaturesPlotWidget(CustomWidget):
 
         layout.addSpacing(10)
 
-        self.buffer_process_label = QLabel('B')
-        self.buffer_process_label.setAlignment(Qt.AlignCenter)
-        self.buffer_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
-        layout.addWidget(self.buffer_process_label)
+        self.depth_process_btn = QPushButton('B')
+        self.depth_process_btn.setMaximumWidth(15)
+        self.depth_process_btn.setStyleSheet("QPushButton { color: white; "
+                                             "background-color : red; "
+                                             "border-color : red; "
+                                             "border-width: 2px}")
+        self.depth_process_btn.clicked.connect(self.depth_process_btn_callback)
+        layout.addWidget(self.depth_process_btn)
 
-        self.features_process_label = QLabel('F')
-        self.features_process_label.setAlignment(Qt.AlignCenter)
-        self.features_process_label.setStyleSheet("QLabel {background-color : red; color : white}")
-        layout.addWidget(self.features_process_label)
+        self.features_process_btn = QPushButton('F')
+        self.features_process_btn.setMaximumWidth(15)
+        self.features_process_btn.setStyleSheet("QPushButton { color: white; "
+                                                "background-color : red; "
+                                                "border-color : red; "
+                                                "border-width: 2px}")
+        self.features_process_btn.clicked.connect(self.features_process_btn_callback)
+        layout.addWidget(self.features_process_btn)
 
         layout.addSpacing(10)
 
@@ -284,6 +292,34 @@ class FeaturesPlotWidget(CustomWidget):
         self.feature_select.currentIndexChanged.connect(self.manage_feat_chan_select)
         self.sweep_control.clicked.connect(self.manage_sweep_control)
         self.range_edit.editingFinished.connect(self.manage_range_edit)
+
+    def depth_process_btn_callback(self):
+        # kill
+        if self.depth_process_running:
+            self.manage_depth_process(False)
+        else:
+            # if we terminate and re-start the processes, we need to re-enable the shared memory
+            self.depth_wrapper.manage_shared_memory()
+
+            # re-send the settings
+            self.depth_wrapper.send_settings(self.depth_settings)
+
+            # re-start the worker
+            self.manage_depth_process(True)
+
+    def features_process_btn_callback(self):
+        # kill
+        if self.features_process_running:
+            self.manage_feature_process(False)
+        else:
+            # if we terminate and re-start the processes, we need to re-enable the shared memory
+            self.features_wrapper.manage_shared_memory()
+
+            # re-send the settings
+            self.features_wrapper.send_settings(self.features_settings)
+
+            # re-start the worker
+            self.manage_feature_process(True)
 
     # GUI Callbacks
     def manage_feat_chan_select(self):
@@ -433,16 +469,28 @@ class FeaturesPlotWidget(CustomWidget):
             self.status_label.setPixmap(self.status_off)
 
         if self.depth_wrapper.is_running():
-            self.buffer_process_label.setStyleSheet("QLabel { background-color : green; color : white}")
+            self.depth_process_btn.setStyleSheet("QPushButton { color: white; "
+                                                 "background-color : green; "
+                                                 "border-color : green; "
+                                                 "border-width: 2px}")
         else:
             self.depth_process_running = False
-            self.buffer_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
+            self.depth_process_btn.setStyleSheet("QPushButton { color: white; "
+                                                 "background-color : red; "
+                                                 "border-color : red; "
+                                                 "border-width: 2px}")
 
         if self.features_wrapper.is_running():
-            self.features_process_label.setStyleSheet("QLabel { background-color : green; color : white}")
+            self.features_process_btn.setStyleSheet("QPushButton { color: white; "
+                                                    "background-color : green; "
+                                                    "border-color : green; "
+                                                    "border-width: 2px}")
         else:
             self.features_process_running = False
-            self.features_process_label.setStyleSheet("QLabel { background-color : red; color : white}")
+            self.features_process_btn.setStyleSheet("QPushButton { color: white; "
+                                                    "background-color : red; "
+                                                    "border-color : red; "
+                                                    "border-width: 2px}")
 
         if self.sweep_control.isChecked():
             self.read_from_shared_memory()
