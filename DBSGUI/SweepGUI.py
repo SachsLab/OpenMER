@@ -7,7 +7,7 @@ import qtpy
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from qtpy.QtWidgets import QDialogButtonBox, QCheckBox, QLineEdit, QButtonGroup, QRadioButton
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, QSharedMemory
 import pyqtgraph as pg
 from cerebuswrapper import CbSdkConnection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
@@ -142,6 +142,9 @@ class SweepWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
+        # add a shared memory object to track the currently monitored channel to plot its features/depth monitoring
+        self.monitored_shared_mem = QSharedMemory()
+
         super(SweepWidget, self).__init__(*args, **kwargs)
         this_dims = WINDOWDIMS
         if 'alt_loc' in self.plot_config and self.plot_config['alt_loc']:
@@ -153,6 +156,13 @@ class SweepWidget(CustomWidget):
         self.pya_stream = None
         self.audio = {}
         self.reset_audio()
+
+        self.monitored_shared_mem.setKey("MonitoredChannelMemory")
+        # we will pass the range, channel id and do_hp values to the DDUGUI. need 3 numbers, largest needs to be float
+        # 3 * 64bit floats / 8bit per bytes = 24 bytes. QSharedMemory allocates an entire page of 4096 bytes, so we're
+        # good.
+        self.monitored_shared_mem.create(24)
+        self.update_shared_memory()
 
     def closeEvent(self, evnt):
         if self.pya_stream:
@@ -201,6 +211,7 @@ class SweepWidget(CustomWidget):
 
     def on_hp_filter_changed(self, state):
         self.plot_config['do_hp'] = state == Qt.Checked
+        self.update_shared_memory()
 
     def on_ln_filter_changed(self, state):
         self.plot_config['do_ln'] = state == Qt.Checked
@@ -208,6 +219,7 @@ class SweepWidget(CustomWidget):
     def on_range_edit_editingFinished(self):
         self.plot_config['y_range'] = float(self.range_edit.text())
         self.refresh_axes()
+        self.update_shared_memory()
 
     def on_monitor_group_clicked(self, button_id):
         self.reset_audio()
@@ -228,6 +240,25 @@ class SweepWidget(CustomWidget):
             plot_item.setTitle(title=plot_item.titleLabel.text, **label_kwargs)
 
         CbSdkConnection().monitor_chan(monitor_chan_id)
+        self.update_shared_memory()
+
+    def update_shared_memory(self):
+        # updates only the memory section needed
+        if self.monitored_shared_mem.isAttached():
+            # send data to shared memory object
+            self.monitored_shared_mem.lock()
+            chan_labels = [x['label'] for x in self.group_info]
+            if self.audio['chan_label'] in ['silence', None]:
+                curr_channel = float(0)
+            else:
+                curr_channel = float(chan_labels.index(self.audio['chan_label']) + 1)  # 0 == None
+
+            curr_range = self.plot_config['y_range']
+            curr_hp = float(self.plot_config['do_hp'])
+
+            to_write = np.array([curr_channel, curr_range, curr_hp], dtype=np.float).tobytes()
+            self.monitored_shared_mem.data()[-len(to_write):] = memoryview(to_write)
+            self.monitored_shared_mem.unlock()
 
     def on_thresh_line_moved(self, inf_line):
         for line_label in self.segmented_series:
