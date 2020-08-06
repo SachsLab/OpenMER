@@ -1,6 +1,6 @@
 # NeuroportDBS
 
-A collection of software we use for DBS MER using Blackrock Neuroport. Skip ahead to the Getting Started section below if you are interested in installing this software on your own computer.
+A collection of software we use for DBS MER using Blackrock Neuroport. Skip ahead to the [Getting Started](#getting-started) section below if you are interested in installing this software on your own computer.
 
 ## Introduction
 
