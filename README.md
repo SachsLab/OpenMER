@@ -32,7 +32,7 @@ There are 3 different applications for visualizing signals in real-time:
 
 *CommentGUI* is for simple text entry to send arbitrary comments to the Blackrock NSP.
 
-*FeaturesGUI* is a much fuller application than the others. It monitors the signals and the depths, then for every new depth it stores a 4-sec segment to a database, and for each segment it calculates a set of predefined features. The depth history of raw segments or features are plotted and updated automatically. The database interaction is a Django app called [NeuroportDBS_eerfapp_DB](https://github.com/SachsLab/NeuroportDBS_eerfapp_DB) backed by a MySQL database.
+*FeaturesGUI* is a much fuller application than the others. It monitors the signals and the depths, then for every new depth it stores a 4-sec segment to a database, and for each segment it calculates a set of predefined features. The depth history of raw segments or features are plotted and updated automatically. The database interaction is a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
 
 [*CereStimDBS*](https://github.com/SachsLab/CereStimDBS) is a Matlab-based tool for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
 
@@ -135,7 +135,7 @@ The executables we want to run are all located in the `WPy64-3760\python-3.7.6.a
 * `dbs-sweep`. Click connect, OK, Add Plot
 * `dbs-raster`. Click connect, OK, Add Plot
 * `dbs-waveform`. Click connect, OK, Add Plot
-* `dbs-ddu`. Choose your serial port (or "cbsdk playback") then press OK.
+* `dbs-ddu`. Choose your serial port (or "cbsdk playback") then press Open.
     * Choosing the wrong serial port may cause the application to hang. Force close then try again.
 * `mysql\bin\mysqld`
 * `dbs-features`. See below. 
