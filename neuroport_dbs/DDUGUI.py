@@ -3,15 +3,17 @@ import serial
 import serial.tools.list_ports
 
 # use the same GUI format as the other ones
+import qtpy.QtCore
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QComboBox, QLabel, QLCDNumber, QPushButton, QDoubleSpinBox, \
                            QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QMainWindow, \
                            QFrame, QGridLayout
-
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QPalette, QColor
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QTimer
 
 from cerebuswrapper import CbSdkConnection
-from pylsl import stream_info, stream_outlet, IRREGULAR_RATE
+import pylsl
 
 DEPTHWINDOWDIMS = [1260, 0, 660, 250]
 
@@ -20,8 +22,17 @@ class DepthGUI(QMainWindow):
 
     def __init__(self):
         super(DepthGUI, self).__init__()
+
+        self.display_string = None
+
+        # Serial port config
+        self.ser = serial.Serial()
+        self.ser.baudrate = 19200
+
+        self.depth_stream = None
+        self._prev_port = None
+
         self.setup_ui()
-        self.setup_ddu()
 
     def setup_ui(self):
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
@@ -79,7 +90,7 @@ class DepthGUI(QMainWindow):
 
         quit_btn = QPushButton('X')
         quit_btn.setMaximumWidth(20)
-        quit_btn.clicked.connect(qapp.quit)
+        quit_btn.clicked.connect(QApplication.instance().quit)
         pal = QPalette()
         pal.setColor(QPalette.Button, QColor(255, 0, 0, 255))
         quit_btn.setAutoFillBackground(True)
@@ -120,55 +131,78 @@ class DepthGUI(QMainWindow):
         self.comboBox_com_port.addItem("cbsdk playback")
 
         # Connect signals & slots
-        self.pushButton_open.clicked.connect(self.open_DDU)
-        self.chk_NSP.clicked.connect(self.connect_cbsdk)
-        self.chk_LSL.clicked.connect(self.stream_lsl)
+        self.pushButton_open.clicked.connect(self.on_open_clicked)
+        self.chk_NSP.clicked.connect(self.on_chk_NSP_clicked)  # Does this get triggered on first pass?
+        self.chk_LSL.clicked.connect(self.on_chk_LSL_clicked)  # Does this get triggered on first pass?
+        self.comboBox_com_port.currentIndexChanged.connect(self.on_comboBox_com_port_changed)
+        # TODO: Add signal for comboBox_com_port --> when cbsdk playback, uncheck NSP then re-open connection.
 
-    def setup_ddu(self):
-        self.display_string = None
+    def on_chk_NSP_clicked(self, state):
+        print(f"NSP clicked state: {state}")
+        if self.chk_NSP.isChecked():
+            if CbSdkConnection().connect() != 0:
+                self.chk_NSP.setChecked(False)
+        else:
+            CbSdkConnection().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+            if CbSdkConnection().is_connected:
+                CbSdkConnection().disconnect()
 
-        # Serial port config
-        self.ser = serial.Serial()
-        self.ser.baudrate = 19200
+    def on_chk_LSL_clicked(self, state):
+        print(f"LSL clicked state: {state}")
+        if self.chk_LSL.isChecked():
+            outlet_info = pylsl.StreamInfo(name='electrode_depth', type='depth', channel_count=1,
+                                           nominal_srate=pylsl.IRREGULAR_RATE, channel_format=pylsl.cf_float32,
+                                           source_id='depth1214')
+            self.depth_stream = pylsl.StreamOutlet(outlet_info)
+        else:
+            self.depth_stream = None
 
-        # NSP Config
-        self.do_NSP = True
-        self.connect_cbsdk()
+    def _do_close(self, from_port):
+        if from_port == "cbsdk playback":
+            CbSdkConnection().disconnect()
+        else:
+            self.ser.close()
+        self.pushButton_open.setText("Open")
 
-        # LSL outlet config
-        self.do_LSL = True  # Default is on
-        depth_info = stream_info(name='electrode_depth', type='depth', channel_count=1,
-                                 nominal_srate=IRREGULAR_RATE, source_id='depth1214')
-        self.depth_stream = stream_outlet(depth_info)
+    def on_comboBox_com_port_changed(self, new_ix):
+        # If a connection was already open, close it before proceeding.
+        if self.pushButton_open.text() == "Close":
+            self._do_close(self._prev_port)
 
-    def open_DDU(self):
+        if self.comboBox_com_port.currentText() == "cbsdk playback":
+            # If switching _to_ cbsdk playback, disconnect and disable sending out comments.
+            self.chk_NSP.setChecked(False)  # Force disconnect if connected.
+            self.chk_NSP.setEnabled(False)
+        elif self._prev_port == "cbsdk playback":
+            # If switching _from_ cbsdk playback, reenable sending out comments (but don't connect).
+            self.chk_NSP.setEnabled(True)
+        self._prev_port = self.comboBox_com_port.currentText()
+
+    def on_open_clicked(self):
         com_port = self.comboBox_com_port.currentText()
         cmd_text = self.pushButton_open.text()
         if cmd_text == 'Open':
             if com_port == "cbsdk playback":
-                pass
+                CbSdkConnection().connect()
+                CbSdkConnection().cbsdk_config = {
+                    'reset': True, 'get_events': False, 'get_comments': True,
+                    'buffer_parameter': {
+                        'comment_length': 10
+                    }
+                }
+                self.pushButton_open.setText("Close")
             else:
                 if not self.ser.is_open:
                     self.ser.port = com_port
                     try:
                         self.ser.open()  # TODO: Add timeout; Add error.
                         self.ser.write('AXON+\r'.encode())
-                        self.pushButton_open.setText("Close")
                     except serial.serialutil.SerialException:
                         print("Could not open serial port")
+                    finally:
+                        self.pushButton_open.setText("Close" if self.ser.is_open else "Open")
         else:
-            if com_port == "cbsdk playback":
-                pass
-            else:
-                self.ser.close()
-
-    def connect_cbsdk(self):
-        if CbSdkConnection().connect() != 0:
-            self.chk_NSP.setChecked(False)
-        self.do_NSP = self.chk_NSP.isChecked()
-
-    def stream_lsl(self):
-        self.do_LSL = self.chk_LSL.isChecked()
+            self._do_close(com_port)
 
     def update(self):
         # Added new_value handling for playback if we ever want to post-process depth
@@ -178,7 +212,6 @@ class DepthGUI(QMainWindow):
 
         if self.comboBox_com_port.currentText() == "cbsdk playback":
             cbsdk_conn = CbSdkConnection()
-
             if cbsdk_conn.is_connected:
                 comments = cbsdk_conn.get_comments()
                 if comments:
@@ -193,7 +226,8 @@ class DepthGUI(QMainWindow):
                     out_value = dtts[-1]
                     new_value = True
                     self.offset_ddu.display("{0:.3f}".format(out_value))
-                    self.raw_ddu.display("{0:.3f}".format(out_value))
+                    offset = self.doubleSpinBox_offset.value()
+                    self.raw_ddu.display("{0:.3f}".format(out_value - offset))
 
         elif self.ser.is_open:
             in_str = self.ser.readline().decode('utf-8').strip()
@@ -214,7 +248,7 @@ class DepthGUI(QMainWindow):
                     # Push to NSP
                     cbsdk_conn = CbSdkConnection()
                     if cbsdk_conn.is_connected:
-                        if self.do_NSP and new_value:
+                        if self.chk_NSP.isChecked() and new_value:
                             cbsdk_conn.set_comments("DTT:" + display_string)
                     else:
                         self.chk_NSP.setChecked(False)
@@ -223,7 +257,7 @@ class DepthGUI(QMainWindow):
                     print("DDU result: {}".format(in_str))
 
         # Push to LSL
-        if self.do_LSL and new_value:
+        if self.depth_stream is not None and new_value:
             self.depth_stream.push_sample([out_value])
 
     def send(self):
@@ -231,11 +265,8 @@ class DepthGUI(QMainWindow):
         self.update()
 
 
-if __name__ == '__main__':
-    from qtpy.QtWidgets import QApplication
-    from qtpy.QtCore import QTimer
-
-    qapp = QApplication(sys.argv)
+def main():
+    _ = QApplication(sys.argv)
     window = DepthGUI()
     window.show()
     timer = QTimer()
@@ -244,3 +275,7 @@ if __name__ == '__main__':
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
+
+
+if __name__ == '__main__':
+    main()

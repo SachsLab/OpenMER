@@ -11,7 +11,7 @@ from qtpy.QtCore import Qt, QTimer, Signal
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -235,8 +235,8 @@ class RasterWidget(CustomWidget):
             self.modify_frate(line_label, frate)
 
 
-if __name__ == '__main__':
-    qapp = QApplication(sys.argv)
+def main():
+    _ = QApplication(sys.argv)
     aw = RasterGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
@@ -244,3 +244,7 @@ if __name__ == '__main__':
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
+
+
+if __name__ == '__main__':
+    main()

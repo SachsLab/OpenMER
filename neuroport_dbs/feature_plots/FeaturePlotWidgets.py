@@ -7,7 +7,7 @@ from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout
 from qtpy.QtGui import QColor, QFont
 
 import pyqtgraph as pg
-from dbsgui.my_widgets.custom import THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import THEMES
 
 pen_colors = THEMES['dark']['pencolors']
 DEPTHRANGE = [-20, 5]

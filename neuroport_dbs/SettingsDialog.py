@@ -1,16 +1,11 @@
-import sys
-import os
 import numpy as np
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QVBoxLayout, QWidget, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, \
                            QCheckBox, QTabWidget
-
 from qtpy.QtCore import QDate, QRegExp, Qt, Signal
 from qtpy.QtGui import QRegExpValidator
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'expdb')))
-from DB_Wrap import DBWrapper
+from serf.tools.db_wrap import DBWrapper
 
 
 class SubjectWidget(QWidget):

@@ -1,26 +1,23 @@
 import os
 import sys
 import numpy as np
-
-# use the same GUI format as the other ones
+import qtpy.QtCore
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QPushButton, \
                            QCheckBox, QHBoxLayout, QStackedWidget, QAction
-
-from qtpy.QtCore import Qt, QSharedMemory, Signal
-
+from qtpy.QtCore import QSharedMemory, Signal
 from qtpy.QtGui import QPixmap
 
 from cerebuswrapper import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
-from feature_plots import *
-from SettingsDialog import SettingsDialog
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
+from neuroport_dbs.feature_plots import *
+from neuroport_dbs.SettingsDialog import SettingsDialog
 
-# Import the test wrapper.
-# TODO: proper package and import.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'expdb')))
-from DB_Wrap import DBWrapper, ProcessWrapper
+from serf.tools.db_wrap import DBWrapper, ProcessWrapper
+
 
 WINDOWDIMS = [1260, 250, 660, 830]
 
@@ -69,7 +66,7 @@ class FeaturesGUI(CustomGUI):
             if self.plot_widget.awaiting_close:
                 del self.plot_widget
 
-        qapp.quit()
+        QApplication.instance().quit()
 
     # defined in the CustomGUI class, is triggered when the "Add Plot" button
     # is pressed in the default GUI (Connect, Add Plot, Quit)
@@ -541,11 +538,8 @@ class FeaturesPlotWidget(CustomWidget):
             self.manage_sweep_control()
 
 
-if __name__ == '__main__':
-    from qtpy.QtWidgets import QApplication
-    from qtpy.QtCore import QTimer
-
-    qapp = QApplication(sys.argv)
+def main():
+    _ = QApplication(sys.argv)
     window = FeaturesGUI()
     window.show()
     timer = QTimer()
@@ -554,3 +548,7 @@ if __name__ == '__main__':
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
+
+
+if __name__ == '__main__':
+    main()

@@ -12,7 +12,7 @@ import pyqtgraph as pg
 from cerebuswrapper import CbSdkConnection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -140,6 +140,7 @@ class SweepWidget(CustomWidget):
     UNIT_SCALING = 0.25  # Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
 
     def __init__(self, *args, **kwargs):
+        self._monitor_group = None
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
         # add a shared memory object to track the currently monitored channel to plot its features/depth monitoring
@@ -164,6 +165,23 @@ class SweepWidget(CustomWidget):
         self.monitored_shared_mem.create(24)
         self.update_shared_memory()
 
+    def keyPressEvent(self, e):
+        valid_keys = [Qt.Key_0, Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8,
+                      Qt.Key_9][:len(self.group_info) + 1]
+        current_button_id = self._monitor_group.checkedId()
+        new_button_id = None
+        if e.key() == Qt.Key_Left:
+            new_button_id = (current_button_id - 1) % (len(self.group_info) + 1)
+        elif e.key() == Qt.Key_Right:
+            new_button_id = (current_button_id + 1) % (len(self.group_info) + 1)
+        elif e.key() in valid_keys:
+            new_button_id = valid_keys.index(e.key())
+
+        if new_button_id is not None:
+            button = self._monitor_group.button(new_button_id)
+            button.setChecked(True)
+            self.on_monitor_group_clicked(new_button_id)
+
     def closeEvent(self, evnt):
         if self.pya_stream:
             if self.pya_stream.is_active():
@@ -183,18 +201,18 @@ class SweepWidget(CustomWidget):
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
         cntrl_layout.addWidget(QLabel("Monitor: "))
-        monitor_group = QButtonGroup(parent=self)
+        self._monitor_group = QButtonGroup(parent=self)
         none_button = QRadioButton("None")
         none_button.setChecked(True)
-        monitor_group.addButton(none_button)
-        monitor_group.setId(none_button, 0)
+        self._monitor_group.addButton(none_button)
+        self._monitor_group.setId(none_button, 0)
         cntrl_layout.addWidget(none_button)
         for chan_ix in range(len(self.group_info)):
             new_button = QRadioButton(self.group_info[chan_ix]['label'])
-            monitor_group.addButton(new_button)
-            monitor_group.setId(new_button, chan_ix + 1)
+            self._monitor_group.addButton(new_button)
+            self._monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
-        monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
+        self._monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
         # Checkbox for HP filter
         filter_checkbox = QCheckBox("HP")
         filter_checkbox.stateChanged.connect(self.on_hp_filter_changed)
@@ -445,10 +463,10 @@ class SweepWidget(CustomWidget):
         self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
 
 
-if __name__ == '__main__':
+def main():
     from qtpy.QtWidgets import QApplication
     from qtpy.QtCore import QTimer
-    qapp = QApplication(sys.argv)
+    _ = QApplication(sys.argv)
     aw = SweepGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
@@ -456,3 +474,7 @@ if __name__ == '__main__':
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
+
+
+if __name__ == '__main__':
+    main()

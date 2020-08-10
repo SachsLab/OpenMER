@@ -71,9 +71,13 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
             self.statusBar().showMessage("Sent: " + comment_string)
 
 
-if __name__ == '__main__':
+def main():
     import sys
     qapp = QtWidgets.QApplication(sys.argv)
     window = MyGUI()
     window.show()
     sys.exit(qapp.exec_())
+
+
+if __name__ == '__main__':
+    main()

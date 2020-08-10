@@ -5,12 +5,10 @@ import sys
 import datetime
 import regex as re
 import numpy as np
-from SettingsDialog import SettingsDialog
+from neuroport_dbs.SettingsDialog import SettingsDialog
 from qtpy.QtWidgets import QDialog, QProgressDialog
 from qtpy.QtCore import Qt
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'expdb')))
-from DB_Wrap import DBWrapper
+from serf.tools.db_wrap import DBWrapper
 
 
 class NS5OfflinePlayback:

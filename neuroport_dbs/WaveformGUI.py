@@ -4,12 +4,13 @@ chadwick.boulay@gmail.com
 import sys
 import os
 import numpy as np
+import qtpy.QtCore
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QPushButton, QLineEdit, QHBoxLayout, QLabel
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
 
 
 # TODO: Make some of these settings configurable via UI elements
@@ -17,7 +18,7 @@ from dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAM
 WINDOWDIMS = [920, 0, 400, 1080]
 XRANGE = [-300, 1140]  # uSeconds
 YRANGE = 250      # uV default
-NWAVEFORMS = 100  # Default max number of waveforms to plot.
+NWAVEFORMS = 200  # Default max number of waveforms to plot.
 SIMOK = False     # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
 WF_COLORS = ["white", "magenta", "cyan", "yellow", "purple", "green"]
 
@@ -29,7 +30,7 @@ class WaveformGUI(CustomGUI):
         self.setWindowTitle('Neuroport DBS - Waveform Plot')
 
     def on_action_add_plot_triggered(self):
-        self.cbsdk_conn.cbsdk_config ={
+        self.cbsdk_conn.cbsdk_config = {
             'reset': True, 'get_events': False, 'get_comments': True,
             'buffer_parameter': {
                 'comment_length': 10
@@ -175,10 +176,10 @@ class WaveformWidget(CustomWidget):
                 self.wf_info[line_label]['plot'].removeItem(di)
 
 
-if __name__ == '__main__':
+def main():
     from qtpy.QtWidgets import QApplication
     from qtpy.QtCore import QTimer
-    qapp = QApplication(sys.argv)
+    _ = QApplication(sys.argv)
     aw = WaveformGUI()
     timer = QTimer()
     timer.timeout.connect(aw.update)
@@ -186,3 +187,7 @@ if __name__ == '__main__':
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
+
+
+if __name__ == '__main__':
+    main()
