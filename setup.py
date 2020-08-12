@@ -21,7 +21,10 @@ setup(
     name=package_name,
     version=__version__,
     packages=find_packages(),
-
+    data_files=[('icons', ['NeuroportDBS/neuroport_dbs/icons/depth_status_done.png',
+                           'NeuroportDBS/neuroport_dbs/icons/depth_status_in_use.png',
+                           'NeuroportDBS/neuroport_dbs/icons/depth_status_off.png'])],
+    
     description='Tools for clinical research using Blackrock Neurport in DBS MER',
     long_description=long_description,
     long_description_content_type="text/markdown",
