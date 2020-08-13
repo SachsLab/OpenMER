@@ -77,7 +77,8 @@ class DepthGUI(QMainWindow):
         h_layout.addSpacing(10)
 
         self.chk_LSL = QCheckBox("Stream to LSL")
-        self.chk_LSL.setChecked(True)
+        self.chk_LSL.clicked.connect(self.on_chk_LSL_clicked)
+        self.chk_LSL.click()  # default is enabled, click call to trigger LSL stream creation.
         h_layout.addWidget(self.chk_LSL)
 
         h_layout.addSpacing(10)
@@ -91,10 +92,12 @@ class DepthGUI(QMainWindow):
         quit_btn = QPushButton('X')
         quit_btn.setMaximumWidth(20)
         quit_btn.clicked.connect(QApplication.instance().quit)
-        pal = QPalette()
-        pal.setColor(QPalette.Button, QColor(255, 0, 0, 255))
-        quit_btn.setAutoFillBackground(True)
-        quit_btn.setPalette(pal)
+
+        quit_btn.setStyleSheet("QPushButton { color: white; "
+                               "background-color : red; "
+                               "border-color : red; "
+                               "border-width: 2px}")
+
         h_layout.addWidget(quit_btn)
 
         v_layout.addLayout(h_layout)
@@ -132,20 +135,8 @@ class DepthGUI(QMainWindow):
 
         # Connect signals & slots
         self.pushButton_open.clicked.connect(self.on_open_clicked)
-        self.chk_NSP.clicked.connect(self.on_chk_NSP_clicked)  # Does this get triggered on first pass?
-        self.chk_LSL.clicked.connect(self.on_chk_LSL_clicked)  # Does this get triggered on first pass?
         self.comboBox_com_port.currentIndexChanged.connect(self.on_comboBox_com_port_changed)
         # TODO: Add signal for comboBox_com_port --> when cbsdk playback, uncheck NSP then re-open connection.
-
-    def on_chk_NSP_clicked(self, state):
-        print(f"NSP clicked state: {state}")
-        if self.chk_NSP.isChecked():
-            if CbSdkConnection().connect() != 0:
-                self.chk_NSP.setChecked(False)
-        else:
-            CbSdkConnection().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
-            if CbSdkConnection().is_connected:
-                CbSdkConnection().disconnect()
 
     def on_chk_LSL_clicked(self, state):
         print(f"LSL clicked state: {state}")
@@ -169,19 +160,24 @@ class DepthGUI(QMainWindow):
         if self.pushButton_open.text() == "Close":
             self._do_close(self._prev_port)
 
+        # at this point the Open/Close pushbutton should show: Open
+        # we will only enable/disable the Send to NSP button to leave the current checked status.
+        # The default should be checked.
         if self.comboBox_com_port.currentText() == "cbsdk playback":
-            # If switching _to_ cbsdk playback, disconnect and disable sending out comments.
-            self.chk_NSP.setChecked(False)  # Force disconnect if connected.
+            # If switching _to_ cbsdk playback, disable sending out comments.
             self.chk_NSP.setEnabled(False)
+
         elif self._prev_port == "cbsdk playback":
-            # If switching _from_ cbsdk playback, reenable sending out comments (but don't connect).
+            # If switching _from_ cbsdk playback, re-enable sending out comments.
             self.chk_NSP.setEnabled(True)
+
         self._prev_port = self.comboBox_com_port.currentText()
 
     def on_open_clicked(self):
         com_port = self.comboBox_com_port.currentText()
         cmd_text = self.pushButton_open.text()
         if cmd_text == 'Open':
+
             if com_port == "cbsdk playback":
                 CbSdkConnection().connect()
                 CbSdkConnection().cbsdk_config = {
@@ -192,6 +188,10 @@ class DepthGUI(QMainWindow):
                 }
                 self.pushButton_open.setText("Close")
             else:
+                if self.chk_NSP.isEnabled() and self.chk_NSP.isChecked():
+                    CbSdkConnection().connect()
+                    CbSdkConnection().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+
                 if not self.ser.is_open:
                     self.ser.port = com_port
                     try:
@@ -248,10 +248,15 @@ class DepthGUI(QMainWindow):
                     # Push to NSP
                     cbsdk_conn = CbSdkConnection()
                     if cbsdk_conn.is_connected:
-                        if self.chk_NSP.isChecked() and new_value:
+                        if self.chk_NSP.isChecked() and self.chk_NSP.isEnabled() and new_value:
                             cbsdk_conn.set_comments("DTT:" + display_string)
                     else:
-                        self.chk_NSP.setChecked(False)
+                        # try connecting if not connected but button is active
+                        if self.chk_NSP.isChecked() and self.chk_NSP.isEnabled():
+                            cbsdk_conn().connect()
+                            cbsdk_conn().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+                        # set button to connection status
+                        self.chk_NSP.setChecked(cbsdk_conn.is_connected)
 
                 except ValueError:
                     print("DDU result: {}".format(in_str))
