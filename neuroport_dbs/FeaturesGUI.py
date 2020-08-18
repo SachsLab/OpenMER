@@ -30,6 +30,8 @@ DEPTHRANGE = [-20, 5]
 DEPTHSETTINGS = {'threshold': True,
                  'validity': 90.0}
 
+BASEPATH = 'C:\\Recordings'
+
 
 class FeaturesGUI(CustomGUI):
 
@@ -79,7 +81,6 @@ class FeaturesGUI(CustomGUI):
         # information. The rest accepts empty dicts
         self.buffer_settings['buffer_length'] = '6.000'
         self.buffer_settings['sample_length'] = '4.000'
-        self.buffer_settings['run_buffer'] = False
         self.buffer_settings['electrode_settings'] = {}
 
         if self.group_info:
@@ -210,63 +211,54 @@ class FeaturesPlotWidget(CustomWidget):
         layout = QHBoxLayout()
         layout.addSpacing(10)
 
-        layout.addWidget(QLabel("Features: "))
-        self.feature_select = QComboBox()
-        self.feature_select.setMinimumWidth(60)
-        self.feature_select.addItem('Raw')
-        # self.feature_select.addItems(self.feature_categories)
-        self.feature_select.setCurrentIndex(0)
-        layout.addWidget(self.feature_select)
-
-        layout.addSpacing(10)
-
-        layout.addWidget(QLabel("Electrode: "))
+        layout.addWidget(QLabel("Monitoring: "))
+        # Channel selection
         self.chan_select = QComboBox()
         self.chan_select.addItem("None")
-
         self.chan_select.setMinimumWidth(75)
         self.chan_select.setEnabled(False)
         layout.addWidget(self.chan_select)
 
-        layout.addSpacing(10)
+        layout.addSpacing(5)
+
+        # features selection
+        layout.addWidget(QLabel("for: "))
+        self.feature_select = QComboBox()
+        self.feature_select.setMinimumWidth(60)
+        self.feature_select.addItem('Raw')
+        self.feature_select.setCurrentIndex(0)
+        layout.addWidget(self.feature_select)
+
+        layout.addStretch()
 
         layout.addWidget(QLabel("+/-"))
         self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
         self.range_edit.setMaximumWidth(50)
         layout.addWidget(self.range_edit)
 
-        layout.addSpacing(10)
+        layout.addSpacing(5)
 
         self.do_hp = QCheckBox('HP')
         self.do_hp.setChecked(True)
         layout.addWidget(self.do_hp)
 
-        layout.addSpacing(10)
+        layout.addSpacing(5)
 
         self.sweep_control = QCheckBox("Match SweepGUI.")
         self.sweep_control.setChecked(True)
         self.sweep_control.setEnabled(self.monitored_channel_mem.isAttached())
         layout.addWidget(self.sweep_control)
 
-        # layout.addStretch()
-        layout.addSpacing(10)
+        layout.addStretch()
 
         self.btn_settings = QPushButton("Settings")
+        self.btn_settings.setMaximumWidth(50)
         layout.addWidget(self.btn_settings)
 
-        layout.addSpacing(10)
+        layout.addStretch()
 
-        self.depth_process_btn = QPushButton('B')
-        self.depth_process_btn.setMaximumWidth(15)
-        self.depth_process_btn.setStyleSheet("QPushButton { color: white; "
-                                             "background-color : red; "
-                                             "border-color : red; "
-                                             "border-width: 2px}")
-        self.depth_process_btn.clicked.connect(self.depth_process_btn_callback)
-        layout.addWidget(self.depth_process_btn)
-
-        self.features_process_btn = QPushButton('F')
-        self.features_process_btn.setMaximumWidth(15)
+        self.features_process_btn = QPushButton('Features')
+        self.features_process_btn.setMaximumWidth(50)
         self.features_process_btn.setStyleSheet("QPushButton { color: white; "
                                                 "background-color : red; "
                                                 "border-color : red; "
@@ -274,7 +266,16 @@ class FeaturesPlotWidget(CustomWidget):
         self.features_process_btn.clicked.connect(self.features_process_btn_callback)
         layout.addWidget(self.features_process_btn)
 
-        layout.addSpacing(10)
+        self.depth_process_btn = QPushButton('Record')
+        self.depth_process_btn.setMaximumWidth(50)
+        self.depth_process_btn.setStyleSheet("QPushButton { color: white; "
+                                             "background-color : red; "
+                                             "border-color : red; "
+                                             "border-width: 2px}")
+        self.depth_process_btn.clicked.connect(self.depth_process_btn_callback)
+        layout.addWidget(self.depth_process_btn)
+
+        layout.addStretch()
 
         self.status_label = QLabel()
         self.status_label.setPixmap(self.status_off)
@@ -294,6 +295,7 @@ class FeaturesPlotWidget(CustomWidget):
         # kill
         if self.depth_process_running:
             self.manage_depth_process(False)
+            self.manage_nsp(False)
         else:
             # if we terminate and re-start the processes, we need to re-enable the shared memory
             self.depth_wrapper.manage_shared_memory()
@@ -301,8 +303,10 @@ class FeaturesPlotWidget(CustomWidget):
             # re-send the settings
             self.depth_wrapper.send_settings(self.depth_settings)
 
-            # re-start the worker
-            self.manage_depth_process(True)
+            # start nsp recording
+            if self.manage_nsp(True) == 0:
+                # re-start the worker
+                self.manage_depth_process(True)
 
     def features_process_btn_callback(self):
         # kill
@@ -338,6 +342,22 @@ class FeaturesPlotWidget(CustomWidget):
         # need to do it like this because if we simply read the QLineEdit.text() on update calls, it breaks during
         # typing the new range values.
         self.y_range = float(self.range_edit.text())
+
+    def manage_nsp(self, on_off):
+        import time
+        # set patient info
+        patient_info = {}
+
+        # filename is default path + patient name + date-procedureID.nsx
+        file_info = {'filename': os.path.normpath(os.path.join(BASEPATH,
+                                                  self.subject_settings['name'],
+                                                  str(self.procedure_settings['date']) + '_' +
+                                                  str(self.depth_settings['procedure_id']))),
+                     'comment': ''}
+        if not CbSdkConnection().is_connected:
+            CbSdkConnection().connect()
+
+        return CbSdkConnection().set_recording_state(on_off, file_info)
 
     def manage_depth_process(self, on_off):
         # start process
@@ -393,11 +413,6 @@ class FeaturesPlotWidget(CustomWidget):
 
         self.depth_wrapper.send_settings(self.depth_settings)
         self.features_wrapper.send_settings(self.features_settings)
-
-        if self.depth_settings['run_buffer'] and \
-                CbSdkConnection().is_connected and \
-                not self.depth_process_running:
-            self.manage_depth_process(True)
 
         if not self.features_process_running:
             self.manage_feature_process(True)

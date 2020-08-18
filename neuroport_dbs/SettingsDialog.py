@@ -339,17 +339,17 @@ class BufferWidget(QWidget):
             self.edit_sample_length.setFixedWidth(40)
             buffer_layout.addWidget(self.edit_sample_length, row, 1, 1, 1)
 
-            row += 1
-            self.run_buffer = QCheckBox('Run depth buffer')
-            self.run_buffer.setChecked(len(self.buffer_settings['electrode_settings']) != 0)
-            self.run_buffer.setEnabled(len(self.buffer_settings['electrode_settings']) != 0)
-            buffer_layout.addWidget(self.run_buffer, row, 0, 1, 1)
+            # row += 1
+            # self.run_buffer = QCheckBox('Run depth buffer')
+            # self.run_buffer.setChecked(len(self.buffer_settings['electrode_settings']) != 0)
+            # self.run_buffer.setEnabled(len(self.buffer_settings['electrode_settings']) != 0)
+            # buffer_layout.addWidget(self.run_buffer, row, 0, 1, 1)
 
     def to_dict(self):
         # convert all fields to dictionary and return it
         self.buffer_settings['buffer_length'] = self.edit_buffer_length.text()
         self.buffer_settings['sample_length'] = self.edit_sample_length.text()
-        self.buffer_settings['run_buffer'] = self.run_buffer.isChecked()
+        # self.buffer_settings['run_buffer'] = self.run_buffer.isChecked()
 
         for key, value in self.buffer_widgets.items():
             self.buffer_settings['electrode_settings'][key] = {}
