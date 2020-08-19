@@ -344,16 +344,13 @@ class FeaturesPlotWidget(CustomWidget):
         self.y_range = float(self.range_edit.text())
 
     def manage_nsp(self, on_off):
-        import time
-        # set patient info
-        patient_info = {}
-
-        # filename is default path + patient name + date-procedureID.nsx
         file_info = {'filename': os.path.normpath(os.path.join(BASEPATH,
                                                   self.subject_settings['name'],
                                                   str(self.procedure_settings['date']) + '_' +
                                                   str(self.depth_settings['procedure_id']))),
-                     'comment': ''}
+                     'comment': '',
+                     'patient_info': {'ID': self.subject_settings['id']}}
+
         if not CbSdkConnection().is_connected:
             CbSdkConnection().connect()
 
