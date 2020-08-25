@@ -39,3 +39,4 @@ build-*
 .idea
 CereStimGUI/matlab/cerestim_dbs/
 neuroport_dbs.egg-info
+*.whl

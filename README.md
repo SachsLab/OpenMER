@@ -20,9 +20,9 @@ MER requires specialized equipment and software. While all-in-one medical device
 
 The Blackrock NSP has its own [NeuroPort Central Suite](https://www.blackrockmicro.com/technical-support/software-downloads/) to manage the configuration of the device and to store data. However, its data visualization capabilities are rather limited and not suited for DBS MER.
 
-The NSP data stream is accessible via its open source API [CereLink](https://github.com/dashesy/CereLink) which includes a Python interface called `cerebus.cbpy`. These are maintained by Sachs Lab member [Dr. Chadwick Boulay](https://github.com/cboulay). Most of our Neuroport DBS software is written in Python and much of it uses `cerebus.cbpy` to communicate with the NSP.
+The NSP data stream is accessible via its open source API [CereLink](https://github.com/dashesy/CereLink) which includes a Python interface called `cerebus.cbpy`. These are maintained by Sachs Lab member [Dr. Chadwick Boulay](https://github.com/cboulay). Most of our Neuroport DBS software is written in Python and much of it uses `cerebus.cbpy` and a custom [cerebuswrapper](https://github.com/SachsLab/cerebuswrapper) to communicate with the NSP.
 
-There are 3 different applications for visualizing signals in real-time:
+NeuroportDBS has 3 different applications for visualizing signals in real-time:
 * *SweepGUI* - Plots continuous signals in sweeps, optional high-pass filter, and sonifies a channel.
 * *RasterGUI* - Plots threshold crossing events in a raster plot, with spike rate displayed in the corner (up to 8 sec history)
 * *WaveformGUI* - Plots the waveforms of the last N threshold crossing events.
@@ -32,7 +32,7 @@ There are 3 different applications for visualizing signals in real-time:
 
 *CommentGUI* is for simple text entry to send arbitrary comments to the Blackrock NSP.
 
-*FeaturesGUI* is a much fuller application than the others. It monitors the signals and the depths, then for every new depth it stores a 4-sec segment to a database, and for each segment it calculates a set of predefined features. The depth history of raw segments or features are plotted and updated automatically. The database interaction is a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
+*FeaturesGUI* is a much fuller application than the others. It monitors the signals and the depths, then for every new depth it stores a 4-sec segment to a database, and for each segment it calculates a set of predefined features. The depth history of raw segments or features are plotted and updated automatically. The database interaction occurs via a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
 
 [*CereStimDBS*](https://github.com/SachsLab/CereStimDBS) is a Matlab-based tool for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
 
@@ -54,8 +54,9 @@ Choose one of the approaches and follow the appropriate instructions below.
 ### 2 - For Maintainers of the Zip Distribution
 
 * Download the latest [WinPython release](https://github.com/winpython/winpython/releases/latest).
-    * These instructions were tested with Winpython64-3.7.7.1
-* Run the WinPython self-extracting executable. This will create a folder containing a full Python distribution with many useful packages installed (see full list [here](https://github.com/winpython/winpython/blob/master/changelogs/WinPython-64bit-3.7.7.1.md)).
+    * These instructions were tested with Winpython64-3.8.5.0
+* Run the WinPython self-extracting executable. This will create a folder containing a full Python distribution with many useful packages installed (see full list [here](https://github.com/winpython/winpython/blob/master/changelogs/WinPython-64bit-3.8.5.0.md)).
+* [Edit the `WPy64-3850\settings\winpython.ini` file](https://sourceforge.net/p/winpython/wiki/Environment/) and add the following line: `PATH = %WINPYDIR%\Lib\site-packages\PyQt5\Qt\bin;%PATH%`
 * Download [MySQL Windows ZIP Archive](https://dev.mysql.com/downloads/mysql/)
     * Tested with mysql-8.0.2.1-win64.zip
 * Next to the WinPython folder, extract the mysql zip and rename the extracted folder to `mysql`
@@ -64,11 +65,12 @@ Choose one of the approaches and follow the appropriate instructions below.
     * Version numbers may not be important. Please try the latest version and report to us if it does not work.
     * The method to install the packages isn't important. If you're on an internet-connected computer then you can use the pip commands. Otherwise you can first download the wheels then bring them to the development computer to pip install the wheels.
     * If you wish to be able to modify any of the SachsLab packages that are pure python (mspacman, cerebuswrapper, serf, **neuroport_dbs**) then you may do so by first cloning the repository to get the source and installing the package in-place: Using the WinPython command prompt, run `pip install -e .` from within the cloned directory.
+    * The `cerebus` package may complain "DLL load failed". This happens when cerebus.cbpy can't find Qt5 or it finds the wrong version. This SHOULD be fixed by editing the path in the 3rd step, but I also found it necessary to copy Qt5Core.dll and Qt5Xml.dll from the above path directly into the site-packages\cerebus folder. We are trying to remove the qt dependency from cerebus to avoid this in the future.
 * In the command prompt, `cd` into the `bin` subfolder of the unzipped mysql folder.
 * Create a mysql\data folder along with the base databases: `mysqld --initialize-insecure --console`
     * You can change the default data directory, username, and password. See the section below "Configuring MySQL Database Server"
 * Double-click on the `mysqld` executable in the bin folder.
-* `mysqladmin --user=root create serf`
+* Back in the command prompt, run `mysqladmin --user=root create serf`
 * Install the serf databases with the following commands:
     ```
     serf-makemigrations
@@ -78,25 +80,19 @@ Choose one of the approaches and follow the appropriate instructions below.
 
 #### Required Python Packages
 
-We put all of the required software in a prepared [GDrive folder](https://drive.google.com/drive/folders/1bld_ZafpCxRCEPqtiGhGaozw24Uq94nI?usp=sharing). From there, download the WinPython self-extracting executable, all the Python wheel files (`*.whl`), the MySQL zip, and the my.cnf file. If the GDrive is unavailable then you can source them yourself:
-* [WinPython](https://winpython.github.io/)
-* [MySQL Windows ZIP Archive](https://dev.mysql.com/downloads/mysql/)
-* Python wheels in the table below. (Versions provided in case something breaks with newer versions, but as far as we know the software will work with the latest version of each.)
-
 | Package        | Version    | Wheel | pip command |
 | -------        | -------    | ----- | ----------- |
-| pyFFTW         | 0.12.0     | [Link](https://files.pythonhosted.org/packages/b3/a4/7cfbc0b9488a55e35b835110916b8cea863e48a3da0f04e34dbc12ab043d/pyFFTW-0.12.0-cp37-cp37m-win_amd64.whl)
-| mysqlclient    | 2.0.1      | [Link](https://files.pythonhosted.org/packages/4a/28/b08ede6cc8382179201455c3b9e5ed0d66aa5921e7c1888828dba48b832b/mysqlclient-2.0.1-cp37-cp37m-win_amd64.whl)
-| asgiref        | 3.2.10     | [Link](https://files.pythonhosted.org/packages/d5/eb/64725b25f991010307fd18a9e0c1f0e6dff2f03622fc4bcbcdb2244f60d6/asgiref-3.2.10-py3-none-any.whl) | pip install --upgrade asgiref`
+| pyFFTW         | 0.12.0     | [Link](https://files.pythonhosted.org/packages/2b/e4/822d4cf12cd907fb8e80844db48aef7adf9e888c89256feb510fa81ae83f/pyFFTW-0.12.0-cp38-cp38-win_amd64.whl)
+| mysqlclient    | 2.0.1      | [Link](https://files.pythonhosted.org/packages/b2/72/e205fcf877dd0ec05d71b975def8ecef3ae4bb7fee14434615140ebdc168/mysqlclient-2.0.1-cp38-cp38-win_amd64.whl)
 | Django         | 3.1        | [Link](https://files.pythonhosted.org/packages/2b/5a/4bd5624546912082a1bd2709d0edc0685f5c7827a278d806a20cf6adea28/Django-3.1-py3-none-any.whl)
 | quantities     | 0.12.4     | | |
 | python-neo     | 0.9.0       | | `pip install git+https://github.com/NeuralEnsemble/python-neo.git`
 | pylsl          | 1.13.6     | [Link](https://files.pythonhosted.org/packages/02/c2/7b58adda02dbfa8f76bf835879d36b83dfc1da2eaa50d124d13a515e148c/pylsl-1.13.6-py2.py3-none-win_amd64.whl)
 | pytf           | 0.1        | [Link](https://github.com/SachsLab/pytf/releases/download/v0.1/pytf-0.1-py2.py3-none-any.whl) |`pip install git+https://github.com/SachsLab/pytf.git`|
 | mspacman       | 0.1        | [Link](https://github.com/SachsLab/mspacman/releases/download/v0.1/mspacman-0.1-py2.py3-none-any.whl) |`pip install git+https://github.com/SachsLab/mspacman.git`|
-| cerebus        | 0.0.4      | [Link](https://github.com/dashesy/CereLink/releases/download/v7.0.5/cerebus-0.0.4-cp37-cp37m-win_amd64.whl) |N/A - must use wheel|
+| cerebus        | 0.0.4      | [Link](https://github.com/dashesy/CereLink/releases/download/v7.0.5/cerebus-0.0.4-cp38-cp38-win_amd64.whl) |N/A - must use wheel|
 | cerebuswrapper | 0.1      | [Link](https://github.com/SachsLab/cerebuswrapper/releases/download/v0.1/cerebuswrapper-0.1.0-py3-none-any.whl) |`pip install git+https://github.com/SachsLab/cerebuswrapper.git`|
-| serf           | 2.0        | TODO | `pip install git+https://github.com/cboulay/SERF.git#subdirectory=python`|
+| serf           | 1.1        | [Link](https://github.com/cboulay/SERF/releases/download/v1.1/serf-1.1-py3-none-any.whl) | `pip install git+https://github.com/cboulay/SERF.git#subdirectory=python`|
 | neurport_dbs   | 0.3        | TODO | `pip install git+https://github.com/SachsLab/NeuroportDBS.git`|
 
 #### Configuring MySQL Database Server
@@ -137,13 +133,13 @@ We assume you know how to work with conda environments and that you have a MySQL
 * Select a recording to play back
 * Use Central's hardware configuration tool to enable continuous recording and spike extraction on the recorded channels.
 * Follow the general Usage Instructions below.
-    * When running `dbs-ddu`, choose "cbsdk playback" from the dropdown menu to reuse the depths from the recording.
+    * When running `dbs-ddu`, choose "cbsdk playback" from the dropdown menu to reuse the depths from the recording. The value might not update until the file plays back a change in depth.
 
 ## Usage Instructions
 
 The NSP must be on and Central must be running. If you are not connected to the NSP then follow the instructions above to setup a test environment.
 
-The executables we want to run are all located in the `WPy64-3771\python-3.7.7.amd64\Scripts` folder. You probably want to make some shortcuts to these executables on your desktop.
+The executables we want to run are all located in the `WPy64-3850\python-3.8.5.amd64\Scripts` folder. You probably want to make some shortcuts to these executables on your desktop.
 * `dbs-sweep`. Click connect, OK, Add Plot
 * `dbs-raster`. Click connect, OK, Add Plot
 * `dbs-waveform`. Click connect, OK, Add Plot
@@ -176,3 +172,8 @@ Then you're presented with a settings window.
     * Enter Entry and Target coordinates. Also enter Distance to target to confirm.
     * If you record the Nexframe orientation by recordings its A and E locations then enter them here.
         * TODO: use perfectly-aligned values as defaults.
+* Click OK to start the GUI
+* Click on the "Record" button.
+    * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\FeaturesGUI.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
+* After a new depth is entered and the depth remains constant for 4-8 seconds (depending on signal quality), a segment will be added to the database.
+* The current trajectory that is visualized is by default synchronized with the Sweep GUI selection for audio. To change which trajectory is being visualized, you can change which channel you are listening to, or uncheck the synchronize box and set the channel manually.
