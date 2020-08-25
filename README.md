@@ -93,7 +93,7 @@ Choose one of the approaches and follow the appropriate instructions below.
 | cerebus        | 0.0.4      | [Link](https://github.com/dashesy/CereLink/releases/download/v7.0.5/cerebus-0.0.4-cp38-cp38-win_amd64.whl) |N/A - must use wheel|
 | cerebuswrapper | 0.1      | [Link](https://github.com/SachsLab/cerebuswrapper/releases/download/v0.1/cerebuswrapper-0.1.0-py3-none-any.whl) |`pip install git+https://github.com/SachsLab/cerebuswrapper.git`|
 | serf           | 1.1        | [Link](https://github.com/cboulay/SERF/releases/download/v1.1/serf-1.1-py3-none-any.whl) | `pip install git+https://github.com/cboulay/SERF.git#subdirectory=python`|
-| neurport_dbs   | 0.3        | TODO | `pip install git+https://github.com/SachsLab/NeuroportDBS.git`|
+| neurport_dbs   | 0.3        | [Link](https://github.com/SachsLab/NeuroportDBS/releases/download/v1.0/neuroport_dbs-1.0.0-py3-none-any.whl) | `pip install git+https://github.com/SachsLab/NeuroportDBS.git`|
 
 #### Configuring MySQL Database Server
 
