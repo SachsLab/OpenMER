@@ -76,6 +76,16 @@ Choose one of the approaches and follow the appropriate instructions below.
     serf-makemigrations
     serf-migrate
     ```
+* Make a batch file `WPy64-3850\scripts\NeuroportDBS.bat` with the following contents:
+    ```shell script
+    @echo off
+    call "%~dp0env_for_icons.bat"
+    start "" "%WINPYDIR%\Scripts\dbs-sweep.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-raster.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-waveform.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-ddu.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-features.exe" /command:%1 /B
+    ```
 * Jump ahead to [Usage Instructions](#usage-instructions) below.
 
 #### Required Python Packages
@@ -139,14 +149,19 @@ We assume you know how to work with conda environments and that you have a MySQL
 
 The NSP must be on and Central must be running. If you are not connected to the NSP then follow the instructions above to setup a test environment.
 
-The executables we want to run are all located in the `WPy64-3850\python-3.8.5.amd64\Scripts` folder. You probably want to make some shortcuts to these executables on your desktop.
+The executables we want to run are all located in the `WPy64-3850\python-3.8.5.amd64\Scripts` folder.
 * `dbs-sweep`. Click connect, OK, Add Plot
 * `dbs-raster`. Click connect, OK, Add Plot
 * `dbs-waveform`. Click connect, OK, Add Plot
 * `dbs-ddu`. Choose your serial port (or "cbsdk playback") then press Open.
     * Choosing the wrong serial port may cause the application to hang. Force close then try again.
 * `mysql\bin\mysqld`
-* `dbs-features`. See below. 
+* `dbs-features`. See below.
+
+For easier running:
+* Make a shortcut to `mysql\bin\mysqld.exe`.
+* Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
+
 
 ### Sweep Plot
 
