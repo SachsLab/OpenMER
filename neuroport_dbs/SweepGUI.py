@@ -174,6 +174,8 @@ class SweepWidget(CustomWidget):
             new_button_id = (current_button_id - 1) % (len(self.group_info) + 1)
         elif e.key() == Qt.Key_Right:
             new_button_id = (current_button_id + 1) % (len(self.group_info) + 1)
+        elif e.key() == Qt.Key_Space:
+            new_button_id = 0
         elif e.key() in valid_keys:
             new_button_id = valid_keys.index(e.key())
 
