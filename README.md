@@ -149,27 +149,36 @@ We assume you know how to work with conda environments and that you have a MySQL
 
 The NSP must be on and Central must be running. If you are not connected to the NSP then follow the instructions above to setup a test environment.
 
+For easier running:
+* Make a shortcut to `mysql\bin\mysqld.exe`.
+* Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
+
 The executables we want to run are all located in the `WPy64-3850\python-3.8.5.amd64\Scripts` folder.
+* `mysql\bin\mysqld`
 * `dbs-sweep`. Click connect, OK, Add Plot
 * `dbs-raster`. Click connect, OK, Add Plot
 * `dbs-waveform`. Click connect, OK, Add Plot
 * `dbs-ddu`. Choose your serial port (or "cbsdk playback") then press Open.
     * Choosing the wrong serial port may cause the application to hang. Force close then try again.
-* `mysql\bin\mysqld`
 * `dbs-features`. See below.
 
-For easier running:
-* Make a shortcut to `mysql\bin\mysqld.exe`.
-* Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
+### SweepGUI -- RasterGUI -- WaveformGUI
 
+These 3 applications share the same simple instructions: First click "Connect" to open the NSP connection dialog then OK (assuming defaults are OK). Then click Add Plot to open the window.
 
-### Sweep Plot
+#### Sweep Plot Audio
 
-### Raster Plot
-
-### Waveforms Plot
+The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). For convenience when using a simple keyboard emulation (e.g. footpad), you may use left-arrow and right-arrow for cycling through the channels. In a recent update, Space also selects silence but this is not yet in the zip distribution.  
 
 ### DDU
+
+Choose the COM port the depth digitizer is connected to then click Open.
+
+By default, it will automatically stream the depth to both LSL and to the NSP (added to the nev data as comments).
+
+If, like us, the depth readout isn't the same as your distance to target, then add an offset.
+
+**For FHC motor controller V2**: It reports depth in um, so we have to scale the depth reading by 0.001 . The ability to detect which DDU is in use is not implemented in the DDU GUI so we manually edit DDUGUI.py to hard code the scaling.
 
 ### Features
 Click connect, OK, Add Plot
@@ -191,4 +200,4 @@ Then you're presented with a settings window.
 * Click on the "Record" button.
     * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\FeaturesGUI.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
 * After a new depth is entered and the depth remains constant for 4-8 seconds (depending on signal quality), a segment will be added to the database.
-* The current trajectory that is visualized is by default synchronized with the Sweep GUI selection for audio. To change which trajectory is being visualized, you can change which channel you are listening to, or uncheck the synchronize box and set the channel manually.
+* The current trajectory that is visualized is by default synchronized with the Sweep GUI selection for audio. To change which trajectory is being visualized, you can change which channel you are listening to in SweepGUI, or uncheck the synchronize box and set the channel manually.
