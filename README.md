@@ -153,14 +153,19 @@ For easier running:
 * Make a shortcut to `mysql\bin\mysqld.exe`.
 * Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
 
-The executables we want to run are all located in the `WPy64-3850\python-3.8.5.amd64\Scripts` folder.
-* `mysql\bin\mysqld`
-* `dbs-sweep`. Click connect, OK, Add Plot
-* `dbs-raster`. Click connect, OK, Add Plot
-* `dbs-waveform`. Click connect, OK, Add Plot
-* `dbs-ddu`. Choose your serial port (or "cbsdk playback") then press Open.
-    * Choosing the wrong serial port may cause the application to hang. Force close then try again.
-* `dbs-features`. See below.
+First run the `mysqld` binary by double-clicking its shortcut. Then do the same for the `NeuroportDBS` batch file.
+
+Additional details follow.
+
+### DDU
+
+* Choose the COM port the depth digitizer is connected to then click Open.
+    * Choosing the wrong serial port may cause the application to hang. Force close then try again. If you are using the batch file to launch then this might mean closing all of the GUI applications and running the batch file again.
+* By default, it will automatically stream the depth to both LSL and to the NSP (added to the .nev datafile as comments). You can change this behaviour by unchecking the boxes.
+* If, like us, the depth readout isn't the same as your distance to target, then add an offset.
+    * For example, when using a StarDrive with NexFrame, and distance to target it 85.3 mm, and the StarDrive places the microelectrodes 60 mm toward target when the drive reads depth=0, the remaining distance to target is 25.3 mm, so we add an offset of `-25.3`. As the drive descends the microelectrodes, and the depth reading increases, the reported distance to target approaches 0 until passes the target then reports positive values.
+
+**For FHC motor controller V2**: It reports depth in um, so we have to scale the depth reading by 0.001 . The ability to detect which DDU is in use is not implemented in the DDU GUI so we manually edit DDUGUI.py to hard code the scaling.
 
 ### SweepGUI -- RasterGUI -- WaveformGUI
 
@@ -169,16 +174,6 @@ These 3 applications share the same simple instructions: First click "Connect" t
 #### Sweep Plot Audio
 
 The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). For convenience when using a simple keyboard emulation (e.g. footpad), you may use left-arrow and right-arrow for cycling through the channels. In a recent update, Space also selects silence but this is not yet in the zip distribution.  
-
-### DDU
-
-Choose the COM port the depth digitizer is connected to then click Open.
-
-By default, it will automatically stream the depth to both LSL and to the NSP (added to the nev data as comments).
-
-If, like us, the depth readout isn't the same as your distance to target, then add an offset.
-
-**For FHC motor controller V2**: It reports depth in um, so we have to scale the depth reading by 0.001 . The ability to detect which DDU is in use is not implemented in the DDU GUI so we manually edit DDUGUI.py to hard code the scaling.
 
 ### Features
 Click connect, OK, Add Plot
