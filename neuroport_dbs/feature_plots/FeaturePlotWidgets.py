@@ -216,6 +216,18 @@ class BasePlotWidget(QWidget):
 
                 if x not in [None, ''] and self.plot_config['y_name'] in data:
                     y = data[self.plot_config['y_name']]
+
+                    # if depth data was overwritten, we need to delete previous points and errorbars
+                    if x in self.data.keys():
+                        items = self.plot.items
+                        for i in items:
+                            if type(i) is pg.PlotDataItem:
+                                if i.xData == x:
+                                    self.plot.removeItem(i)
+                            if type(i) is pg.ErrorBarItem:
+                                if i.opts['x'][0] == x:
+                                    self.plot.removeItem(i)
+
                     self.data[x] = y
 
                     if y[2]:
@@ -349,6 +361,10 @@ class RawPlots(QWidget):
                 if depth_data[0] not in self.depth_pdi.keys():
                     # instead of saving Plot Data Item, save the data
                     self.depth_pdi[depth_data[0]] = depth_data[1]
+                else:
+                    # overwritten depth data
+                    if not all(depth_data[1] == self.depth_pdi[depth_data[0]]):
+                        self.depth_pdi[depth_data[0]] = depth_data[1]
 
                 # plot depth
                 symbol_brush = self.pen_color if depth_data[2] else None

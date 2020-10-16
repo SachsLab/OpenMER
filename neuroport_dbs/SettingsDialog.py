@@ -2,7 +2,7 @@ import numpy as np
 # use the same GUI format as the other ones
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QVBoxLayout, QWidget, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, \
-                           QCheckBox, QTabWidget
+                           QCheckBox, QTabWidget, QTextEdit
 from qtpy.QtCore import QDate, QRegExp, Qt, Signal
 from qtpy.QtGui import QRegExpValidator
 from serf.tools.db_wrap import DBWrapper
@@ -42,7 +42,12 @@ class SubjectWidget(QWidget):
 
         subject_layout.addWidget((QLabel("Date of birth: ")), 3, 0, 1, 1)
         self.dob_calendar = QCalendarWidget()
-        subject_layout.addWidget(self.dob_calendar, 3, 1, 1, 4)
+        subject_layout.addWidget(self.dob_calendar, 3, 1, 1, 3)
+
+        subject_layout.addWidget(QLabel("NSP file comment: "), 4, 0, 1, 1)
+        self.file_comment = QTextEdit("")
+        self.file_comment.setMaximumHeight(150)
+        subject_layout.addWidget(self.file_comment, 4, 1, 1, 4)
 
         # Subject Settings
         self.subject_settings = subject_settings
@@ -91,6 +96,7 @@ class SubjectWidget(QWidget):
         self.subject_settings['name'] = self.name_edit.text()
         self.subject_settings['sex'] = self.sex_combo.currentText()
         self.subject_settings['birthday'] = self.dob_calendar.selectedDate().toPyDate()
+        self.subject_settings['NSP_comment'] = self.file_comment.toPlainText()
 
 
 class ProcedureWidget(QWidget):
@@ -184,6 +190,9 @@ class ProcedureWidget(QWidget):
         proc_layout.addWidget(QLabel("Medication status: "), row, 0, 1, 1)
         self.medic_combo = self.combo_from_enum('medication_status')
         proc_layout.addWidget(self.medic_combo, row, 1, 1, 3)
+
+        row += 1
+        proc_layout.addWidget(QWidget(), row, 1, 1, 3)
 
         self.update_procedure()
 
@@ -304,6 +313,8 @@ class BufferWidget(QWidget):
         if not self.buffer_settings:
             self.buffer_settings['buffer_length'] = '6.000'
             self.buffer_settings['sample_length'] = '4.000'
+            self.buffer_settings['delay_buffer'] = '0.500'
+            self.buffer_settings['overwrite_depth'] = True
             self.buffer_settings['electrode_settings'] = {}
 
         self.buffer_widgets = {}
@@ -339,17 +350,24 @@ class BufferWidget(QWidget):
             self.edit_sample_length.setFixedWidth(40)
             buffer_layout.addWidget(self.edit_sample_length, row, 1, 1, 1)
 
-            # row += 1
-            # self.run_buffer = QCheckBox('Run depth buffer')
-            # self.run_buffer.setChecked(len(self.buffer_settings['electrode_settings']) != 0)
-            # self.run_buffer.setEnabled(len(self.buffer_settings['electrode_settings']) != 0)
-            # buffer_layout.addWidget(self.run_buffer, row, 0, 1, 1)
+            row += 1
+            buffer_layout.addWidget(QLabel("Delay depth recording (s): "), row, 0, 1, 1)
+            self.delay_buffer = QLineEdit(self.buffer_settings['delay_buffer'])
+            self.delay_buffer.setInputMask("0.000")
+            self.delay_buffer.setFixedWidth(40)
+            buffer_layout.addWidget(self.delay_buffer, row, 1, 1, 1)
+
+            row += 1
+            self.overwrite_depth = QCheckBox("Overwrite depth values")
+            self.overwrite_depth.setChecked(self.buffer_settings['overwrite_depth'])
+            buffer_layout.addWidget(self.overwrite_depth, row, 0, 1, 1)
 
     def to_dict(self):
         # convert all fields to dictionary and return it
         self.buffer_settings['buffer_length'] = self.edit_buffer_length.text()
         self.buffer_settings['sample_length'] = self.edit_sample_length.text()
-        # self.buffer_settings['run_buffer'] = self.run_buffer.isChecked()
+        self.buffer_settings['delay_buffer'] = self.delay_buffer.text()
+        self.buffer_settings['overwrite_depth'] = self.overwrite_depth.isChecked()
 
         for key, value in self.buffer_widgets.items():
             self.buffer_settings['electrode_settings'][key] = {}

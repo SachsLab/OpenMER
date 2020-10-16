@@ -81,6 +81,8 @@ class FeaturesGUI(CustomGUI):
         # information. The rest accepts empty dicts
         self.buffer_settings['buffer_length'] = '6.000'
         self.buffer_settings['sample_length'] = '4.000'
+        self.buffer_settings['delay_buffer'] = '0.500'
+        self.buffer_settings['overwrite_depth'] = True
         self.buffer_settings['electrode_settings'] = {}
 
         if self.group_info:
@@ -166,9 +168,12 @@ class FeaturesPlotWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
 
         # define status images
-        self.status_off = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_off.png'))
-        self.status_done = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png'))
-        self.status_in_use = QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png'))
+        self.status_icons = {
+            -2: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_delay.png')),
+            -1: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png')),
+            1: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png')),
+            0: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_off.png')),
+        }
 
         # Settings
         self.subject_settings = None
@@ -278,7 +283,7 @@ class FeaturesPlotWidget(CustomWidget):
         layout.addStretch()
 
         self.status_label = QLabel()
-        self.status_label.setPixmap(self.status_off)
+        self.status_label.setPixmap(self.status_icons[0])
         layout.addWidget(self.status_label)
 
         layout.addSpacing(10)
@@ -343,13 +348,40 @@ class FeaturesPlotWidget(CustomWidget):
         # typing the new range values.
         self.y_range = float(self.range_edit.text())
 
+    @staticmethod
+    def parse_patient_name(full_name):
+        # parse the subject information
+        names = full_name.split(' ')
+        m_name = ''
+        m_idx = -1
+        l_idx = -1
+        for idx, n in enumerate(names):
+            if all([x.isupper() for x in n]):
+                m_idx = idx
+                l_idx = idx + 1
+                m_name = n
+                break
+
+        f_name = str.join(' ', names[:m_idx])
+        l_name = str.join(' ', names[l_idx:])
+        return f_name, m_name, l_name
+
     def manage_nsp(self, on_off):
+        f_name, m_name, l_name = self.parse_patient_name(self.subject_settings['name'])
         file_info = {'filename': os.path.normpath(os.path.join(BASEPATH,
-                                                  self.subject_settings['name'],
+                                                  self.subject_settings['id'],
                                                   str(self.procedure_settings['date']) + '_' +
                                                   str(self.depth_settings['procedure_id']))),
-                     'comment': '',
-                     'patient_info': {'ID': self.subject_settings['id']}}
+                     'comment': self.subject_settings['NSP_comment'],
+                     'patient_info': {'ID': self.subject_settings['id'],
+                                      # if only single name, returned in l_name
+                                      'firstname': f_name if f_name else l_name,
+                                      'middlename': m_name,  # TODO: implement MiddleName
+                                      'lastname': l_name,
+                                      'DOBMonth': self.subject_settings['birthday'].month,
+                                      'DOBDay': self.subject_settings['birthday'].day,
+                                      'DOBYear': self.subject_settings['birthday'].year
+                                      }}
 
         if not CbSdkConnection().is_connected:
             CbSdkConnection().connect()
@@ -470,12 +502,7 @@ class FeaturesPlotWidget(CustomWidget):
     def update(self):
         # Depth process
         output = self.depth_wrapper.worker_status()
-        if output == -1:
-            self.status_label.setPixmap(self.status_in_use)
-        elif output == 1:
-            self.status_label.setPixmap(self.status_done)
-        else:
-            self.status_label.setPixmap(self.status_off)
+        self.status_label.setPixmap(self.status_icons[output])
 
         if self.depth_wrapper.is_running():
             self.depth_process_btn.setStyleSheet("QPushButton { color: white; "

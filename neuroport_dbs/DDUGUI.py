@@ -8,7 +8,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QComboBox, QLabel, QLCDNumber, QPushButton, QDoubleSpinBox, \
                            QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QMainWindow, \
                            QFrame, QGridLayout
-from qtpy.QtGui import QPalette, QColor
+
 from qtpy.QtWidgets import QApplication
 from qtpy.QtCore import QTimer
 
