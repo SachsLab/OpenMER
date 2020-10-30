@@ -1,12 +1,12 @@
 # NeuroportDBS
 
-A collection of software we use for DBS MER using Blackrock Neuroport. Skip ahead to the [Getting Started section](#getting-started) below for help installing this software on your own computer.
+A collection of software we use for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER) using the Blackrock Neuroport. Skip ahead to the [Getting Started section](#getting-started) below for help installing this software on your own computer.
 
 ## Introduction
 
-Dr. Adam Sachs is a neurosurgeon at the Ottawa Hospital where he and his team implant DBS electrodes to treat motor disorders such as Parkinson's Disease, dystonia, and tremor. Part of the surgical procedure includes microelectrode recording (MER) to map the tissue around the intended DBS target to correct for intrinsic error in the DBS targeting process (i.e., due to imaging, planning, stereotaxy, and brain shift) and to refine the target location.
+Dr. Adam Sachs is a neurosurgeon at the Ottawa Hospital where he and his team implant DBS electrodes to treat motor disorders such as Parkinson's Disease, dystonia, and tremor. Part of the surgical procedure includes MER to map the tissue around the intended DBS target to correct for intrinsic error in the DBS targeting process (i.e., due to imaging, planning, stereotaxy, and brain shift) and to refine the target location.
 
-MER requires specialized equipment and software. While all-in-one medical devices are recommended, Dr. Sachs' research requires a more bespoke solution with multipurpose equipment and custom software. The software and some documentation are made available here in hopes of helping other clinicial-scientists using the Blackrock Neuroport system for DBS.
+MER requires specialized equipment and software. While all-in-one medical devices are recommended, Dr. Sachs' research requires a more bespoke solution with multipurpose equipment and custom software. The software and some documentation are made available here with the goal of helping other clinician-scientists using the Blackrock Neuroport system for DBS.
 
 ### Equipment
 
@@ -20,7 +20,7 @@ MER requires specialized equipment and software. While all-in-one medical device
 
 The Blackrock NSP has its own [NeuroPort Central Suite](https://www.blackrockmicro.com/technical-support/software-downloads/) to manage the configuration of the device and to store data. However, its data visualization capabilities are rather limited and not suited for DBS MER.
 
-The NSP data stream is accessible via its open source API [CereLink](https://github.com/dashesy/CereLink) which includes a Python interface called `cerebus.cbpy`. These are maintained by Sachs Lab member [Dr. Chadwick Boulay](https://github.com/cboulay). Most of our Neuroport DBS software is written in Python and much of it uses `cerebus.cbpy` and a custom [cerebuswrapper](https://github.com/SachsLab/cerebuswrapper) to communicate with the NSP.
+The NSP data stream is accessible via an open source API [CereLink](https://github.com/dashesy/CereLink) which includes a Python interface called `cerebus.cbpy`. These are maintained by Sachs Lab member [Dr. Chadwick Boulay](https://github.com/cboulay). Most of our Neuroport DBS software is written in Python and much of it uses `cerebus.cbpy` and a custom [cerebuswrapper](https://github.com/SachsLab/cerebuswrapper) to communicate with the NSP.
 
 NeuroportDBS has 3 different applications for visualizing signals in real-time:
 * *SweepGUI* - Plots continuous signals in sweeps, optional high-pass filter, and sonifies a channel.
@@ -49,6 +49,7 @@ Choose one of the approaches and follow the appropriate instructions below.
 
 * We have prepared a zip file for easy distribution. Please ask us for the link to download the file. (It's huge so we don't want unnecessary downloads.)
 * Extract the zip onto a Windows computer that has a network connection to the NSP. The Blackrock PC should work. A lot of disk space is required because the data segments will be saved within.
+* Updates may come in the form of a smaller zip file to extract within a specific subfolder of the extracted distribution.
 * Jump ahead to [Usage Instructions](#usage-instructions) below.
 
 ### 2 - For Maintainers of the Zip Distribution
@@ -65,7 +66,7 @@ Choose one of the approaches and follow the appropriate instructions below.
     * Version numbers may not be important. Please try the latest version and report to us if it does not work.
     * The method to install the packages isn't important. If you're on an internet-connected computer then you can use the pip commands. Otherwise you can first download the wheels then bring them to the development computer to pip install the wheels.
     * If you wish to be able to modify any of the SachsLab packages that are pure python (mspacman, cerebuswrapper, serf, **neuroport_dbs**) then you may do so by first cloning the repository to get the source and installing the package in-place: Using the WinPython command prompt, run `pip install -e .` from within the cloned directory.
-    * The `cerebus` package may complain "DLL load failed". This happens when cerebus.cbpy can't find Qt5 or it finds the wrong version. This SHOULD be fixed by editing the path in the 3rd step, but I also found it necessary to copy Qt5Core.dll and Qt5Xml.dll from the above path directly into the site-packages\cerebus folder. We are trying to remove the qt dependency from cerebus to avoid this in the future.
+    * The `cerebus` package may complain "DLL load failed". This happens when cerebus.cbpy can't find Qt5 or it finds the wrong version. This SHOULD be fixed by editing the PATH in the 3rd step above, but I also found it necessary to copy Qt5Core.dll and Qt5Xml.dll from the above path directly into the site-packages\cerebus folder. We hope to remove the qt dependency from cerebus to avoid this in the future.
 * In the command prompt, `cd` into the `bin` subfolder of the unzipped mysql folder.
 * Create a mysql\data folder along with the base databases: `mysqld --initialize-insecure --console`
     * You can change the default data directory, username, and password. See the section below "Configuring MySQL Database Server"
@@ -121,7 +122,7 @@ Choose one of the approaches and follow the appropriate instructions below.
     #query_cache_limit = 400M
     ```
 * If you wish to secure the database then you'll need to give the root account a password. Do so with `mysql_secure_installation`.
-* If you change from the default username (`root`) and password (none) then you will have to tell `serf` what the username and password are. Create a file named `my_serf.cnf` and put it in the path found with the following command: `python -c "import os; print(os.path.expanduser('~'))"` The file contents should be
+* If you change from the default username (`root`) and password (none) then you will have to tell `serf` what the username and password are. Create a file named `my_serf.cnf` and put it in the path identified by the following command: `python -c "import os; print(os.path.expanduser('~'))"` The file contents should be
     ```
     [client]
     user = root
@@ -135,19 +136,22 @@ Choose one of the approaches and follow the appropriate instructions below.
 We assume you know how to work with conda environments and that you have a MySQL database server running and configured to your liking.
 * Install the Python packages from the table above.
 * Adapt the instructions at [Segmented Electrophys Recordings and Features Database (SERF)](https://github.com/cboulay/SERF) to prepare the database server for these tools.
-* If you have a hybrid distribution/system-MySQL environment (i.e., Guillaume) then you may also wish to use some of the MySQL DB config settings from above.
+* If you have a hybrid distribution/system-MySQL environment (i.e., your name is Guillaume) then you may also wish to use some of the MySQL DB config settings from above.
 
-## Test Environment
+## Test Environment - Without NSP
 
 * Run "C:\Program Files (x86)\Blackrock Microsystems\NeuroPort Windows Suite\runNPlayAndCentral.bat"
 * Select a recording to play back
 * Use Central's hardware configuration tool to enable continuous recording and spike extraction on the recorded channels.
-* Follow the general Usage Instructions below.
+* Follow the general Usage Instructions in the next section with one modification:
     * When running `dbs-ddu`, choose "cbsdk playback" from the dropdown menu to reuse the depths from the recording. The value might not update until the file plays back a change in depth.
 
 ## Usage Instructions
 
-The NSP must be on and Central must be running. If you are not connected to the NSP then follow the instructions above to setup a test environment.
+The NSP must be on. Central should be running.
+* If you are going to run this on the same computer that is configuring the hardware and that might run Central, Central must be running first. Central will not start after the NeuroportDBS software is already running.
+* If you are going to run this on a separate computer connected to the NSP over the network, then Central is not technically required except for the FeaturesGUI app. If the FeaturesGUI requirement for Central is problematic for you then please let us know and we will try to remove that dependency.
+* If you do not have the NSP available then follow the instructions above to setup a test environment.
 
 For easier running:
 * Make a shortcut to `mysql\bin\mysqld.exe`.
@@ -161,6 +165,7 @@ Additional details follow.
 
 * Choose the COM port the depth digitizer is connected to then click Open.
     * Choosing the wrong serial port may cause the application to hang. Force close then try again. If you are using the batch file to launch then this might mean closing all of the GUI applications and running the batch file again.
+    * You can probably identify the correct COM port in Windows Control Panel >Device Manager > Serial & LPT devices.
 * By default, it will automatically stream the depth to both LSL and to the NSP (added to the .nev datafile as comments). You can change this behaviour by unchecking the boxes.
 * If, like us, the depth readout isn't the same as your distance to target, then add an offset.
     * For example, when using a StarDrive with NexFrame, and distance to target it 85.3 mm, and the StarDrive places the microelectrodes 60 mm toward target when the drive reads depth=0, the remaining distance to target is 25.3 mm, so we add an offset of `-25.3`. As the drive descends the microelectrodes, and the depth reading increases, the reported distance to target approaches 0 until passes the target then reports positive values.
@@ -171,9 +176,11 @@ Additional details follow.
 
 These 3 applications share the same simple instructions: First click "Connect" to open the NSP connection dialog then OK (assuming defaults are OK). Then click Add Plot to open the window.
 
+The connection settings are ignored if Central is running on the same computer, because the default connection method first attempts to connect to Central's shared memory.
+
 #### Sweep Plot Audio
 
-The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). For convenience when using a simple keyboard emulation (e.g. footpad), you may use left-arrow and right-arrow for cycling through the channels. In a recent update, Space also selects silence but this is not yet in the zip distribution.  
+The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). For convenience when using a simple keyboard emulation (e.g. footpad), you may use left-arrow and right-arrow for cycling through the channels, and Space selects silence.  
 
 ### Features
 Click connect, OK, Add Plot
@@ -186,8 +193,8 @@ Then you're presented with a settings window.
 * Under the Procedure tab:
     * Procedure name? (TODO: Tooltip)
     * Type: surgical
-    * Recording configuration: choose one that matches best. (what's this used for again?)
-    * Electrode configuration: This refers to the arrangement of the electrodes when using an array. Choose the one that matches best.
+    * Recording configuration: choose one that matches best.
+    * Electrode configuration: This refers to the arrangement of the electrodes in the BenGun when using an array. Choose the one that matches best.
     * Enter Entry and Target coordinates. Also enter Distance to target to confirm.
     * If you record the Nexframe orientation by recordings its A and E locations then enter them here.
         * TODO: use perfectly-aligned values as defaults.
@@ -196,3 +203,17 @@ Then you're presented with a settings window.
     * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\FeaturesGUI.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
 * After a new depth is entered and the depth remains constant for 4-8 seconds (depending on signal quality), a segment will be added to the database.
 * The current trajectory that is visualized is by default synchronized with the Sweep GUI selection for audio. To change which trajectory is being visualized, you can change which channel you are listening to in SweepGUI, or uncheck the synchronize box and set the channel manually.
+
+## Troubleshooting
+
+### Connectivity
+
+If Central is running then these tools should attempt to connect to Central's shared memory, and the network settings are irrelevant. If Central is not running then you'll have to make sure the network settings are correct, and this may depend on how your PC and NSP are connected.
+
+The NSP always has the same ip address: 192.168.137.128. I don't think this can be changed, but if it is then you'll have to change that setting in the connect dialog window.
+
+If the PC is linked directly to the NSP, then we use the following network adapter settings. In the adapter properties,  double click on Internet Protocol Version 4 (TCP/IPv4). Set the IP address to be 192.168.137.1 and the Subnet mask 255.255.255.0.  If you require a different IP address then you'll have to change this in the connect dialog window.
+
+The client (PC) port defaults to 51002
+The client IP address is 192.168.137.1 on Windows, and Mac and Linux use netmasks: 255.255.255.255 on Mac, and 192.168.137.255 on Linux
+The NSP IP address is 192.168.137.128 and port 51001 
