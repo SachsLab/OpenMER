@@ -11,6 +11,8 @@ from neuroport_dbs.dbsgui.my_widgets.custom import THEMES
 
 pen_colors = THEMES['dark']['pencolors']
 DEPTHRANGE = [-20, 5]
+# DEPTHRANGE = [10, 35]
+DEPTHPLOTS = 8
 
 # Plot settings dictionaries
 DEFAULTPLOT = {
@@ -54,6 +56,7 @@ DEPTH = {**DEFAULTPLOT,
          'y_name': 'depth',
          'y_ticks': True,
          'interactive': True,
+         'mouse_enabled': [False, True],
          'swap_xy': True,
          'text_anchor': (0.5, 2)}
 SPECTRUM = {**DEFAULTPLOT,
@@ -124,6 +127,8 @@ class BasePlotWidget(QWidget):
                                               pen='y'))
         self.plot.setMouseEnabled(x=self.plot_config['mouse_enabled'][0],
                                   y=self.plot_config['mouse_enabled'][1])
+        # if mouse is enabled, a right click will bring the plot range to its default values
+        self.plot.scene().sigMouseClicked.connect(self.mouse_clicked)
         if self.plot_config['x_range']:
             self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1], padding=0)
         if self.plot_config['y_range']:
@@ -207,6 +212,19 @@ class BasePlotWidget(QWidget):
                               "{0:.3f}".format(value))
             self.text.fill.setColor(QColor(0, 0, 0, 175))
 
+    def mouse_clicked(self, evt):
+        if evt.button() == 2:
+            if self.plot_config['auto_scale']:
+                self.plot.autoRange(padding=0.05, items=self.plot.dataItems)
+                if self.plot_config['x_range']:
+                    self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1],
+                                        padding=0)
+            else:
+                if self.plot_config['x_range']:
+                    self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1], padding=0)
+                if self.plot_config['y_range']:
+                    self.plot.setYRange(self.plot_config['y_range'][0], self.plot_config['y_range'][1], padding=0)
+
     def update_plot(self, all_data):
         if all_data is not None:
             # all_data is a dict {datum_id: [depth, np array of data]}
@@ -281,7 +299,7 @@ class RawPlots(QWidget):
         depth_sett = {**DEPTH,
                       'pen_color': pen_colors[self.plot_config['color_iterator']]}
         self.depth_plot = BasePlotWidget(depth_sett)
-        self.layout.addWidget(self.depth_plot, 0, 0, 8, 1)
+        self.layout.addWidget(self.depth_plot, 0, 0, DEPTHPLOTS, 1)
 
         # extra depth_plot settings
         self.depth_plot.plot.invertY()
@@ -291,8 +309,8 @@ class RawPlots(QWidget):
                                              movable=True)
         self.fill_bar_position = []
         self.depth_bar = pg.InfiniteLine(angle=0,
-                                         bounds=[depth_sett['y_range'][0],
-                                                 depth_sett['y_range'][1]],
+                                         # bounds=[depth_sett['y_range'][0],
+                                         #        depth_sett['y_range'][1]],
                                          pos=depth_sett['y_range'][0],
                                          movable=True,
                                          pen='w')
@@ -305,7 +323,7 @@ class RawPlots(QWidget):
 
         # Prepare plot data
         self.data_layout = QVBoxLayout()
-        self.layout.addLayout(self.data_layout, 0, 1, 8, 5)
+        self.layout.addLayout(self.data_layout, 0, 1, DEPTHPLOTS, 5)
         self.layout.setColumnStretch(0, 1)
         self.layout.setColumnStretch(1, 5)
 
@@ -324,7 +342,7 @@ class RawPlots(QWidget):
                     'marker_line': None,
                     'error_bars': False
                     }
-        for i in range(8):
+        for i in range(DEPTHPLOTS):
             tmp = BasePlotWidget(raw_sett)
             self.data_layout.addWidget(tmp)
             self.data_figures.append(tmp)
@@ -353,7 +371,8 @@ class RawPlots(QWidget):
 
     # Update plot is only for new datum
     def update_plot(self, all_data):
-        new_depth = -20
+        # new_depth = -20
+        new_depth = DEPTHRANGE[0]
         if all_data is not None:
             # all_data is a dict {datum_id: [depth, np array of data]}
             for _, depth_data in all_data.items():
@@ -371,7 +390,10 @@ class RawPlots(QWidget):
                 self.depth_plot.plot.plot(x=[0], y=[depth_data[0]], symbol='o', symbolBrush=symbol_brush,
                                           symbolPen=self.pen_color, symbolSize=6)
 
-                new_depth = max(depth_data[0], new_depth)
+                if new_depth == DEPTHRANGE[0] and new_depth > depth_data[0]:
+                    new_depth = depth_data[0]
+                else:
+                    new_depth = max(depth_data[0], new_depth)
 
             # move draggable bar to new depth
             self.depth_bar.setValue(new_depth)
@@ -382,16 +404,15 @@ class RawPlots(QWidget):
         all_depths = np.sort([x for x in self.depth_pdi.keys()])
         curr_value = self.depth_bar.value()
 
-        # lock to closest depth value
         idx, = np.where(all_depths == curr_value)[0]
 
         # plot last 8 depth data
         # make fill bar around 8 depths above the currently selected one
-        top_idx = max(0, idx - 7)
+        top_idx = max(0, idx - (DEPTHPLOTS-1))
         self.fill_bar.setData(x=[-5, 5], y=[all_depths[idx], all_depths[idx]], fillLevel=all_depths[top_idx])
 
         plot_idx = 1
-        while plot_idx <= 8:
+        while plot_idx <= DEPTHPLOTS:
             if idx >= top_idx:
                 to_plot = self.depth_pdi[all_depths[idx]]  # data
                 if len(self.data_figures[-plot_idx].plot.dataItems) == 0:
@@ -416,10 +437,11 @@ class RawPlots(QWidget):
         self.depth_pdi = {}
 
         # clear depth plot
-        self.depth_bar.setValue(-20)
+        # self.depth_bar.setValue(-20)
+        self.depth_bar.setValue(DEPTHRANGE[0])
         self.fill_bar.setData(x=[-5, 5],
-                              y=[self.plot_config['depth_range'][0], self.plot_config['depth_range'][0]],
-                              fillLevel=self.plot_config['depth_range'][0])
+                              y=[DEPTHRANGE[0], DEPTHRANGE[0]],
+                              fillLevel=DEPTHRANGE[0])
 
         for it in self.depth_plot.plot.listDataItems():
             if it.opts['symbol'] == 'o':
@@ -589,7 +611,7 @@ class LFPPlots(QWidget):
             self.spectrum_data[:, np.logical_and(self.spectrum_x >= prev_depth, self.spectrum_x <= new_depth)] = \
                 np.add(np.atleast_2d(prev_values).T, (np.atleast_2d(values_diff).T * delta))
         else:
-            prev_depth = -20.000
+            prev_depth = DEPTHRANGE[0]  # -20.000
 
         next_depths = self.spectrum_depths[self.spectrum_depths > new_depth]
         if next_depths.shape[0] > 0:
@@ -643,7 +665,7 @@ class LFPPlots(QWidget):
             self.episodes_data[:, np.logical_and(self.spectrum_x >= prev_depth, self.spectrum_x <= new_depth)] = \
                 np.add(np.atleast_2d(prev_values).T, (np.atleast_2d(values_diff).T * delta))
         else:
-            prev_depth = -20.000
+            prev_depth = DEPTHRANGE[0]  # -20.000
 
         next_depths = self.episodes_depths[self.episodes_depths > new_depth]
         if next_depths.shape[0] > 0:

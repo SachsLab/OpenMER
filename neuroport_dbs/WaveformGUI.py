@@ -73,18 +73,27 @@ class WaveformWidget(CustomWidget):
         # Create control panel
         cntrl_layout = QHBoxLayout()
         # +/- amplitude range
-        cntrl_layout.addWidget(QLabel("+/-"))
+        cntrl_layout.addWidget(QLabel("+/- "))
         self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        self.range_edit.setMaximumWidth(80)
+        self.range_edit.setMinimumHeight(23)
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
         cntrl_layout.addWidget(self.range_edit)
+        cntrl_layout.addStretch()
+
         # N Spikes
-        cntrl_layout.addWidget(QLabel("N Spikes"))
+        cntrl_layout.addWidget(QLabel("N Spikes "))
         self.n_spikes_edit = QLineEdit("{}".format(NWAVEFORMS))
+        self.n_spikes_edit.setMaximumWidth(80)
+        self.n_spikes_edit.setMinimumHeight(23)
         self.n_spikes_edit.editingFinished.connect(self.on_n_spikes_edit_editingFinished)
         cntrl_layout.addWidget(self.n_spikes_edit)
+        cntrl_layout.addStretch()
+
         # Clear button
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear)
+        clear_button.setMaximumWidth(80)
         cntrl_layout.addWidget(clear_button)
         # Finish
         self.layout().addLayout(cntrl_layout)

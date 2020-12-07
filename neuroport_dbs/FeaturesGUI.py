@@ -3,11 +3,11 @@ import sys
 import numpy as np
 import qtpy.QtCore
 from qtpy.QtWidgets import QApplication
-from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QPushButton, \
-                           QCheckBox, QHBoxLayout, QStackedWidget, QAction
-from qtpy.QtCore import QSharedMemory, Signal
+                           QCheckBox, QHBoxLayout, QVBoxLayout, QStackedWidget, QAction
+from qtpy.QtCore import QSharedMemory, Signal, QTimer, Qt
 from qtpy.QtGui import QPixmap
+
 
 from cerebuswrapper import CbSdkConnection
 
@@ -18,12 +18,13 @@ from neuroport_dbs.SettingsDialog import SettingsDialog
 
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
 
+# Dimensions for a 1920x1080 monitor.
+# Minimal width is about 511 pixels.
+WINDOWDIMS = [1320, 250, 600, 830]
+# WINDOWDIMS = [0, 0, 200, 200]
 
-WINDOWDIMS = [1260, 250, 660, 830]
-
-XRANGE = [-3500, 120000]  # 3500?, don't know why -1500 is not working anymore...
+XRANGE = [-4000, 120000]  # 3500?, don't know why -1500 is not working anymore...
 YRANGE = 200.00
-DEPTHRANGE = [-20, 5]
 
 # TODO: ini file?
 # Default settings. If finds a category of features with the same name, will apply the value here.
@@ -214,53 +215,60 @@ class FeaturesPlotWidget(CustomWidget):
     def create_control_panel(self):
         # define Qt GUI elements
         layout = QHBoxLayout()
-        layout.addSpacing(10)
 
-        layout.addWidget(QLabel("Monitoring: "))
+        layout_L = QVBoxLayout()
+        layout_L1 = QHBoxLayout()
+
+        # layout_L1.addSpacing(10)
+        layout_L1.addWidget(QLabel("Electrode: ", alignment=Qt.AlignVCenter | Qt.AlignRight))
         # Channel selection
         self.chan_select = QComboBox()
         self.chan_select.addItem("None")
-        self.chan_select.setMinimumWidth(75)
+        self.chan_select.setMinimumWidth(70)
         self.chan_select.setEnabled(False)
-        layout.addWidget(self.chan_select)
+        layout_L1.addWidget(self.chan_select)
 
-        layout.addSpacing(5)
+        layout_L1.addSpacing(20)
 
         # features selection
-        layout.addWidget(QLabel("for: "))
+        layout_L1.addWidget(QLabel("Feature set: ", alignment=Qt.AlignVCenter | Qt.AlignRight))
         self.feature_select = QComboBox()
         self.feature_select.setMinimumWidth(60)
         self.feature_select.addItem('Raw')
         self.feature_select.setCurrentIndex(0)
-        layout.addWidget(self.feature_select)
+        layout_L1.addWidget(self.feature_select)
 
-        layout.addStretch()
+        layout_L.addLayout(layout_L1)
+        layout_L.addSpacing(5)
 
-        layout.addWidget(QLabel("+/-"))
+        layout_L2 = QHBoxLayout()
+        layout_L2.addSpacing(10)
+        layout_L2.addWidget(QLabel("+/- ", alignment=Qt.AlignVCenter | Qt.AlignRight))
         self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
         self.range_edit.setMaximumWidth(50)
-        layout.addWidget(self.range_edit)
+        layout_L2.addWidget(self.range_edit)
 
-        layout.addSpacing(5)
+        layout_L2.addSpacing(30)
 
         self.do_hp = QCheckBox('HP')
         self.do_hp.setChecked(True)
-        layout.addWidget(self.do_hp)
+        layout_L2.addWidget(self.do_hp)
 
-        layout.addSpacing(5)
+        layout_L2.addSpacing(30)
 
         self.sweep_control = QCheckBox("Match SweepGUI.")
         self.sweep_control.setChecked(True)
         self.sweep_control.setEnabled(self.monitored_channel_mem.isAttached())
-        layout.addWidget(self.sweep_control)
+        layout_L2.addWidget(self.sweep_control)
 
-        layout.addStretch()
+        layout_L.addLayout(layout_L2)
 
+        layout_R = QHBoxLayout()
         self.btn_settings = QPushButton("Settings")
         self.btn_settings.setMaximumWidth(50)
-        layout.addWidget(self.btn_settings)
+        layout_R.addWidget(self.btn_settings)
 
-        layout.addStretch()
+        layout_R.addSpacing(20)
 
         self.features_process_btn = QPushButton('Features')
         self.features_process_btn.setMaximumWidth(50)
@@ -269,7 +277,9 @@ class FeaturesPlotWidget(CustomWidget):
                                                 "border-color : red; "
                                                 "border-width: 2px}")
         self.features_process_btn.clicked.connect(self.features_process_btn_callback)
-        layout.addWidget(self.features_process_btn)
+        layout_R.addWidget(self.features_process_btn)
+
+        layout_R.addSpacing(5)
 
         self.depth_process_btn = QPushButton('Record')
         self.depth_process_btn.setMaximumWidth(50)
@@ -278,15 +288,20 @@ class FeaturesPlotWidget(CustomWidget):
                                              "border-color : red; "
                                              "border-width: 2px}")
         self.depth_process_btn.clicked.connect(self.depth_process_btn_callback)
-        layout.addWidget(self.depth_process_btn)
+        layout_R.addWidget(self.depth_process_btn)
 
-        layout.addStretch()
+        layout_R.addSpacing(20)
 
         self.status_label = QLabel()
         self.status_label.setPixmap(self.status_icons[0])
-        layout.addWidget(self.status_label)
+        layout_R.addWidget(self.status_label)
+        layout_R.addSpacing(10)
 
-        layout.addSpacing(10)
+        layout.addLayout(layout_L)
+        layout.addStretch()
+        layout.addLayout(layout_R)
+
+        # layout.addSpacing(10)
         self.layout().addLayout(layout)
 
         # callbacks
@@ -455,7 +470,6 @@ class FeaturesPlotWidget(CustomWidget):
         self.plot_config['color_iterator'] = -1
         self.plot_config['x_range'] = XRANGE
         self.plot_config['y_range'] = YRANGE
-        self.plot_config['depth_range'] = DEPTHRANGE
         self.plot_config['do_hp'] = True
 
         labels = []

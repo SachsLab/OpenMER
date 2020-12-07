@@ -15,7 +15,9 @@ from qtpy.QtCore import QTimer
 from cerebuswrapper import CbSdkConnection
 import pylsl
 
-DEPTHWINDOWDIMS = [1260, 0, 660, 250]
+# Dimensions for a 1920x1080 monitor.
+# Minimal width is about 500 pixels.
+DEPTHWINDOWDIMS = [1320, 0, 600, 250]
 
 
 class DepthGUI(QMainWindow):
@@ -47,8 +49,11 @@ class DepthGUI(QMainWindow):
 
         # define Qt GUI elements
         v_layout = QVBoxLayout()
+        v_layout.setSpacing(0)
+        v_layout.setContentsMargins(10, 0, 10, 10)
 
         h_layout = QHBoxLayout()
+
         self.comboBox_com_port = QComboBox()
         h_layout.addWidget(self.comboBox_com_port)
 
@@ -65,29 +70,31 @@ class DepthGUI(QMainWindow):
         self.doubleSpinBox_offset.setSingleStep(1.00)
         self.doubleSpinBox_offset.setDecimals(2)
         self.doubleSpinBox_offset.setValue(-10.00)
-        self.doubleSpinBox_offset.setFixedWidth(80)
+        self.doubleSpinBox_offset.setFixedWidth(60)
         h_layout.addWidget(self.doubleSpinBox_offset)
 
         h_layout.addStretch()
 
-        self.chk_NSP = QCheckBox("Send to NSP")
+        h_layout.addWidget(QLabel("Stream to :"))
+
+        self.chk_NSP = QCheckBox("NSP")
         self.chk_NSP.setChecked(True)
         h_layout.addWidget(self.chk_NSP)
 
-        h_layout.addSpacing(10)
+        h_layout.addSpacing(5)
 
-        self.chk_LSL = QCheckBox("Stream to LSL")
+        self.chk_LSL = QCheckBox("LSL")
         self.chk_LSL.clicked.connect(self.on_chk_LSL_clicked)
         self.chk_LSL.click()  # default is enabled, click call to trigger LSL stream creation.
         h_layout.addWidget(self.chk_LSL)
 
-        h_layout.addSpacing(10)
+        h_layout.addSpacing(5)
 
         send_btn = QPushButton("Send")
         send_btn.clicked.connect(self.send)
 
         h_layout.addWidget(send_btn)
-        h_layout.addSpacing(10)
+        h_layout.addSpacing(5)
 
         quit_btn = QPushButton('X')
         quit_btn.setMaximumWidth(20)
@@ -253,8 +260,8 @@ class DepthGUI(QMainWindow):
                     else:
                         # try connecting if not connected but button is active
                         if self.chk_NSP.isChecked() and self.chk_NSP.isEnabled():
-                            cbsdk_conn().connect()
-                            cbsdk_conn().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+                            cbsdk_conn.connect()
+                            cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
                         # set button to connection status
                         self.chk_NSP.setChecked(cbsdk_conn.is_connected)
 

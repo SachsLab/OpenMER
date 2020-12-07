@@ -32,6 +32,8 @@ class NS5OfflinePlayback:
                                    'type': 'surgical'}
         self.buffer_settings = {'buffer_length': '6.000',
                                 'sample_length': '4.000',
+                                'delay_buffer': '0.500',
+                                'overwrite_depth': True,
                                 'run_buffer': False,
                                 'electrode_settings': {}}
 
@@ -116,16 +118,16 @@ class NS5OfflinePlayback:
                     valid = self.validate_data_sample(data)
 
                 # send to db
-                self.db_wrapper.create_depth_datum(depth=depth,
-                                                   data=data,
-                                                   is_good=np.sum(valid, axis=1) > valid_thresh,
-                                                   group_info=self.channels,
-                                                   start_time=self.rec_start_time +
-                                                   datetime.timedelta(seconds=time + t_offset / self.SR),
-                                                   stop_time=self.rec_start_time +
-                                                   datetime.timedelta(seconds=(time + t_offset +
-                                                                               sample_length) /
-                                                                      self.SR))
+                self.db_wrapper.save_depth_datum(depth=depth,
+                                                 data=data,
+                                                 is_good=np.sum(valid, axis=1) > valid_thresh,
+                                                 group_info=self.channels,
+                                                 start_time=self.rec_start_time +
+                                                 datetime.timedelta(seconds=time + t_offset / self.SR),
+                                                 stop_time=self.rec_start_time +
+                                                 datetime.timedelta(seconds=(time + t_offset +
+                                                                             sample_length) /
+                                                                    self.SR))
         bar.close()
 
     @staticmethod
@@ -155,9 +157,10 @@ if __name__ == '__main__':
         ns5 = [x for x in files if x.endswith('.ns5')]
         sif = [x for x in files if x.endswith('.sif')]
         if ns5 and sif:
-            subject_id = id_re.search(
-                ''.join(open(os.path.join(root, sif[0]), 'r').readlines()).replace('\n', '')).group('Id')
+            # subject_id = id_re.search(
+            #     ''.join(open(os.path.join(root, sif[0]), 'r').readlines()).replace('\n', '')).group('Id')
             for n in ns5:
+                subject_id = n[:-4]
                 if subject_id not in files_dict:
                     files_dict[subject_id] = []
                 files_dict[subject_id].append(os.path.join(root, n.replace('.ns5', '')))

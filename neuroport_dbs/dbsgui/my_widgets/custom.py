@@ -238,6 +238,7 @@ class CustomWidget(QWidget):
         cntrl_layout = QHBoxLayout()
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear)
+        clear_button.setMaximumWidth(200)
         cntrl_layout.addWidget(clear_button)
         self.layout().addLayout(cntrl_layout)
 

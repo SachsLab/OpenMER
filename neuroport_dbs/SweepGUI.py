@@ -196,9 +196,11 @@ class SweepWidget(CustomWidget):
         # Create control panel
         # +/- range
         cntrl_layout = QHBoxLayout()
-        cntrl_layout.addWidget(QLabel("+/-"))
+        cntrl_layout.addWidget(QLabel("+/- "))
         self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
+        self.range_edit.setMinimumHeight(23)
+        self.range_edit.setMaximumWidth(80)
         cntrl_layout.addWidget(self.range_edit)
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
