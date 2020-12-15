@@ -11,6 +11,7 @@ DSFAC = 100  # down-sampling factor
 
 # Range of electrodes depth in mm.
 DEPTHRANGE = [-20, 5]
+DEPTHTARGET = 0.0
 
 # Depth buffer
 BUFFERLENGTH = 6.0  # seconds

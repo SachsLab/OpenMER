@@ -2,13 +2,13 @@ from matplotlib import cm
 import numpy as np
 
 # use the same GUI format as the other ones
-from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout
-
+from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout, QApplication
+from qtpy.QtCore import QEvent, Qt
 from qtpy.QtGui import QColor, QFont
 
 import pyqtgraph as pg
 
-from neuroport_dbs.settings.defaults import THEMES, DEPTHRANGE, NPLOTSRAW
+from neuroport_dbs.settings.defaults import THEMES, DEPTHRANGE, DEPTHTARGET, NPLOTSRAW
 pen_colors = THEMES['dark']['pencolors']
 
 # Plot settings dictionaries
@@ -27,7 +27,7 @@ DEFAULTPLOT = {
     'auto_scale': False,
     'interactive': True,
     'mouse_enabled': [False, False],
-    'marker_line': 0.0,
+    'marker_line': DEPTHTARGET,
     'error_bars': False,
     'pen_color': QColor(255, 255, 255),
     # 'text_anchor': (2, 1),
@@ -44,7 +44,7 @@ FEAT_VS_DEPTH = {**DEFAULTPLOT,
                  'y_ticks': True,
                  'interactive': True,
                  'auto_scale': True,
-                 'mouse_enabled': [False, True],
+                 'mouse_enabled': [True, True],
                  'x_name': 'depth'}
 DEPTH = {**DEFAULTPLOT,
          'x_range': [-5, 5],
@@ -118,7 +118,7 @@ class BasePlotWidget(QWidget):
             self.img.setPos(DEPTHRANGE[0], 0)
 
         if self.plot_config['marker_line'] is not None:
-            self.plot.addItem(pg.InfiniteLine(angle=90,
+            self.plot.addItem(pg.InfiniteLine(angle=0 if self.plot_config['swap_xy'] else 90,
                                               pos=self.plot_config['marker_line'],
                                               movable=False,
                                               pen='y'))
@@ -126,6 +126,8 @@ class BasePlotWidget(QWidget):
                                   y=self.plot_config['mouse_enabled'][1])
         # if mouse is enabled, a right click will bring the plot range to its default values
         self.plot.scene().sigMouseClicked.connect(self.mouse_clicked)
+        self.plot.vb.installEventFilter(self)
+
         if self.plot_config['x_range']:
             self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1], padding=0)
         if self.plot_config['y_range']:
@@ -172,6 +174,34 @@ class BasePlotWidget(QWidget):
             self.text.setY(0)
             self.plot.addItem(self.text)
             self.text.setZValue(6)
+
+    def eventFilter(self, watched, event):
+        # check if mouse scroll.
+        # Normal scroll is Y axis zoom
+        # CTRL + scroll is X axis zoom
+        mods = QApplication.keyboardModifiers()
+        if event.type() == QEvent.GraphicsSceneWheel:
+            # no CTRL, Y axis enabled, do not block
+            if mods != Qt.ControlModifier and self.plot_config['mouse_enabled'][1]:
+                self.plot.setMouseEnabled(x=False,
+                                          y=True)
+                return False
+            elif mods != Qt.ControlModifier and not self.plot_config['mouse_enabled'][1]:
+                self.plot.setMouseEnabled(x=self.plot_config['mouse_enabled'][0],
+                                          y=self.plot_config['mouse_enabled'][1])
+                return True
+            elif mods == Qt.ControlModifier and self.plot_config['mouse_enabled'][0]:
+                self.plot.setMouseEnabled(x=True,
+                                          y=False)
+                return False
+            elif mods == Qt.ControlModifier and not self.plot_config['mouse_enabled'][0]:
+                self.plot.setMouseEnabled(x=self.plot_config['mouse_enabled'][0],
+                                          y=self.plot_config['mouse_enabled'][1])
+                return True
+
+        self.plot.setMouseEnabled(x=self.plot_config['mouse_enabled'][0],
+                                  y=self.plot_config['mouse_enabled'][1])
+        return False
 
     def mouse_moved(self, evt):
         plot_coord = self.plot.vb.mapSceneToView(evt)
