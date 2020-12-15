@@ -7,12 +7,9 @@ from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout
 from qtpy.QtGui import QColor, QFont
 
 import pyqtgraph as pg
-from neuroport_dbs.dbsgui.my_widgets.custom import THEMES
 
+from neuroport_dbs.settings.defaults import THEMES, DEPTHRANGE, NPLOTSRAW
 pen_colors = THEMES['dark']['pencolors']
-DEPTHRANGE = [-20, 5]
-# DEPTHRANGE = [10, 35]
-DEPTHPLOTS = 8
 
 # Plot settings dictionaries
 DEFAULTPLOT = {
@@ -299,7 +296,7 @@ class RawPlots(QWidget):
         depth_sett = {**DEPTH,
                       'pen_color': pen_colors[self.plot_config['color_iterator']]}
         self.depth_plot = BasePlotWidget(depth_sett)
-        self.layout.addWidget(self.depth_plot, 0, 0, DEPTHPLOTS, 1)
+        self.layout.addWidget(self.depth_plot, 0, 0, NPLOTSRAW, 1)
 
         # extra depth_plot settings
         self.depth_plot.plot.invertY()
@@ -323,7 +320,7 @@ class RawPlots(QWidget):
 
         # Prepare plot data
         self.data_layout = QVBoxLayout()
-        self.layout.addLayout(self.data_layout, 0, 1, DEPTHPLOTS, 5)
+        self.layout.addLayout(self.data_layout, 0, 1, NPLOTSRAW, 5)
         self.layout.setColumnStretch(0, 1)
         self.layout.setColumnStretch(1, 5)
 
@@ -342,7 +339,7 @@ class RawPlots(QWidget):
                     'marker_line': None,
                     'error_bars': False
                     }
-        for i in range(DEPTHPLOTS):
+        for i in range(NPLOTSRAW):
             tmp = BasePlotWidget(raw_sett)
             self.data_layout.addWidget(tmp)
             self.data_figures.append(tmp)
@@ -408,11 +405,11 @@ class RawPlots(QWidget):
 
         # plot last 8 depth data
         # make fill bar around 8 depths above the currently selected one
-        top_idx = max(0, idx - (DEPTHPLOTS-1))
+        top_idx = max(0, idx - (NPLOTSRAW-1))
         self.fill_bar.setData(x=[-5, 5], y=[all_depths[idx], all_depths[idx]], fillLevel=all_depths[top_idx])
 
         plot_idx = 1
-        while plot_idx <= DEPTHPLOTS:
+        while plot_idx <= NPLOTSRAW:
             if idx >= top_idx:
                 to_plot = self.depth_pdi[all_depths[idx]]  # data
                 if len(self.data_figures[-plot_idx].plot.dataItems) == 0:

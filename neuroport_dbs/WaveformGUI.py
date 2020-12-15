@@ -8,19 +8,15 @@ import qtpy.QtCore
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QPushButton, QLineEdit, QHBoxLayout, QLabel
 import pyqtgraph as pg
+
+# Import settings
+# TODO: Make some of these settings configurable via UI elements
+from neuroport_dbs.settings.defaults import WINDOWDIMS_WAVEFORMS, XRANGE_WAVEFORMS, uVRANGE, NWAVEFORMS, SIMOK, \
+                                            WF_COLORS, SAMPLINGGROUPS, SAMPLINGRATE
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS
-
-
-# TODO: Make some of these settings configurable via UI elements
-# TODO: Load these constants from a config file.
-WINDOWDIMS = [920, 0, 400, 1080]
-XRANGE = [-300, 1140]  # uSeconds
-YRANGE = 250      # uV default
-NWAVEFORMS = 200  # Default max number of waveforms to plot.
-SIMOK = False     # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
-WF_COLORS = ["white", "magenta", "cyan", "yellow", "purple", "green"]
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog
 
 
 class WaveformGUI(CustomGUI):
@@ -36,7 +32,7 @@ class WaveformGUI(CustomGUI):
                 'comment_length': 10
             }
         }
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
+        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index(str(SAMPLINGRATE)))
         for gi_item in group_info:
             gi_item['label'] = gi_item['label'].decode('utf-8')
             gi_item['unit'] = gi_item['unit'].decode('utf-8')
@@ -65,8 +61,8 @@ class WaveformWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
         super(WaveformWidget, self).__init__(*args, **kwargs)
         # super calls self.create_control_panel(), self.create_plots(**kwargs), self.refresh_axes()
-        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
-        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
+        self.move(WINDOWDIMS_WAVEFORMS[0], WINDOWDIMS_WAVEFORMS[1])
+        self.resize(WINDOWDIMS_WAVEFORMS[2], WINDOWDIMS_WAVEFORMS[3])
         self.DTT = None
 
     def create_control_panel(self):
@@ -74,7 +70,7 @@ class WaveformWidget(CustomWidget):
         cntrl_layout = QHBoxLayout()
         # +/- amplitude range
         cntrl_layout.addWidget(QLabel("+/- "))
-        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        self.range_edit = QLineEdit("{:.2f}".format(uVRANGE))
         self.range_edit.setMaximumWidth(80)
         self.range_edit.setMinimumHeight(23)
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
@@ -101,8 +97,8 @@ class WaveformWidget(CustomWidget):
     def create_plots(self, theme='dark'):
         # Collect PlotWidget configuration
         self.plot_config = {
-            'x_range': XRANGE,
-            'y_range': YRANGE,
+            'x_range': XRANGE_WAVEFORMS,
+            'y_range': uVRANGE,
             'theme': theme,
             'color_iterator': -1,
             'n_wfs': NWAVEFORMS

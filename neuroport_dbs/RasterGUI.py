@@ -11,16 +11,13 @@ from qtpy.QtCore import Qt, QTimer, Signal
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time,\
+                                                   THEMES
 
-
+# Import settings
 # TODO: Make some of these settings configurable via UI elements
-# TODO: Load these constants from a config file.
-WINDOWDIMS = [620, 0, 300, 1080]
-XRANGE = 0.5  # Seconds
-YRANGE = 8  # Number of rows.
-LABEL_FONT_POINT_SIZE = 24
-SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+from neuroport_dbs.settings.defaults import WINDOWDIMS_RASTER, XRANGE_RASTER, YRANGE_RASTER, SIMOK, \
+                                            LABEL_FONT_POINT_SIZE, SAMPLINGRATE
 
 
 class RasterGUI(CustomGUI):
@@ -36,7 +33,8 @@ class RasterGUI(CustomGUI):
                 'comment_length': 10
             }
         }
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))  # TODO: Or RAW, never both
+        # TODO: Or RAW, never both
+        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index(str(SAMPLINGRATE)))
         for gi_item in group_info:
             gi_item['label'] = gi_item['label'].decode('utf-8')
             gi_item['unit'] = gi_item['unit'].decode('utf-8')
@@ -69,15 +67,15 @@ class RasterWidget(CustomWidget):
 
     def __init__(self, *args, **kwargs):
         super(RasterWidget, self).__init__(*args, **kwargs)
-        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
-        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
+        self.move(WINDOWDIMS_RASTER[0], WINDOWDIMS_RASTER[1])
+        self.resize(WINDOWDIMS_RASTER[2], WINDOWDIMS_RASTER[3])
         self.DTT = None
 
     def create_plots(self, theme='dark'):
         # Collect PlotWidget configuration
         self.plot_config = {
-            'x_range': XRANGE,
-            'y_range': YRANGE,
+            'x_range': XRANGE_RASTER,
+            'y_range': YRANGE_RASTER,
             'theme': theme,
             'color_iterator': -1
         }

@@ -5,18 +5,8 @@ from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox
 from qtpy.QtCore import Qt, Signal
 from cerebuswrapper import CbSdkConnection
 
-
-SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000"]  # , "RAW"]  RAW broken in cbsdk
-THEMES = {
-    'dark': {
-        'pencolors': ["cyan", QColor(0, 255, 0), "magenta", "red", "yellow", "white"],
-        'bgcolor': Qt.black,
-        'labelcolor': Qt.gray,
-        'axiscolor': Qt.gray,
-        'axiswidth': 1
-    }
-}
-SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+# Import settings
+from neuroport_dbs.settings.defaults import SAMPLINGGROUPS, THEMES, SIMOK
 
 
 def get_now_time():

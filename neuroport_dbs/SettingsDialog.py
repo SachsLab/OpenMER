@@ -7,6 +7,9 @@ from qtpy.QtCore import QDate, QRegExp, Qt, Signal
 from qtpy.QtGui import QRegExpValidator
 from serf.tools.db_wrap import DBWrapper
 
+# Settings
+from neuroport_dbs.settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
+
 
 class SubjectWidget(QWidget):
     subject_change = Signal(int)
@@ -311,10 +314,10 @@ class BufferWidget(QWidget):
         # Settings
         self.buffer_settings = buffer_settings
         if not self.buffer_settings:
-            self.buffer_settings['buffer_length'] = '6.000'
-            self.buffer_settings['sample_length'] = '4.000'
-            self.buffer_settings['delay_buffer'] = '0.500'
-            self.buffer_settings['overwrite_depth'] = True
+            self.buffer_settings['buffer_length'] = '{:.3f}'.format(BUFFERLENGTH)
+            self.buffer_settings['sample_length'] = '{:.3f}'.format(SAMPLELENGTH)
+            self.buffer_settings['delay_buffer'] = '{:.3f}'.format(DELAYBUFFER)
+            self.buffer_settings['overwrite_depth'] = OVERWRITEDEPTH
             self.buffer_settings['electrode_settings'] = {}
 
         self.buffer_widgets = {}

@@ -12,19 +12,13 @@ import pyqtgraph as pg
 from cerebuswrapper import CbSdkConnection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, CustomGUI
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time, THEMES, \
+                                                   CustomGUI
 
-
+# Import settings
 # TODO: Make some of these settings configurable via UI elements
-# TODO: Load these constants from a config file.
-WINDOWDIMS = [0, 0, 620, 1080]
-WINDOWDIMS_LFP = [1320, 220, 600, 860]
-NPLOTSEGMENTS = 20  # Divide the plot into this many segments; each segment will be updated independent of rest.
-XRANGE = 1.05  # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
-YRANGE = 200  # uV. y-axis range per channel, use +- this value.
-FILTERCONFIG = {'order': 4, 'cutoff': 250, 'type': 'highpass', 'output': 'sos'}
-DSFAC = 100
-SIMOK = False  # Make this False for production. Make this True for development when NSP/NPlayServer are unavailable.
+from neuroport_dbs.settings.defaults import WINDOWDIMS_SWEEP, WINDOWDIMS_LFP, NPLOTSEGMENTS, XRANGE_SWEEP, uVRANGE, \
+                                            FILTERCONFIG, DSFAC, SIMOK, SAMPLINGRATE
 
 
 class SweepGUI(CustomGUI):
@@ -104,7 +98,7 @@ class AddSamplingGroupDialog(QDialog):
         chan_group_layout.addWidget(QLabel("Sampling Group"))
         self.combo_box = QComboBox()
         self.combo_box.addItems(SAMPLINGGROUPS)
-        self.combo_box.setCurrentIndex(SAMPLINGGROUPS.index("30000"))
+        self.combo_box.setCurrentIndex(SAMPLINGGROUPS.index(str(SAMPLINGRATE)))
         chan_group_layout.addWidget(self.combo_box)
         layout.addLayout(chan_group_layout)
 
@@ -147,7 +141,7 @@ class SweepWidget(CustomWidget):
         self.monitored_shared_mem = QSharedMemory()
 
         super(SweepWidget, self).__init__(*args, **kwargs)
-        this_dims = WINDOWDIMS
+        this_dims = WINDOWDIMS_SWEEP
         if 'alt_loc' in self.plot_config and self.plot_config['alt_loc']:
             this_dims = WINDOWDIMS_LFP
         self.move(this_dims[0], this_dims[1])
@@ -197,7 +191,7 @@ class SweepWidget(CustomWidget):
         # +/- range
         cntrl_layout = QHBoxLayout()
         cntrl_layout.addWidget(QLabel("+/- "))
-        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        self.range_edit = QLineEdit("{:.2f}".format(uVRANGE))
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
         self.range_edit.setMinimumHeight(23)
         self.range_edit.setMaximumWidth(80)
@@ -294,8 +288,8 @@ class SweepWidget(CustomWidget):
     def create_plots(self, theme='dark', downsample=False, alt_loc=False):
         # Collect PlotWidget configuration
         self.plot_config['downsample'] = downsample
-        self.plot_config['x_range'] = XRANGE
-        self.plot_config['y_range'] = YRANGE
+        self.plot_config['x_range'] = XRANGE_SWEEP
+        self.plot_config['y_range'] = uVRANGE
         self.plot_config['theme'] = theme
         self.plot_config['color_iterator'] = -1
         self.plot_config['n_segments'] = NPLOTSEGMENTS

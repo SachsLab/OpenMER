@@ -30,7 +30,8 @@ class NS5OfflinePlayback:
         self.subject_settings = {'id': sub_id}
         self.procedure_settings = {'name': re.compile(r'\d+\-(?P<proc>\d+\-\d+)').search(f_name).group('proc'),
                                    'type': 'surgical'}
-        self.buffer_settings = {'buffer_length': '6.000',
+        self.buffer_settings = {'sampling_rate': 30000,
+                                'buffer_length': '6.000',
                                 'sample_length': '4.000',
                                 'delay_buffer': '0.500',
                                 'overwrite_depth': True,

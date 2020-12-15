@@ -15,9 +15,8 @@ from qtpy.QtCore import QTimer
 from cerebuswrapper import CbSdkConnection
 import pylsl
 
-# Dimensions for a 1920x1080 monitor.
-# Minimal width is about 500 pixels.
-DEPTHWINDOWDIMS = [1320, 0, 600, 250]
+# settings
+from neuroport_dbs.settings.defaults import WINDOWDIMS_DEPTH
 
 
 class DepthGUI(QMainWindow):
@@ -39,8 +38,8 @@ class DepthGUI(QMainWindow):
     def setup_ui(self):
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.move(DEPTHWINDOWDIMS[0], DEPTHWINDOWDIMS[1])
-        self.setFixedSize(DEPTHWINDOWDIMS[2], DEPTHWINDOWDIMS[3])
+        self.move(WINDOWDIMS_DEPTH[0], WINDOWDIMS_DEPTH[1])
+        self.setFixedSize(WINDOWDIMS_DEPTH[2], WINDOWDIMS_DEPTH[3])
 
         self.show()
 

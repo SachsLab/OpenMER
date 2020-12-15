@@ -12,26 +12,15 @@ from qtpy.QtGui import QPixmap
 from cerebuswrapper import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS
 from neuroport_dbs.feature_plots import *
 from neuroport_dbs.SettingsDialog import SettingsDialog
 
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
 
-# Dimensions for a 1920x1080 monitor.
-# Minimal width is about 511 pixels.
-WINDOWDIMS = [1320, 250, 600, 830]
-# WINDOWDIMS = [0, 0, 200, 200]
-
-XRANGE = [-4000, 120000]  # 3500?, don't know why -1500 is not working anymore...
-YRANGE = 200.00
-
-# TODO: ini file?
-# Default settings. If finds a category of features with the same name, will apply the value here.
-DEPTHSETTINGS = {'threshold': True,
-                 'validity': 90.0}
-
-BASEPATH = 'C:\\Recordings'
+# Settings
+from neuroport_dbs.settings.defaults import WINDOWDIMS_FEATURES, XRANGE_FEATURES, uVRANGE, BASEPATH, SAMPLINGRATE, \
+                                            BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH, DEPTHSETTINGS
 
 
 class FeaturesGUI(CustomGUI):
@@ -76,14 +65,17 @@ class FeaturesGUI(CustomGUI):
     def on_action_add_plot_triggered(self):
         # Get all the available information for settings
         # NSP info, None if not connected
-        self.group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index("30000"))
+        sampling_group_id = SAMPLINGGROUPS.index(str(SAMPLINGRATE))
+        self.group_info = self.cbsdk_conn.get_group_config(sampling_group_id)
 
         # we only need to set the default values for the depth buffer here since it requires electrode
         # information. The rest accepts empty dicts
-        self.buffer_settings['buffer_length'] = '6.000'
-        self.buffer_settings['sample_length'] = '4.000'
-        self.buffer_settings['delay_buffer'] = '0.500'
-        self.buffer_settings['overwrite_depth'] = True
+        self.buffer_settings['sampling_rate'] = SAMPLINGRATE
+        self.buffer_settings['sampling_group_id'] = sampling_group_id
+        self.buffer_settings['buffer_length'] = '{:.3f}'.format(BUFFERLENGTH)
+        self.buffer_settings['sample_length'] = '{:.3f}'.format(SAMPLELENGTH)
+        self.buffer_settings['delay_buffer'] = '{:.3f}'.format(DELAYBUFFER)
+        self.buffer_settings['overwrite_depth'] = OVERWRITEDEPTH
         self.buffer_settings['electrode_settings'] = {}
 
         if self.group_info:
@@ -184,7 +176,7 @@ class FeaturesPlotWidget(CustomWidget):
 
         # Plot options
         self.plot_config = {}
-        self.y_range = YRANGE
+        self.y_range = uVRANGE
         self.plot_stack = QStackedWidget()
         # generate a dict {chan_label: {Feature:[stack idx, latest_datum]}}
         self.stack_dict = {}
@@ -196,9 +188,9 @@ class FeaturesPlotWidget(CustomWidget):
 
         # wrap up init
         super(FeaturesPlotWidget, self).__init__(*args, **kwargs)
-        self.move(WINDOWDIMS[0], WINDOWDIMS[1])
-        self.resize(WINDOWDIMS[2], WINDOWDIMS[3])
-        self.setMaximumWidth(WINDOWDIMS[2])
+        self.move(WINDOWDIMS_FEATURES[0], WINDOWDIMS_FEATURES[1])
+        self.resize(WINDOWDIMS_FEATURES[2], WINDOWDIMS_FEATURES[3])
+        self.setMaximumWidth(WINDOWDIMS_FEATURES[2])
 
         # initialize plots
         self.layout().addWidget(self.plot_stack)
@@ -244,7 +236,7 @@ class FeaturesPlotWidget(CustomWidget):
         layout_L2 = QHBoxLayout()
         layout_L2.addSpacing(10)
         layout_L2.addWidget(QLabel("+/- ", alignment=Qt.AlignVCenter | Qt.AlignRight))
-        self.range_edit = QLineEdit("{:.2f}".format(YRANGE))
+        self.range_edit = QLineEdit("{:.2f}".format(uVRANGE))
         self.range_edit.setMaximumWidth(50)
         layout_L2.addWidget(self.range_edit)
 
@@ -468,8 +460,8 @@ class FeaturesPlotWidget(CustomWidget):
         # Collect PlotWidget configuration
         self.plot_config['theme'] = theme
         self.plot_config['color_iterator'] = -1
-        self.plot_config['x_range'] = XRANGE
-        self.plot_config['y_range'] = YRANGE
+        self.plot_config['x_range'] = XRANGE_FEATURES
+        self.plot_config['y_range'] = uVRANGE
         self.plot_config['do_hp'] = True
 
         labels = []
