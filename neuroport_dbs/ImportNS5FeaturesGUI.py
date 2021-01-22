@@ -6,13 +6,13 @@ import datetime
 import regex as re
 import numpy as np
 from neuroport_dbs.SettingsDialog import SettingsDialog
-from qtpy.QtWidgets import QDialog, QProgressDialog
+from qtpy.QtWidgets import QProgressDialog
 from qtpy.QtCore import Qt
 from serf.tools.db_wrap import DBWrapper
 
 
 class NS5OfflinePlayback:
-    def __init__(self, sub_id, f_name):
+    def __init__(self, sub_id, proc_id, f_name):
         self.f_name = f_name
         self.reader = BlackrockRawIO(f_name)
 
@@ -28,7 +28,7 @@ class NS5OfflinePlayback:
 
         # settings
         self.subject_settings = {'id': sub_id}
-        self.procedure_settings = {'name': re.compile(r'\d+\-(?P<proc>\d+\-\d+)').search(f_name).group('proc'),
+        self.procedure_settings = {'name': None,
                                    'type': 'surgical'}
         self.buffer_settings = {'sampling_rate': 30000,
                                 'buffer_length': '6.000',
@@ -37,6 +37,7 @@ class NS5OfflinePlayback:
                                 'overwrite_depth': True,
                                 'run_buffer': False,
                                 'electrode_settings': {}}
+        self.procedure_name = 'Proc' + str(proc_id)
 
         for electrode in self.channels:
             self.buffer_settings['electrode_settings'][electrode] = {'threshold': True,
@@ -66,9 +67,6 @@ class NS5OfflinePlayback:
                              self.buffer_settings,
                              self.features_settings)
 
-        # result = win.exec_()
-        #
-        # if result == QDialog.Accepted:
         win.update_settings()
         win.close()
 
@@ -80,6 +78,7 @@ class NS5OfflinePlayback:
         else:
             self.subject_settings['subject_id'] = sub_id
             self.procedure_settings['subject_id'] = sub_id
+            self.procedure_settings['name'] = self.procedure_name
             proc_id = self.db_wrapper.load_or_create_procedure(self.procedure_settings)
 
             self.buffer_settings['procedure_id'] = proc_id
@@ -148,25 +147,24 @@ if __name__ == '__main__':
 
     qapp = QApplication(sys.argv)
 
-    id_re = re.compile(r"\<Id\>(?P<Id>\d+)\<\/Id>")
+    id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
 
-    # base_dir = 'D:\\SachsLab\\NeuroPort_Dev\\Data\\'
-    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\STN\\'
+    base_dir = 'D:\\Sachs_Lab\\Data\\DBS\\27523695\\'
     files_dict = {}
 
     for root, dirs, files in os.walk(base_dir, topdown=False):
         ns5 = [x for x in files if x.endswith('.ns5')]
-        sif = [x for x in files if x.endswith('.sif')]
-        if ns5 and sif:
-            # subject_id = id_re.search(
-            #     ''.join(open(os.path.join(root, sif[0]), 'r').readlines()).replace('\n', '')).group('Id')
+        if ns5:
             for n in ns5:
-                subject_id = n[:-4]
+                matches = id_re.match(n)
+                subject_id = matches.group('Id')
+                proc_id = matches.group('Proc')
+
                 if subject_id not in files_dict:
                     files_dict[subject_id] = []
-                files_dict[subject_id].append(os.path.join(root, n.replace('.ns5', '')))
+                files_dict[subject_id].append([proc_id, os.path.join(root, n.replace('.ns5', ''))])
 
     # select file
     for sub, ns in files_dict.items():
-        for f in ns:
-            NS5OfflinePlayback(sub, f)
+        for p, f in ns:
+            NS5OfflinePlayback(sub, p, f)
