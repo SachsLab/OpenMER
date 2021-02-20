@@ -152,6 +152,7 @@ if __name__ == '__main__':
     import os
     path = os.path.join(os.path.expanduser('~'), 'Documents', 'Data', 'STN_DBS_Data', 'STN_Patient21')
     print(os.path.exists(path), path)
+    files_dict = {}
 
     for root, dirs, files in os.walk(path, topdown=False):
         print(root, dirs, files)
@@ -166,8 +167,6 @@ if __name__ == '__main__':
                     files_dict[subject_id] = []
                 files_dict[subject_id].append([proc_id, os.path.join(root, n.replace('.ns5', ''))])
     
-    print(files_dict)
-
     # base_dir = 'D:\\Sachs_Lab\\Data\\DBS\\27523695\\'
     # files_dict = {}
 
