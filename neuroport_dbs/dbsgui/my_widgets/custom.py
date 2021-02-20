@@ -3,7 +3,10 @@ from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
 from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
 from qtpy.QtCore import Qt, Signal
-from cerebuswrapper import CbSdkConnection
+try:
+    from cerebuswrapper import CbSdkConnection
+except:
+    from neuroport_dbs.dummy import CbSdkConnection
 
 # Import settings
 from neuroport_dbs.settings.defaults import SAMPLINGGROUPS, THEMES, SIMOK

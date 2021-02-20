@@ -8,8 +8,10 @@ from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QPushButton, \
 from qtpy.QtCore import QSharedMemory, Signal, QTimer, Qt
 from qtpy.QtGui import QPixmap
 
-
-from cerebuswrapper import CbSdkConnection
+try:
+    from cerebuswrapper import CbSdkConnection
+except:
+    from neuroport_dbs.dummy import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
 from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS

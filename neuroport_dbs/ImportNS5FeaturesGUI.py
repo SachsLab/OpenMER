@@ -149,10 +149,12 @@ if __name__ == '__main__':
 
     id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
 
-    base_dir = 'D:\\Sachs_Lab\\Data\\DBS\\27523695\\'
-    files_dict = {}
+    import os
+    path = os.path.join(os.path.expanduser('~'), 'Documents', 'Data', 'STN_DBS_Data', 'STN_Patient21')
+    print(os.path.exists(path), path)
 
-    for root, dirs, files in os.walk(base_dir, topdown=False):
+    for root, dirs, files in os.walk(path, topdown=False):
+        print(root, dirs, files)
         ns5 = [x for x in files if x.endswith('.ns5')]
         if ns5:
             for n in ns5:
@@ -163,6 +165,23 @@ if __name__ == '__main__':
                 if subject_id not in files_dict:
                     files_dict[subject_id] = []
                 files_dict[subject_id].append([proc_id, os.path.join(root, n.replace('.ns5', ''))])
+    
+    print(files_dict)
+
+    # base_dir = 'D:\\Sachs_Lab\\Data\\DBS\\27523695\\'
+    # files_dict = {}
+
+    # for root, dirs, files in os.walk(base_dir, topdown=False):
+    #     ns5 = [x for x in files if x.endswith('.ns5')]
+    #     if ns5:
+    #         for n in ns5:
+    #             matches = id_re.match(n)
+    #             subject_id = matches.group('Id')
+    #             proc_id = matches.group('Proc')
+
+    #             if subject_id not in files_dict:
+    #                 files_dict[subject_id] = []
+    #             files_dict[subject_id].append([proc_id, os.path.join(root, n.replace('.ns5', ''))])
 
     # select file
     for sub, ns in files_dict.items():
