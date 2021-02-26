@@ -123,7 +123,7 @@ class NS5OfflinePlayback:
                                                  is_good=np.sum(valid, axis=1) > valid_thresh,
                                                  group_info=self.channels,
                                                  start_time=self.rec_start_time +
-                                                 datetime.timedelta(seconds=time + t_offset / self.SR),
+                                                 datetime.timedelta(seconds=(time + t_offset) / self.SR),
                                                  stop_time=self.rec_start_time +
                                                  datetime.timedelta(seconds=(time + t_offset +
                                                                              sample_length) /
@@ -149,7 +149,7 @@ if __name__ == '__main__':
 
     id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
 
-    base_dir = 'D:\\Sachs_Lab\\Data\\DBS\\27523695\\'
+    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\STN\\STN_Patient21\\'
     files_dict = {}
 
     for root, dirs, files in os.walk(base_dir, topdown=False):
