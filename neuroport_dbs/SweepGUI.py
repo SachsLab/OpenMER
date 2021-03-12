@@ -211,6 +211,11 @@ class SweepWidget(CustomWidget):
             self._monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
         self._monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
+        # Checkbox for whether the audio out should be spike only
+        spk_aud_checkbox = QCheckBox("Spike Aud")
+        spk_aud_checkbox.stateChanged.connect(self.on_spk_aud_changed)
+        spk_aud_checkbox.setChecked(True)
+        cntrl_layout.addWidget(spk_aud_checkbox)
         # Checkbox for HP filter
         filter_checkbox = QCheckBox("HP")
         filter_checkbox.stateChanged.connect(self.on_hp_filter_changed)
@@ -224,6 +229,9 @@ class SweepWidget(CustomWidget):
         cntrl_layout.addWidget(filter_checkbox)
         # Finish
         self.layout().addLayout(cntrl_layout)
+
+    def on_spk_aud_changed(self, state):
+        self.plot_config['spk_aud'] = state == Qt.Checked
 
     def on_hp_filter_changed(self, state):
         self.plot_config['do_hp'] = state == Qt.Checked
@@ -255,7 +263,7 @@ class SweepWidget(CustomWidget):
                 if gi['label'] == this_label else {'color': None, 'size': '11pt'}
             plot_item.setTitle(title=plot_item.titleLabel.text, **label_kwargs)
 
-        CbSdkConnection().monitor_chan(monitor_chan_id)
+        CbSdkConnection().monitor_chan(monitor_chan_id, spike_only=self.plot_config['spk_aud'])
         self.update_shared_memory()
 
     def update_shared_memory(self):
@@ -296,6 +304,8 @@ class SweepWidget(CustomWidget):
         self.plot_config['alt_loc'] = alt_loc
         if 'do_hp' not in self.plot_config:
             self.plot_config['do_hp'] = False
+        if 'spk_aud' not in self.plot_config:
+            self.plot_config['spk_aud'] = False
         self.plot_config['hp_sos'] = signal.butter(FILTERCONFIG['order'],
                                                    2 * FILTERCONFIG['cutoff'] / self.samplingRate,
                                                    btype=FILTERCONFIG['type'],
