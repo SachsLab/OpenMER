@@ -14,7 +14,7 @@ from serf.tools.db_wrap import DBWrapper
 class NS5OfflinePlayback:
     def __init__(self, sub_id, proc_id, f_name):
         self.f_name = f_name
-        self.reader = BlackrockRawIO(f_name)
+        self.reader = BlackrockRawIO(f_name, nsx_to_load=5)
 
         self.db_wrapper = DBWrapper()
 
@@ -58,8 +58,15 @@ class NS5OfflinePlayback:
         # comments
         rexp = re.compile(r'[a-zA-Z]*\:?(?P<depth>\-?\d*\.\d*)')
         for com in self.reader.nev_data['Comments'][0]:
-            self.depth_times.append(com[0])
-            self.depths.append(float(rexp.match(com[5].decode('utf-8')).group('depth')))
+            # some comments aren't depth related
+            tmp_match = rexp.match(com[5].decode('utf-8'))
+            if tmp_match:
+                # older files marked depths at regular intervals and not only when it changed
+                # we need to keep only new depth values
+                d = float(tmp_match.group('depth'))
+                if len(self.depths) == 0 or d != self.depths[-1]:
+                    self.depth_times.append(com[0])
+                    self.depths.append(d)
 
     def manage_settings(self):
         win = SettingsDialog(self.subject_settings,
@@ -147,9 +154,10 @@ if __name__ == '__main__':
 
     qapp = QApplication(sys.argv)
 
-    id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
+    # id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
+    id_re = re.compile(r"(?P<Date>\d{4}[-_]?\d{2}[-_]?\d{2})[_-]+(?P<Id>\d+)[-_]?(?P<Proc>\d+).ns5")
 
-    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\STN\\STN_Patient21\\'
+    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\RobSharedData\\001'
     files_dict = {}
 
     for root, dirs, files in os.walk(base_dir, topdown=False):
