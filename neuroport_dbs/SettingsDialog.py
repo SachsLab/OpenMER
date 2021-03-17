@@ -145,6 +145,11 @@ class ProcedureWidget(QWidget):
         proc_layout.addWidget(self.electrode_combo, row, 1, 1, 3)
 
         row += 1
+        proc_layout.addWidget(QLabel("Distance to target: "), row, 0, 1, 1)
+        self.dist_to_target = self.coord_line_edit()
+        proc_layout.addWidget(self.dist_to_target, row, 1, 1, 1)
+
+        row += 1
         proc_layout.addWidget(QLabel("Entry (x, y, z): "), row, 0, 1, 1)
         self.entry_x = self.coord_line_edit()
         proc_layout.addWidget(self.entry_x, row, 1, 1, 1)
@@ -161,11 +166,6 @@ class ProcedureWidget(QWidget):
         proc_layout.addWidget(self.target_y, row, 2, 1, 1)
         self.target_z = self.coord_line_edit()
         proc_layout.addWidget(self.target_z, row, 3, 1, 1)
-
-        row += 1
-        proc_layout.addWidget(QLabel("Distance to target: "), row, 0, 1, 1)
-        self.dist_to_target = self.coord_line_edit()
-        proc_layout.addWidget(self.dist_to_target, row, 1, 1, 1)
 
         row += 1
         self.comp_dist_to_target = QLabel("Computed distance: 0.000 mm; Difference: 0.000 mm")
@@ -222,16 +222,19 @@ class ProcedureWidget(QWidget):
         line = QLineEdit("0.0")
         line.setValidator(validator)
         line.setFixedWidth(60)
-        line.editingFinished.connect(self.update_dist_to_target)
+        # line.editingFinished.connect(self.update_dist_to_target)
+        line.textChanged.connect(self.update_dist_to_target)
+
         return line
 
-    def update_dist_to_target(self):
-        ddt = np.sqrt((float(self.target_x.text()) - float(self.entry_x.text()))**2 +
-                      (float(self.target_y.text()) - float(self.entry_y.text()))**2 +
-                      (float(self.target_z.text()) - float(self.entry_z.text()))**2)
-        diff = float(self.dist_to_target.text()) - ddt
-        self.comp_dist_to_target.setText(
-            "Computed distance: {:.3f} mm; Difference: {:.3f} mm".format(ddt, diff))
+    def update_dist_to_target(self, new_string):
+        if new_string not in ["-", ".", "", "-."]:
+            ddt = np.sqrt((float(self.target_x.text()) - float(self.entry_x.text()))**2 +
+                          (float(self.target_y.text()) - float(self.entry_y.text()))**2 +
+                          (float(self.target_z.text()) - float(self.entry_z.text()))**2)
+            diff = float(self.dist_to_target.text()) - ddt
+            self.comp_dist_to_target.setText(
+                "Computed distance: {:.3f} mm; Difference: {:.3f} mm".format(ddt, diff))
 
     def change_subject(self, sub_id, block=False):
         self.check_all_procedures(sub_id, block)
@@ -269,7 +272,7 @@ class ProcedureWidget(QWidget):
         if ddt is None:
             ddt = 0.000
         self.dist_to_target.setText(str(ddt))
-        self.update_dist_to_target()
+        # self.update_dist_to_target()
         a = self.read_dict_value('a')
         if a is None:
             a = [0., 0., 0.]
@@ -337,7 +340,6 @@ class BufferWidget(QWidget):
                 buffer_layout.addWidget(self.buffer_widgets[label]['chk_threshold'], row, 1, 1, 1)
                 buffer_layout.addWidget(QLabel('Validity Threshold (%)'), row, 2, 1, 1)
                 buffer_layout.addWidget(self.buffer_widgets[label]['edit_validity'], row, 3, 1, 1)
-
 
             row += 1
             buffer_layout.addWidget(QLabel("Depth buffer size (s): "), row, 0, 1, 1)
