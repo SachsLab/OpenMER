@@ -42,7 +42,7 @@ class CustomGUI(QMainWindow):
         self.create_actions()
         self.create_menus()
         self.create_toolbars()
-        self.resize(200, 150)
+        self.resize(250, 150)
 
     def create_actions(self):
         # Actions

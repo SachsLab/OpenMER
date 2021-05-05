@@ -23,7 +23,7 @@ class WaveformGUI(CustomGUI):
 
     def __init__(self):
         super(WaveformGUI, self).__init__()
-        self.setWindowTitle('Neuroport DBS - Waveform Plot')
+        self.setWindowTitle('WaveformGUI')
 
     def on_action_add_plot_triggered(self):
         self.cbsdk_conn.cbsdk_config = {

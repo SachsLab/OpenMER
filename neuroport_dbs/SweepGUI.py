@@ -25,7 +25,7 @@ class SweepGUI(CustomGUI):
 
     def __init__(self):
         super(SweepGUI, self).__init__()
-        self.setWindowTitle('Neuroport DBS - Continuous Sweeps')
+        self.setWindowTitle('SweepGUI')
         self.plot_widget = {}
 
     def on_action_add_plot_triggered(self):

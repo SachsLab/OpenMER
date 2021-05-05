@@ -24,7 +24,7 @@ class RasterGUI(CustomGUI):
 
     def __init__(self):
         super(RasterGUI, self).__init__()
-        self.setWindowTitle('Neuroport DBS - Raster Plot')
+        self.setWindowTitle('RasterGUI')
 
     def on_action_add_plot_triggered(self):
         self.cbsdk_conn.cbsdk_config = {

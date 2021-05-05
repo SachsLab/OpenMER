@@ -27,7 +27,7 @@ class FeaturesGUI(CustomGUI):
 
     def __init__(self):
         super(FeaturesGUI, self).__init__()
-        self.setWindowTitle('Neuroport DBS - Electrodes Depth')
+        self.setWindowTitle('FeaturesGUI')
         self.plot_widget = None
 
         # settings dictionaries
@@ -250,7 +250,7 @@ class FeaturesPlotWidget(CustomWidget):
 
         self.sweep_control = QCheckBox("Match SweepGUI.")
         self.sweep_control.setChecked(True)
-        self.sweep_control.setEnabled(self.monitored_channel_mem.isAttached())
+        self.sweep_control.setEnabled(True)
         layout_L2.addWidget(self.sweep_control)
 
         layout_L.addLayout(layout_L2)
@@ -340,7 +340,7 @@ class FeaturesPlotWidget(CustomWidget):
             self.stack_dict[self.chan_select.currentText()][self.feature_select.currentText()][0])
 
     def manage_sweep_control(self):
-        if self.sweep_control.isChecked():
+        if self.sweep_control.isChecked() and self.monitored_channel_mem.isAttached():
             self.chan_select.setEnabled(False)
             self.do_hp.setEnabled(False)
             self.range_edit.setEnabled(False)
@@ -579,7 +579,7 @@ class FeaturesPlotWidget(CustomWidget):
             self.monitored_channel_mem.unlock()
         else:
             self.monitored_channel_mem.attach()
-            self.sweep_control.setChecked(False)
+            # self.sweep_control.setChecked(False)
             self.manage_sweep_control()
 
 

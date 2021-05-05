@@ -125,9 +125,9 @@ class ProcedureWidget(QWidget):
         proc_layout.addWidget(self.prev_proc, row, 1, 1, 3)
 
         row += 1
-        proc_layout.addWidget(QLabel("Procedure name: "), row, 0, 1, 1)
-        self.proc_name = QLineEdit("")
-        proc_layout.addWidget(self.proc_name, row, 1, 1, 3)
+        proc_layout.addWidget(QLabel("Target name: "), row, 0, 1, 1)
+        self.target_name = QLineEdit("")
+        proc_layout.addWidget(self.target_name, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Type: "), row, 0, 1, 1)
@@ -190,6 +190,16 @@ class ProcedureWidget(QWidget):
         proc_layout.addWidget(self.e_z, row, 3, 1, 1)
 
         row += 1
+        proc_layout.addWidget(QLabel("Offset direction: "), row, 0, 1, 1)
+        self.offset_direction_combo = self.combo_from_enum('offset_direction')
+        proc_layout.addWidget(self.offset_direction_combo, row, 1, 1, 3)
+
+        row += 1
+        proc_layout.addWidget(QLabel("Offset size: "), row, 0, 1, 1)
+        self.offset_size = self.coord_line_edit()
+        proc_layout.addWidget(self.offset_size, row, 1, 1, 1)
+
+        row += 1
         proc_layout.addWidget(QLabel("Medication status: "), row, 0, 1, 1)
         self.medic_combo = self.combo_from_enum('medication_status')
         proc_layout.addWidget(self.medic_combo, row, 1, 1, 3)
@@ -205,7 +215,7 @@ class ProcedureWidget(QWidget):
         self.prev_proc.clear()
         self.prev_proc.addItem('')
         self.prev_proc.addItems(
-            [' '.join([x.name, x.recording_config, x.date.strftime('%Y-%m-%d')]) for x in self.all_procedures])
+            [' '.join([x.target_name, x.recording_config, x.date.strftime('%Y-%m-%d')]) for x in self.all_procedures])
         self.prev_proc.setCurrentIndex(0)
         self.prev_proc.blockSignals(False)
 
@@ -251,11 +261,13 @@ class ProcedureWidget(QWidget):
         self.procedure_settings.update(DBWrapper().load_procedure_details(idx, exclude=['subject', 'procedure_id']))
 
     def update_procedure(self):
-        self.proc_name.setText(self.read_dict_value('name'))
+        self.target_name.setText(self.read_dict_value('target_name'))
         self.type_combo.setCurrentText(self.read_dict_value('type'))
         self.rec_combo.setCurrentText(self.read_dict_value('recording_config'))
         self.electrode_combo.setCurrentText(self.read_dict_value('electrode_config'))
         self.medic_combo.setCurrentText(self.read_dict_value('medication_status'))
+        self.offset_size.setText(str(self.read_dict_value('offset_size')))
+        self.offset_direction_combo.setCurrentText(self.read_dict_value('offset_direction'))
         entry = self.read_dict_value('entry')
         if entry is None:
             entry = [0., 0., 0.]
@@ -303,11 +315,13 @@ class ProcedureWidget(QWidget):
                                                      float(self.entry_y.text()),
                                                      float(self.entry_z.text())], dtype=np.float)
         self.procedure_settings['medication_status'] = self.medic_combo.currentText()
-        self.procedure_settings['name'] = self.proc_name.text()
+        self.procedure_settings['target_name'] = self.target_name.text()
         self.procedure_settings['recording_config'] = self.rec_combo.currentText()
         self.procedure_settings['target'] = np.array([float(self.target_x.text()),
                                                      float(self.target_y.text()),
                                                      float(self.target_z.text())], dtype=np.float)
+        self.procedure_settings['offset_direction'] = self.offset_direction_combo.currentText()
+        self.procedure_settings['offset_size'] = float(self.offset_size.text())
 
 
 class BufferWidget(QWidget):
