@@ -142,14 +142,13 @@ class BasePlotWidget(QWidget):
         font.setPixelSize(20)
         font.setBold(True)
 
-        self.plot.getAxis('bottom').setStyle(showValues=self.plot_config['x_ticks'])
-        self.plot.getAxis('bottom').tickFont = font
-        self.plot.getAxis('bottom').setPen((255, 255, 255, 255))
-        self.plot.getAxis('bottom').setStyle(tickTextOffset=10)
+        self.plot.getAxis('bottom').setStyle(showValues=self.plot_config['x_ticks'],
+                                             tickFont=font, tickTextOffset=10)
+        self.plot.getAxis('bottom').setTextPen((255, 255, 255, 255))
 
-        self.plot.getAxis('left').setStyle(showValues=self.plot_config['y_ticks'])
-        self.plot.getAxis('left').tickFont = font
-        self.plot.getAxis('left').setPen((255, 255, 255, 255))
+        self.plot.getAxis('left').setStyle(showValues=self.plot_config['y_ticks'],
+                                           tickFont=font)
+        self.plot.getAxis('left').setTextPen((255, 255, 255, 255))
         if self.plot_config['y_tick_labels']:
             self.plot.getAxis('left').setTicks(self.plot_config['y_tick_labels'])
         if self.plot_config['interactive']:
