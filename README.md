@@ -191,16 +191,18 @@ Then you're presented with a settings window.
     * Type a patient Id or select from the drop-down list if resuming a previously-stored patient.
     * Enter the remaining information.
 * Under the Procedure tab:
-    * Procedure name? (TODO: Tooltip)
-    * Type: surgical
+    * Target name (e.g. STN, GPi, Vim)
+    * Type: DBS
     * Recording configuration: choose one that matches best.
     * Electrode configuration: This refers to the arrangement of the electrodes in the BenGun when using an array. Choose the one that matches best.
     * Enter Entry and Target coordinates. Also enter Distance to target to confirm.
     * If you record the Nexframe orientation by recordings its A and E locations then enter them here.
-        * TODO: use perfectly-aligned values as defaults.
+      * TODO: use perfectly-aligned values as defaults.
+    * If you use an offset adapter you can specify the direction (A to H) and the offset size in mm.
+        
 * Click OK to start the GUI
 * Click on the "Record" button.
-    * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\FeaturesGUI.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
+    * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\settings\defaults.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
 * After a new depth is entered and the depth remains constant for 4-8 seconds (depending on signal quality), a segment will be added to the database.
 * The current trajectory that is visualized is by default synchronized with the Sweep GUI selection for audio. To change which trajectory is being visualized, you can change which channel you are listening to in SweepGUI, or uncheck the synchronize box and set the channel manually.
 
