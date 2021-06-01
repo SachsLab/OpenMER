@@ -39,7 +39,7 @@ class SubjectWidget(QWidget):
 
         subject_layout.addWidget(QLabel("Sex: "), 2, 0, 1, 1)
         self.sex_combo = QComboBox()
-        self.sex_combo.addItems(self.subject_enums['sex'] if 'sex' in self.subject_enums.keys() else '')
+        self.sex_combo.addItems(self.subject_enums['sex'] if 'sex' in self.subject_enums.keys() else [])
         self.sex_combo.setCurrentIndex(0)
         subject_layout.addWidget(self.sex_combo, 2, 1, 1, 1)
 
@@ -221,7 +221,7 @@ class ProcedureWidget(QWidget):
 
     def combo_from_enum(self, enum_name):
         combo = QComboBox()
-        combo.addItems(self.proc_enums[enum_name] if enum_name in self.proc_enums.keys() else '')
+        combo.addItems(self.proc_enums[enum_name] if enum_name in self.proc_enums.keys() else [])
         combo.setCurrentText('none')
         return combo
 

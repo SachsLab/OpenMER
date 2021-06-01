@@ -28,7 +28,7 @@ class NS5OfflinePlayback:
 
         # settings
         self.subject_settings = {'id': sub_id}
-        self.procedure_settings = {'name': None,
+        self.procedure_settings = {'target_name': None,
                                    'type': 'surgical'}
         self.buffer_settings = {'sampling_rate': 30000,
                                 'buffer_length': '6.000',
@@ -85,7 +85,7 @@ class NS5OfflinePlayback:
         else:
             self.subject_settings['subject_id'] = sub_id
             self.procedure_settings['subject_id'] = sub_id
-            self.procedure_settings['name'] = self.procedure_name
+            self.procedure_settings['target_name'] = self.procedure_name
             proc_id = self.db_wrapper.load_or_create_procedure(self.procedure_settings)
 
             self.buffer_settings['procedure_id'] = proc_id
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     # id_re = re.compile(r"(?P<Date>\d+\-\d+\-\d+)_(?P<Id>\d+)\-(?P<Proc>\d+)")
     id_re = re.compile(r"(?P<Date>\d{4}[-_]?\d{2}[-_]?\d{2})[_-]+(?P<Id>\d+)[-_]?(?P<Proc>\d+).ns5")
 
-    base_dir = 'D:\\Sachs_Lab\\DBS_dev\\Data\\RobSharedData\\001'
+    base_dir = 'D:\\Sachs_Lab\\Data\\DBS'
     files_dict = {}
 
     for root, dirs, files in os.walk(base_dir, topdown=False):
