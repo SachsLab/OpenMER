@@ -1,0 +1,43 @@
+site_name: NeuroportDBS
+site_url: https://SachsLab.github.io/NeuroportDBS/
+site_author: Chadwick Boulay
+
+repo_name: SachsLab/NeuroportDBS
+repo_url: https://github.com/SachsLab/NeuroportDBS
+
+theme:
+  name: "material"
+
+features:
+    - content.tabs.link
+    # - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.tabbed
+
+plugins:
+  - search
+  - mkdocstrings
+  - mknotebooks:
+      execute: false
+      enable_default_jupyter_cell_styling: false
+#      preamble: "mkdocs_preamble.py"
+
+extra_javascript:
+  - javascripts/config.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: README.md
+  - Introduction: introduction.md
+  - Getting Started: getting-started.md
+  - Usage Instructions: usage-instructions.md
+  - Troubleshooting: troubleshooting.md
+  - For Developers: for-developers.md
