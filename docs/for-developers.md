@@ -117,6 +117,7 @@ TODO
 ## For experts who want to use their existing environment
 
 We assume you know how to work with conda environments and that you have a MySQL database server running and configured to your liking.
+
 * Install the Python packages from the table above.
 * Adapt the instructions at [Segmented Electrophys Recordings and Features Database (SERF)](https://github.com/cboulay/SERF) to prepare the database server for these tools.
 * If you have a hybrid distribution/system-MySQL environment (i.e., your name is Guillaume) then you may also wish to use some of the MySQL DB config settings from above.
