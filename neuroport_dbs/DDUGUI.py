@@ -240,6 +240,7 @@ class DepthGUI(QMainWindow):
             if in_str:
                 try:
                     in_value = float(in_str)
+                    # in_value /= 1000  # Uncomment this for FHC DDU V2.
                     self.raw_ddu.display("{0:.3f}".format(in_value))
 
                     out_value = in_value + self.doubleSpinBox_offset.value()
