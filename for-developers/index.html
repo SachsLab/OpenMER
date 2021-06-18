@@ -1,0 +1,763 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <meta name="author" content="Chadwick Boulay">
+      
+      
+        <link rel="canonical" href="https://SachsLab.github.io/NeuroportDBS/for-developers/">
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.2.1, mkdocs-material-7.1.8">
+    
+    
+      
+        <title>For Developers - NeuroportDBS</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ca7ac06f.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.f1a3b89f.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../css/ansi-colours.css">
+    
+      <link rel="stylesheet" href="../css/pandas-dataframe.css">
+    
+    
+      
+
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+  
+    
+    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#repository-organization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="NeuroportDBS" class="md-header__button md-logo" aria-label="NeuroportDBS" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            NeuroportDBS
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              For Developers
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/SachsLab/NeuroportDBS/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    SachsLab/NeuroportDBS
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="NeuroportDBS" class="md-nav__button md-logo" aria-label="NeuroportDBS" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    NeuroportDBS
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/SachsLab/NeuroportDBS/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    SachsLab/NeuroportDBS
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Home
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../introduction/" class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        Getting Started
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage-instructions/" class="md-nav__link">
+        Usage Instructions
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        Troubleshooting
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          For Developers
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        For Developers
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-organization" class="md-nav__link">
+    Repository Organization
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintaining-the-documentation" class="md-nav__link">
+    Maintaining the Documentation
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintaining the Documentation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#autogenerated-documentation" class="md-nav__link">
+    Autogenerated Documentation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-the-documentation-locally" class="md-nav__link">
+    Testing the documentation locally
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-unit-tests" class="md-nav__link">
+    Running the unit tests
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintaining-the-zip-distribution" class="md-nav__link">
+    Maintaining the Zip Distribution
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintaining the Zip Distribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-python-packages" class="md-nav__link">
+    Required Python Packages
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuring-mysql-database-server" class="md-nav__link">
+    Configuring MySQL Database Server
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#for-experts-who-want-to-use-their-existing-environment" class="md-nav__link">
+    For experts who want to use their existing environment
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#repository-organization" class="md-nav__link">
+    Repository Organization
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintaining-the-documentation" class="md-nav__link">
+    Maintaining the Documentation
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintaining the Documentation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#autogenerated-documentation" class="md-nav__link">
+    Autogenerated Documentation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-the-documentation-locally" class="md-nav__link">
+    Testing the documentation locally
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-unit-tests" class="md-nav__link">
+    Running the unit tests
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintaining-the-zip-distribution" class="md-nav__link">
+    Maintaining the Zip Distribution
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintaining the Zip Distribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-python-packages" class="md-nav__link">
+    Required Python Packages
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuring-mysql-database-server" class="md-nav__link">
+    Configuring MySQL Database Server
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#for-experts-who-want-to-use-their-existing-environment" class="md-nav__link">
+    For experts who want to use their existing environment
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/SachsLab/NeuroportDBS/edit/master/docs/for-developers.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                  <h1>For Developers</h1>
+                
+                <h2 id="repository-organization">Repository Organization</h2>
+<ul>
+<li>Library and Application code in the /neuroport_dbs folder</li>
+<li>Unit tests in the /tests folder. Note this uses the pytest framework and conventions.</li>
+<li>Documentation in the /docs folder</li>
+</ul>
+<h2 id="maintaining-the-documentation">Maintaining the Documentation</h2>
+<p>You will need to install several Python packages to maintain the documentation.</p>
+<ul>
+<li><code>pip install mkdocs mkdocstrings mknotebooks mkdocs-material Pygments</code></li>
+</ul>
+<p>The /docs/{top-level-section} folders contain a mix of .md and .ipynb documentation. The latter are converted to .md by the <a href="https://github.com/greenape/mknotebooks/projects">mknotebooks plugin</a> during building.</p>
+<p>Run <code>mkdocs gh-deploy</code> to build the documentation, commit to the <code>gh-deploy</code> branch, and push to GitHub. This will make the documentation available at https://SachsLab.github.io/NeuroportDBS/</p>
+<p><a href="http://openkinome.org/kinoml/developers/api_docs/">Here is a great cheat sheet</a> for mkdocs and mkdocstrings syntax.</p>
+<h3 id="autogenerated-documentation">Autogenerated Documentation</h3>
+<p>The /docs/neuroport_dbs folder can hold stubs to tell the <a href="https://github.com/mkdocstrings/mkdocstrings">mkdocstrings plugin</a> to build the API documentation from the docstrings in the library code itself. Currently this is empty. If any stubs are added then it's necessary to build the documentation from a Python environment that has the package installed. A stub takes the form</p>
+<div class="highlight"><pre><span></span><code># Title
+::: neuroport_dbs.module.name
+</code></pre></div>
+<h3 id="testing-the-documentation-locally">Testing the documentation locally</h3>
+<ul>
+<li><code>mkdocs serve</code></li>
+</ul>
+<p>If you build the docs locally then you'll also get the /site directory, but this should be git ignored.</p>
+<h2 id="running-the-unit-tests">Running the unit tests</h2>
+<p>TODO</p>
+<h2 id="maintaining-the-zip-distribution">Maintaining the Zip Distribution</h2>
+<ul>
+<li>Download the latest <a href="https://github.com/winpython/winpython/releases/latest">WinPython release</a>.<ul>
+<li>These instructions were tested with Winpython64-3.8.5.0</li>
+</ul>
+</li>
+<li>Run the WinPython self-extracting executable. This will create a folder containing a full Python distribution with many useful packages installed (see full list <a href="https://github.com/winpython/winpython/blob/master/changelogs/WinPython-64bit-3.8.5.0.md">here</a>).</li>
+<li><a href="https://sourceforge.net/p/winpython/wiki/Environment/">Edit the <code>WPy64-3850\settings\winpython.ini</code> file</a> and add the following line: <code>PATH = %WINPYDIR%\Lib\site-packages\PyQt5\Qt\bin;%PATH%</code></li>
+<li>Download <a href="https://dev.mysql.com/downloads/mysql/">MySQL Windows ZIP Archive</a><ul>
+<li>Tested with mysql-8.0.2.1-win64.zip</li>
+</ul>
+</li>
+<li>Next to the WinPython folder, extract the mysql zip and rename the extracted folder to <code>mysql</code></li>
+<li>In the WinPython folder, run "WinPython Command Prompt". This will open a Command Prompt with all the paths configured to use this new Python distribution.</li>
+<li>Install all of the Python packages listed in the table below.<ul>
+<li>Version numbers may not be important. Please try the latest version and report to us if it does not work.</li>
+<li>The method to install the packages isn't important. If you're on an internet-connected computer then you can use the pip commands. Otherwise you can first download the wheels then bring them to the development computer to pip install the wheels.</li>
+<li>If you wish to be able to modify any of the SachsLab packages that are pure python (mspacman, cerebuswrapper, serf, <strong>neuroport_dbs</strong>) then you may do so by first cloning the repository to get the source and installing the package in-place: Using the WinPython command prompt, run <code>pip install -e .</code> from within the cloned directory.</li>
+<li>The <code>cerebus</code> package may complain "DLL load failed". This happens when cerebus.cbpy can't find Qt5 or it finds the wrong version. This SHOULD be fixed by editing the PATH in the 3rd step above, but I also found it necessary to copy Qt5Core.dll and Qt5Xml.dll from the above path directly into the site-packages\cerebus folder. We hope to remove the qt dependency from cerebus to avoid this in the future.</li>
+</ul>
+</li>
+<li>In the command prompt, <code>cd</code> into the <code>bin</code> subfolder of the unzipped mysql folder.</li>
+<li>Create a mysql\data folder along with the base databases: <code>mysqld --initialize-insecure --console</code><ul>
+<li>You can change the default data directory, username, and password. See the section below "Configuring MySQL Database Server"</li>
+</ul>
+</li>
+<li>Double-click on the <code>mysqld</code> executable in the bin folder.</li>
+<li>Back in the command prompt, run <code>mysqladmin --user=root create serf</code></li>
+<li>Install the serf databases with the following commands:
+    <div class="highlight"><pre><span></span><code>serf-makemigrations
+serf-migrate
+</code></pre></div></li>
+<li>Make a batch file <code>WPy64-3850\scripts\NeuroportDBS.bat</code> with the following contents:
+    <code>shell script
+    @echo off
+    call "%~dp0env_for_icons.bat"
+    start "" "%WINPYDIR%\Scripts\dbs-sweep.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-raster.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-waveform.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-ddu.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-features.exe" /command:%1 /B</code></li>
+<li>Jump ahead to <a href="#usage-instructions">Usage Instructions</a> below.</li>
+</ul>
+<h3 id="required-python-packages">Required Python Packages</h3>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Version</th>
+<th>Wheel</th>
+<th>pip command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pyFFTW</td>
+<td>0.12.0</td>
+<td><a href="https://files.pythonhosted.org/packages/2b/e4/822d4cf12cd907fb8e80844db48aef7adf9e888c89256feb510fa81ae83f/pyFFTW-0.12.0-cp38-cp38-win_amd64.whl">Link</a></td>
+<td></td>
+</tr>
+<tr>
+<td>mysqlclient</td>
+<td>2.0.1</td>
+<td><a href="https://files.pythonhosted.org/packages/b2/72/e205fcf877dd0ec05d71b975def8ecef3ae4bb7fee14434615140ebdc168/mysqlclient-2.0.1-cp38-cp38-win_amd64.whl">Link</a></td>
+<td></td>
+</tr>
+<tr>
+<td>Django</td>
+<td>3.1</td>
+<td><a href="https://files.pythonhosted.org/packages/2b/5a/4bd5624546912082a1bd2709d0edc0685f5c7827a278d806a20cf6adea28/Django-3.1-py3-none-any.whl">Link</a></td>
+<td></td>
+</tr>
+<tr>
+<td>quantities</td>
+<td>0.12.4</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>python-neo</td>
+<td>0.9.0</td>
+<td></td>
+<td><code>pip install git+https://github.com/NeuralEnsemble/python-neo.git</code></td>
+</tr>
+<tr>
+<td>pylsl</td>
+<td>1.13.6</td>
+<td><a href="https://files.pythonhosted.org/packages/02/c2/7b58adda02dbfa8f76bf835879d36b83dfc1da2eaa50d124d13a515e148c/pylsl-1.13.6-py2.py3-none-win_amd64.whl">Link</a></td>
+<td></td>
+</tr>
+<tr>
+<td>pytf</td>
+<td>0.1</td>
+<td><a href="https://github.com/SachsLab/pytf/releases/download/v0.1/pytf-0.1-py2.py3-none-any.whl">Link</a></td>
+<td><code>pip install git+https://github.com/SachsLab/pytf.git</code></td>
+</tr>
+<tr>
+<td>mspacman</td>
+<td>0.1</td>
+<td><a href="https://github.com/SachsLab/mspacman/releases/download/v0.1/mspacman-0.1-py2.py3-none-any.whl">Link</a></td>
+<td><code>pip install git+https://github.com/SachsLab/mspacman.git</code></td>
+</tr>
+<tr>
+<td>cerebus</td>
+<td>0.0.4</td>
+<td><a href="https://github.com/dashesy/CereLink/releases/download/v7.0.5/cerebus-0.0.4-cp38-cp38-win_amd64.whl">Link</a></td>
+<td>N/A - must use wheel</td>
+</tr>
+<tr>
+<td>cerebuswrapper</td>
+<td>0.1</td>
+<td><a href="https://github.com/SachsLab/cerebuswrapper/releases/download/v0.1/cerebuswrapper-0.1.0-py3-none-any.whl">Link</a></td>
+<td><code>pip install git+https://github.com/SachsLab/cerebuswrapper.git</code></td>
+</tr>
+<tr>
+<td>serf</td>
+<td>1.1</td>
+<td><a href="https://github.com/cboulay/SERF/releases/download/v1.1/serf-1.1-py3-none-any.whl">Link</a></td>
+<td><code>pip install git+https://github.com/cboulay/SERF.git#subdirectory=python</code></td>
+</tr>
+<tr>
+<td>neurport_dbs</td>
+<td>1.0</td>
+<td><a href="https://github.com/SachsLab/NeuroportDBS/releases/download/v1.0/neuroport_dbs-1.0.0-py3-none-any.whl">Link</a></td>
+<td><code>pip install git+https://github.com/SachsLab/NeuroportDBS.git</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="configuring-mysql-database-server">Configuring MySQL Database Server</h3>
+<ul>
+<li>If you wish to use a different datadir then you must first create a <code>my.cnf</code> file in the root <code>mysql</code> folder with the following contents (commented out lines aren't necessary, just keeping them here for reference):
+    <div class="highlight"><pre><span></span><code>[mysqld]
+datadir=path/to/data
+#port = 3306
+#socket = /tmp/mysql.sock
+#pid-file = /Volumes/STORE/eerfdata/Chadwicks-MacBook-Pro.local.pid
+#default-storage-engine = MyISAM
+#default_tmp_storage_engine = MyISAM
+#query_cache_type = 1
+#key_buffer_size = 2G
+#query_cache_limit = 400M
+</code></pre></div></li>
+<li>If you wish to secure the database then you'll need to give the root account a password. Do so with <code>mysql_secure_installation</code>.</li>
+<li>If you change from the default username (<code>root</code>) and password (none) then you will have to tell <code>serf</code> what the username and password are. Create a file named <code>my_serf.cnf</code> and put it in the path identified by the following command: <code>python -c "import os; print(os.path.expanduser('~'))"</code> The file contents should be
+    <div class="highlight"><pre><span></span><code>[client]
+user = root
+password = {password}
+#port = 3306
+#socket = /tmp/mysql.sock
+</code></pre></div></li>
+</ul>
+<h2 id="for-experts-who-want-to-use-their-existing-environment">For experts who want to use their existing environment</h2>
+<p>We assume you know how to work with conda environments and that you have a MySQL database server running and configured to your liking.
+* Install the Python packages from the table above.
+* Adapt the instructions at <a href="https://github.com/cboulay/SERF">Segmented Electrophys Recordings and Features Database (SERF)</a> to prepare the database server for these tools.
+* If you have a hybrid distribution/system-MySQL environment (i.e., your name is Guillaume) then you may also wish to use some of the MySQL DB config settings from above.</p>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        
+        <a href="../troubleshooting/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Troubleshooting" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Troubleshooting
+            </div>
+          </div>
+        </a>
+      
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.b0710199.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.76f349be.min.js"></script>
+      
+        <script src="../javascripts/config.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

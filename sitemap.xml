@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/for-developers/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/getting-started/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/introduction/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/troubleshooting/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://SachsLab.github.io/NeuroportDBS/usage-instructions/</loc>
+         <lastmod>2021-06-18</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+</urlset>
