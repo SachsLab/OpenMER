@@ -1,7 +1,8 @@
 from .FeaturePlotWidgets import *
 
 __all__ = ['RawPlots',
-           'DBSPlots',
+           'MappingPlots',
+           'STNPlots',
            'LFPPlots',
            'SpikePlots',
            'NullPlotWidget']

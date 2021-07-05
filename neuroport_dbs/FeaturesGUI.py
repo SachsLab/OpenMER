@@ -8,7 +8,6 @@ from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QPushButton, \
 from qtpy.QtCore import QSharedMemory, Signal, QTimer, Qt
 from qtpy.QtGui import QPixmap
 
-
 from cerebuswrapper import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
@@ -226,7 +225,7 @@ class FeaturesPlotWidget(CustomWidget):
         layout_L1.addWidget(QLabel("Feature set: ", alignment=Qt.AlignVCenter | Qt.AlignRight))
         self.feature_select = QComboBox()
         self.feature_select.setMinimumWidth(60)
-        self.feature_select.addItem('Raw')
+        self.feature_select.addItems(['Raw', 'Mapping'])
         self.feature_select.setCurrentIndex(0)
         layout_L1.addWidget(self.feature_select)
 
@@ -256,6 +255,13 @@ class FeaturesPlotWidget(CustomWidget):
         layout_L.addLayout(layout_L2)
 
         layout_R = QHBoxLayout()
+
+        self.bt_refresh = QPushButton("Refresh")
+        self.bt_refresh.setMaximumWidth(50)
+        layout_R.addWidget(self.bt_refresh)
+
+        layout_R.addSpacing(20)
+
         self.btn_settings = QPushButton("Settings")
         self.btn_settings.setMaximumWidth(50)
         layout_R.addWidget(self.btn_settings)
@@ -302,6 +308,7 @@ class FeaturesPlotWidget(CustomWidget):
         self.feature_select.currentIndexChanged.connect(self.manage_feat_chan_select)
         self.sweep_control.clicked.connect(self.manage_sweep_control)
         self.range_edit.editingFinished.connect(self.manage_range_edit)
+        self.bt_refresh.clicked.connect(self.manage_refresh)
 
     def depth_process_btn_callback(self):
         # kill
@@ -377,8 +384,10 @@ class FeaturesPlotWidget(CustomWidget):
         f_name, m_name, l_name = self.parse_patient_name(self.subject_settings['name'])
         file_info = {'filename': os.path.normpath(os.path.join(BASEPATH,
                                                   self.subject_settings['id'],
-                                                  str(self.procedure_settings['date']) + '_' +
-                                                  str(self.depth_settings['procedure_id']))),
+                                                  self.procedure_settings['date'].strftime('%m%d%y') + '_' +
+                                                  self.subject_settings['id'] + '_' +
+                                                  self.procedure_settings['target_name'] + '_' +
+                                                  self.procedure_settings['recording_config'])),
                      'comment': self.subject_settings['NSP_comment'],
                      'patient_info': {'ID': self.subject_settings['id'],
                                       # if only single name, returned in l_name
@@ -412,6 +421,11 @@ class FeaturesPlotWidget(CustomWidget):
             self.features_wrapper.kill_worker()
             self.features_process_running = False
 
+    def manage_refresh(self):
+        self.plot_stack.widget(
+            self.stack_dict[self.chan_select.currentText()][self.feature_select.currentText()][0]).clear_plot()
+        self.stack_dict[self.chan_select.currentText()][self.feature_select.currentText()][1] = 0
+
     def process_settings(self, sub_sett, proc_sett, depth_sett, feat_sett):
         self.subject_settings = dict(sub_sett)
         self.procedure_settings = dict(proc_sett)
@@ -428,8 +442,8 @@ class FeaturesPlotWidget(CustomWidget):
 
         # set new features
         self.feature_select.setCurrentIndex(0)  # Raw
-        while self.feature_select.count() > 1:
-            self.feature_select.removeItem(1)
+        while self.feature_select.count() > 2:  # Raw and Mapping
+            self.feature_select.removeItem(2)
         self.feature_select.addItems(self.features_settings['features'].keys())
 
         # set new channels
@@ -483,8 +497,10 @@ class FeaturesPlotWidget(CustomWidget):
                 # TODO: not hard-coding??
                 if feat == 'Raw':
                     self.plot_stack.addWidget(RawPlots(dict(self.plot_config)))
-                elif feat == 'DBS':
-                    self.plot_stack.addWidget(DBSPlots(dict(self.plot_config)))
+                elif feat == 'Mapping':
+                        self.plot_stack.addWidget(MappingPlots(dict(self.plot_config)))
+                elif feat == 'STN':
+                    self.plot_stack.addWidget(STNPlots(dict(self.plot_config)))
                 elif feat == 'LFP':
                     self.plot_stack.addWidget(LFPPlots(dict(self.plot_config)))
                 elif feat == 'Spikes':
@@ -556,6 +572,9 @@ class FeaturesPlotWidget(CustomWidget):
                                                        gt=curr_datum,
                                                        do_hp=do_hp,
                                                        return_uV=True)
+            elif curr_feat == 'Mapping':
+                all_data = DBWrapper().load_mapping_response(chan_lbl=curr_chan_lbl,
+                                                             gt=curr_datum)
             else:
                 all_data = DBWrapper().load_features_data(category=curr_feat,
                                                           chan_lbl=curr_chan_lbl,

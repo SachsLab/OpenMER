@@ -71,7 +71,7 @@ class RasterWidget(CustomWidget):
         self.resize(WINDOWDIMS_RASTER[2], WINDOWDIMS_RASTER[3])
         self.DTT = None
 
-    def create_plots(self, theme='dark'):
+    def create_plots(self, theme='dark', **kwargs):
         # Collect PlotWidget configuration
         self.plot_config = {
             'x_range': XRANGE_RASTER,

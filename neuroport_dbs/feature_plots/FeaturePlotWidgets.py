@@ -219,7 +219,8 @@ class BasePlotWidget(QWidget):
                 self.text.setY(closest)
                 self.text.setX(0)
         else:
-            x_ = [(x.xData, x.setSymbolSize(6))[0] for x in curves]
+            # added unique since we can now have multiple points per x value
+            x_ = [(np.unique(x.xData), x.setSymbolSize(6))[0] for x in curves]
             if x_:
                 closest = min(x_, key=lambda x: abs(x - plot_coord.x()))[0]
                 idx = x_.index(closest)
@@ -266,7 +267,7 @@ class BasePlotWidget(QWidget):
                         items = self.plot.items
                         for i in items:
                             if type(i) is pg.PlotDataItem:
-                                if i.xData == x:
+                                if any(i.xData == x):
                                     self.plot.removeItem(i)
                             if type(i) is pg.ErrorBarItem:
                                 if i.opts['x'][0] == x:
@@ -291,7 +292,10 @@ class BasePlotWidget(QWidget):
                         y = y[1]
 
                     if not self.plot_config['image_plot']:
-                        self.plot.plot(x=[x], y=y, symbol='o', symbolSize=6,
+                        # make sure x is a list the same size as y
+                        x = [x] * len(y)
+
+                        self.plot.plot(x=x, y=y, symbol='o', symbolSize=6, pen=None,
                                        symbolBrush=symbol_brush, symbolPen=self.plot_config['pen_color'])
                     else:
                         self.img.setImage(y, autoLevels=False)
@@ -308,6 +312,18 @@ class BasePlotWidget(QWidget):
         self.plot.clear()
         self.configure_plot()
         self.data = {}
+
+
+class NullPlotWidget(QWidget):
+    def __init__(self, plot_config, *args, **kwargs):
+        super(NullPlotWidget, self).__init__(*args, **kwargs)
+        self.plot_config = plot_config
+
+    def update_plot(self, all_data):
+        pass
+
+    def clear_plot(self):
+        pass
 
 
 class RawPlots(QWidget):
@@ -480,9 +496,9 @@ class RawPlots(QWidget):
             txt.setText("")
 
 
-class DBSPlots(QWidget):
+class STNPlots(QWidget):
     def __init__(self, plot_config, *args, **kwargs):
-        super(DBSPlots, self).__init__(*args, **kwargs)
+        super(STNPlots, self).__init__(*args, **kwargs)
         self.plot_config = plot_config
 
         pen_color = QColor(pen_colors[plot_config['color_iterator']])
@@ -803,13 +819,91 @@ class SpikePlots(QWidget):
         self.depth_data = {}
 
 
-class NullPlotWidget(QWidget):
+class MappingPlots(QWidget):
     def __init__(self, plot_config, *args, **kwargs):
-        super(NullPlotWidget, self).__init__(*args, **kwargs)
+        super(MappingPlots, self).__init__(*args, **kwargs)
         self.plot_config = plot_config
 
+        pen_color = QColor(pen_colors[plot_config['color_iterator']])
+
+        # Create and add GraphicsLayoutWidget
+        self.layout = QGridLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        # create GLW for the Kinesthetic
+        kin_sett = {**FEAT_VS_DEPTH,
+                    'title': 'Kinesthetic Response',
+                    'y_name': 'Kinesthetic',
+                    'y_range': [-.1, 6.1],
+                    'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
+                    'auto_scale': False,
+                    'post_processing': self.fill_empty,
+                    'pen_color': pen_color}
+        self.kin_plot = BasePlotWidget(kin_sett)
+        self.add_dashed_lines(self.kin_plot.plot)
+        self.layout.addWidget(self.kin_plot, 0, 0, 1, 1)
+
+        tact_sett = {**FEAT_VS_DEPTH,
+                     'title': 'Tactile Response',
+                     'y_name': 'Tactile',
+                     'y_range': [-.1, 6.1],
+                     'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
+                     'auto_scale': False,
+                     'post_processing': self.fill_empty,
+                     'pen_color': pen_color}
+        self.tact_plot = BasePlotWidget(tact_sett)
+        self.add_dashed_lines(self.tact_plot.plot)
+        self.layout.addWidget(self.tact_plot, 1, 0, 1, 1)
+
+        custom_sett = {**FEAT_VS_DEPTH,
+                       'title': 'Custom Response',
+                       'y_name': 'Custom',
+                       'y_range': [-.1, 6.1],
+                       'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
+                       'auto_scale': False,
+                       'post_processing': self.fill_empty,
+                       'pen_color': pen_color}
+        self.custom_plot = BasePlotWidget(custom_sett)
+        self.add_dashed_lines(self.custom_plot.plot)
+        self.layout.addWidget(self.custom_plot, 2, 0, 1, 1)
+
+        self.layout.setRowStretch(0, 1)
+        self.layout.setRowStretch(1, 1)
+        self.layout.setRowStretch(2, 1)
+
+    @staticmethod
+    def add_dashed_lines(plot):
+        # add separators for head, ul, ll,
+        plot.addItem(pg.InfiniteLine(angle=0,
+                                     pos=5.5,
+                                     movable=False,
+                                     pen=pg.mkPen('w', width=0.5, style=Qt.DashLine)))
+
+        plot.addItem(pg.InfiniteLine(angle=0,
+                                     pos=3.5,
+                                     movable=False,
+                                     pen=pg.mkPen('w', width=0.5, style=Qt.DashLine)))
+
+        plot.addItem(pg.InfiniteLine(angle=0,
+                                     pos=1.5,
+                                     movable=False,
+                                     pen=pg.mkPen('w', width=0.5, style=Qt.DashLine)))
+
+    @staticmethod
+    def fill_empty(x, data):
+        if len(data[1]) == 0:
+            data[1] = [0]
+        return data[1]
+
     def update_plot(self, all_data):
-        pass
+        self.kin_plot.update_plot(all_data)
+        self.tact_plot.update_plot(all_data)
+        self.custom_plot.update_plot(all_data)
 
     def clear_plot(self):
-        pass
+        self.kin_plot.clear_plot()
+        self.tact_plot.clear_plot()
+        self.custom_plot.clear_plot()
+        self.add_dashed_lines(self.kin_plot.plot)
+        self.add_dashed_lines(self.tact_plot.plot)
+        self.add_dashed_lines(self.custom_plot.plot)

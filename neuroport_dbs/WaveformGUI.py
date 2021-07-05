@@ -12,7 +12,7 @@ import pyqtgraph as pg
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
 from neuroport_dbs.settings.defaults import WINDOWDIMS_WAVEFORMS, XRANGE_WAVEFORMS, uVRANGE, NWAVEFORMS, SIMOK, \
-                                            WF_COLORS, SAMPLINGGROUPS, SAMPLINGRATE
+                                            WF_COLORS, SAMPLINGGROUPS, SAMPLINGRATE, THEMES
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
@@ -94,7 +94,7 @@ class WaveformWidget(CustomWidget):
         # Finish
         self.layout().addLayout(cntrl_layout)
 
-    def create_plots(self, theme='dark'):
+    def create_plots(self, theme='dark', **kwargs):
         # Collect PlotWidget configuration
         self.plot_config = {
             'x_range': XRANGE_WAVEFORMS,

@@ -12,6 +12,7 @@ DSFAC = 100  # down-sampling factor
 # Range of electrodes depth in mm.
 DEPTHRANGE = [-20, 5]
 DEPTHTARGET = 0.0
+DDUSCALEFACTOR = 1000  # Target scale is mm. FHC drive returns um
 
 # Depth buffer
 BUFFERLENGTH = 6.0  # seconds
@@ -23,9 +24,13 @@ OVERWRITEDEPTH = True
 WINDOWDIMS_SWEEP = [0, 0, 620, 1080]
 WINDOWDIMS_LFP = [1320, 250, 600, 830]
 WINDOWDIMS_RASTER = [620, 0, 300, 1080]
-WINDOWDIMS_WAVEFORMS = [920, 0, 400, 1080]
+WINDOWDIMS_WAVEFORMS = [920, 0, 300, 1080]
+WINDOWDIMS_MAPPING = [1220, 0, 100, 1080]
 WINDOWDIMS_DEPTH = [1320, 0, 600, 250]
 WINDOWDIMS_FEATURES = [1320, 250, 600, 830]
+
+# Sensorimotor mapping
+MAPPINGSTIMULI = ['Kinesthetic', 'Tactile']
 
 # Plots
 XRANGE_SWEEP = 1.05  # seconds. Purposely slightly different to 1.0 so the NSS output doesn't overlap perfectly.
