@@ -31,12 +31,12 @@ setup(
     maintainer_email='gudoucet@ohri.ca',
     url='https://github.com/SachsLab/NeuroportDBS',
     license='GPL v3',
-
     entry_points={
         'gui_scripts': ['dbs-sweep=neuroport_dbs.SweepGUI:main',
                         'dbs-waveform=neuroport_dbs.WaveformGUI:main',
                         'dbs-raster=neuroport_dbs.RasterGUI:main',
                         'dbs-features=neuroport_dbs.FeaturesGUI:main',
+                        'dbs-mapping=neuroport_dbs.MappingGUI:main',
                         'dbs-comments=neuroport_dbs.CommentsGUI:main',
                         'dbs-ddu=neuroport_dbs.DDUGUI:main',
                         ],
