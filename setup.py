@@ -15,7 +15,7 @@ with open(path.join(here, 'docs', 'README.md'), encoding='utf-8') as f:
 # https://packaging.python.org/en/latest/single_source_version.html
 version = {}
 with open(path.join(package_name, "version.py")) as fp:
-    exec(f.read(), version)
+    exec(fp.read(), version)
 
 setup(
     name=package_name,
@@ -31,6 +31,7 @@ setup(
     maintainer_email='gudoucet@ohri.ca',
     url='https://github.com/SachsLab/NeuroportDBS',
     license='GPL v3',
+
     entry_points={
         'gui_scripts': ['dbs-sweep=neuroport_dbs.SweepGUI:main',
                         'dbs-waveform=neuroport_dbs.WaveformGUI:main',

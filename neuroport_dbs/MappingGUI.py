@@ -1,6 +1,3 @@
-"""
-chadwick.boulay@gmail.com
-"""
 import sys
 import os
 import qtpy
@@ -14,8 +11,7 @@ import pylsl
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, get_now_time,\
-                                                   THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
 
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
