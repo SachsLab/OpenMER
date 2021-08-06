@@ -161,10 +161,10 @@ class FeaturesPlotWidget(CustomWidget):
 
         # define status images
         self.status_icons = {
-            -2: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_delay.png')),
-            -1: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_in_use.png')),
-            1: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_done.png')),
-            0: QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'depth_status_off.png')),
+            -2: QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'depth_status_delay.png')),
+            -1: QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'depth_status_in_use.png')),
+            1: QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'depth_status_done.png')),
+            0: QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'depth_status_off.png')),
         }
 
         # Settings

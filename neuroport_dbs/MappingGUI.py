@@ -124,7 +124,7 @@ class MappingWidget(CustomWidget):
         body_widget.setLayout(QGridLayout())
         body_widget.layout().setContentsMargins(0, 0, 0, 0)
         lbl = QLabel()
-        lbl.setPixmap(QPixmap(os.path.join(os.path.dirname(__file__), 'icons', 'HalfBody.png')))
+        lbl.setPixmap(QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'HalfBody.png')))
         body_widget.layout().addWidget(lbl, 0, 0, 20, 10)
 
         self.body_parts = {}
