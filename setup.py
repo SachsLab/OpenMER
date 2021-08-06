@@ -20,8 +20,8 @@ with open(path.join(package_name, "version.py")) as fp:
 setup(
     name=package_name,
     version=version['__version__'],
-    packages=find_packages() + ['neuroport_dbs/icons'],
-    package_data={"neuroport_dbs/icons": ["*.png"]},
+    packages=find_packages() + ['neuroport_dbs/resources/icons'] + ['neuroport_dbs/resources/config'],
+    package_data={"neuroport_dbs/resources/icons": ["*.png"], "neuroport_dbs/resources/config": ["*.ini"]},
     description='Tools for clinical research using Blackrock Neuroport in DBS MER',
     long_description=long_description,
     long_description_content_type="text/markdown",
