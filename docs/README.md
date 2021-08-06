@@ -1,6 +1,6 @@
 # NeuroportDBS
 
-A collection of software developed in the Sachs Lab at the Ottawa Hospital for for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER) using the Blackrock Neuroport.
+A collection of software developed in the Sachs Lab at the Ottawa Hospital for for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER).
 
 ![Image of vis apps](https://github.com/SachsLab/NeuroportDBS/blob/master/vis_apps_screenshot.PNG?raw=true)
 

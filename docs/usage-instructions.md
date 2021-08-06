@@ -1,8 +1,3 @@
-The NSP must be on. Central should be running.
-* If you are going to run this on the same computer that is configuring the hardware and that might run Central, Central must be running first. Central will not start after the NeuroportDBS software is already running.
-* If you are going to run this on a separate computer connected to the NSP over the network, then Central is not technically required except for the FeaturesGUI app. If the FeaturesGUI requirement for Central is problematic for you then please let us know and we will try to remove that dependency.
-* If you do not have the NSP available then follow the instructions above to setup a test environment.
-
 For easier running:
 * Make a shortcut to `mysql\bin\mysqld.exe`.
 * Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
@@ -10,6 +5,13 @@ For easier running:
 First run the `mysqld` binary by double-clicking its shortcut. Then do the same for the `NeuroportDBS` batch file.
 
 Additional details follow.
+
+## Blackrock NSP
+
+The NSP must be on. Central should be running.
+* If you are going to run this on the same computer that is configuring the hardware and that might run Central, Central must be running first. Central will not start after the NeuroportDBS software is already running.
+* If you are going to run this on a separate computer connected to the NSP over the network, then Central is not technically required except for the FeaturesGUI app. If the FeaturesGUI requirement for Central is problematic for you then please let us know and we will try to remove that dependency.
+* If you do not have the NSP available then follow the instructions above to setup a test environment.
 
 ## DDU
 
