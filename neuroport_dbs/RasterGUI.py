@@ -11,13 +11,12 @@ from qtpy.QtCore import Qt, QTimer, Signal
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, SAMPLINGGROUPS, get_now_time,\
-                                                   THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, get_now_time
 
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
 from neuroport_dbs.settings.defaults import WINDOWDIMS_RASTER, XRANGE_RASTER, YRANGE_RASTER, SIMOK, \
-                                            LABEL_FONT_POINT_SIZE, SAMPLINGRATE
+                                            LABEL_FONT_POINT_SIZE, SAMPLINGRATE, SAMPLINGGROUPS, THEMES
 
 
 class RasterGUI(CustomGUI):
@@ -26,7 +25,7 @@ class RasterGUI(CustomGUI):
         super(RasterGUI, self).__init__()
         self.setWindowTitle('RasterGUI')
 
-    def on_action_add_plot_triggered(self):
+    def on_connection_established(self):
         self.cbsdk_conn.cbsdk_config = {
             'reset': True, 'get_events': True, 'get_comments': True,
             'buffer_parameter': {

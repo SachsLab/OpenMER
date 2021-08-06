@@ -25,7 +25,7 @@ class WaveformGUI(CustomGUI):
         super(WaveformGUI, self).__init__()
         self.setWindowTitle('WaveformGUI')
 
-    def on_action_add_plot_triggered(self):
+    def on_connection_established(self):
         self.cbsdk_conn.cbsdk_config = {
             'reset': True, 'get_events': False, 'get_comments': True,
             'buffer_parameter': {

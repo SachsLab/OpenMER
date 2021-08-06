@@ -1,12 +1,12 @@
 import time
-from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QMainWindow, QAction, QToolBar, QPushButton, qApp
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QSpinBox, QDialogButtonBox, QDialog, QWidget
-from qtpy.QtCore import Qt, Signal
+from pathlib import Path
+from qtpy import QtWidgets, QtCore
 from cerebuswrapper import CbSdkConnection
 
 # Import settings
-from neuroport_dbs.settings.defaults import SAMPLINGGROUPS, THEMES, SIMOK
+import neuroport_dbs
+import neuroport_dbs.dbsgui.data_source
+from neuroport_dbs.settings import defaults
 
 
 def get_now_time():
@@ -19,214 +19,106 @@ def get_now_time():
     return now
 
 
-class CustomGUI(QMainWindow):
+class CustomGUI(QtWidgets.QMainWindow):
     """
-    This application is for monitoring activity from the Blackrock NSP.
+    This application is for monitoring continuous activity from a MER data source.
     """
 
-    def __init__(self):
+    def __init__(self, ini_file=None):
         super(CustomGUI, self).__init__()
-        self.cbsdk_conn = CbSdkConnection(simulate_ok=SIMOK)
-        self.setup_ui()
-        self.indicate_connection_state()
+
+        # Infer path to ini
+        ini_name = ini_file if ini_file is not None else (type(self).__name__ + '.ini')
+        ini_path = Path(ini_name)
+        if ini_path.exists():
+            self._settings_path = ini_path
+        else:
+            # Try home / .dbs_suite first
+            home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
+            ini_path = home_dir / '.dbs_suite' / ini_path.name
+            if ini_path.exists():
+                self._settings_path = ini_path
+            else:
+                # Use default ini that ships with module.
+                self._settings_path = Path(__file__).parents[2] / 'resources' / 'config' / ini_path.name
+
         self.plot_widget = None
+        self.restore_from_settings()
         self.show()
 
     def __del__(self):
         # CbSdkConnection().disconnect() No need to disconnect because the instance will do so automatically.
         pass
 
-    def setup_ui(self):
-        # self.setCentralWidget(QWidget(self))
-        # self.centralWidget().setLayout(QVBoxLayout())
-        self.create_actions()
-        self.create_menus()
-        self.create_toolbars()
-        self.resize(250, 150)
+    def restore_from_settings(self):
+        settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
 
-    def create_actions(self):
-        # Actions
-        self.actions = {
-            'Connect': QAction("Connect", self),
-            'Quit': QAction("Quit", self),
-            'AddPlot': QAction("Add Plot", self)
-        }
-        self.actions['Connect'].triggered.connect(self.on_action_connect_triggered)
-        self.actions['Quit'].triggered.connect(qApp.quit)
-        self.actions['AddPlot'].triggered.connect(self.on_action_add_plot_triggered)
-        # TODO: Icons, tooltips, shortcuts, etc.
-        # TODO: QActionGroup if many actions need to be grouped.
+        # Restore size and position.
+        default_dims = defaults.WINDOWDIMS_DICT[type(self).__name__]
+        settings.beginGroup("MainWindow")
+        self.resize(settings.value("size", QtCore.QSize(default_dims[2], default_dims[3])))
+        self.move(settings.value("pos", QtCore.QPoint(default_dims[0], default_dims[1])))
+        if settings.value("fullScreen", 'false') == 'true':
+            self.showFullScreen()
+        elif settings.value("maximized", 'false') == 'true':
+            self.showMaximized()
+        if settings.value("frameless", 'false') == 'true':
+            self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        settings.endGroup()
 
-    def create_menus(self):
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu('&File')
-        for action_key in self.actions:
-            file_menu.addAction(self.actions[action_key])
+        # Infer data source from ini file, setup data source
+        settings.beginGroup("data-source")
+        src_cls = getattr(neuroport_dbs.dbsgui.data_source, settings.value("class"))
+        # Get the _data_source. Note this might trigger on_source_connected before child
+        #  finishes parsing settings.
+        _data_source = src_cls(scoped_settings=settings, on_connect_cb=self.on_source_connected)
+        settings.endGroup()
 
-    def create_toolbars(self):
-        for k, v in self.actions.items():
-            toolbar_item = QToolBar(k)
-            toolbar_item.addAction(v)
-            self.addToolBar(Qt.LeftToolBarArea, toolbar_item)
+        # Should continue in child class...
 
-    def indicate_connection_state(self):
-        if self.cbsdk_conn.is_connected:
-            msg_str = 'Connected to NSP'
-            # TODO: Disable connect menu/toolbar
-        elif self.cbsdk_conn.is_simulating:
-            msg_str = 'Connected to NSP simulator'
-        else:
-            msg_str = 'Not connected'
-            # TODO: Enable connect menu/toolbar
-        self.statusBar().showMessage(msg_str)
-
-    def on_action_connect_triggered(self):
-        result = ConnectDialog.do_connect_dialog()
-        if result == -1:
-            print("Connection canceled.")
-        self.indicate_connection_state()
-
-    def on_action_add_plot_triggered(self):
-        # abc.abstractmethod not possible because ABC does not work with Qt-derived classes, so raise error instead.
-        raise TypeError("This method must be overridden by sub-class.")
+    @QtCore.Slot(QtCore.QObject)
+    def on_source_connected(self, data_source):
+        self._data_source = data_source
+        # ... continue in child class ...
 
     def update(self):
         super(CustomGUI, self).update()
-
-        if self.cbsdk_conn.is_connected or self.cbsdk_conn.is_simulating:
-            if self.plot_widget:
-                self.do_plot_update()
+        if self._data_source.is_connected and self.plot_widget:
+            self.do_plot_update()
 
     def do_plot_update(self):
         # abc.abstractmethod not possible because ABC does not work with Qt-derived classes, so raise error instead.
-        raise TypeError("This method must be overridden by sub-class.")
+        raise NotImplementedError("This method must be overridden by sub-class.")
 
 
-class ConnectDialog(QDialog):
-    """
-    A modal dialog window with widgets for modifying connection parameters.
-    Changes + OK will change the parameters in the CbSdkConnection singleton,
-    but will not actually connect.
-    """
-
-    def __init__(self, parent=None):
-        super(ConnectDialog, self).__init__(parent)
-        # Get access to the CbSdkConnection instance, but don't connect yet.
-        self.cbsdkConn = CbSdkConnection()
-
-        # Widgets to show/edit connection parameters.
-        layout = QVBoxLayout(self)
-
-        # client-addr ip
-        client_addr_layout = QHBoxLayout()
-        client_addr_layout.addWidget(QLabel("client-addr"))
-        self.clientIpEdit = QLineEdit(self.cbsdkConn.con_params['client-addr'])
-        self.clientIpEdit.setInputMask("000.000.000.000;_")
-        client_addr_layout.addWidget(self.clientIpEdit)
-        layout.addLayout(client_addr_layout)
-
-        # client-port int
-        client_port_layout = QHBoxLayout()
-        client_port_layout.addWidget(QLabel("client-port"))
-        self.clientPortSpin = QSpinBox()
-        self.clientPortSpin.setMinimum(0)
-        self.clientPortSpin.setMaximum(99999)
-        self.clientPortSpin.setSingleStep(1)
-        self.clientPortSpin.setValue(self.cbsdkConn.con_params['client-port'])
-        client_port_layout.addWidget(self.clientPortSpin)
-        layout.addLayout(client_port_layout)
-
-        # inst-addr ip
-        inst_addr_layout = QHBoxLayout()
-        inst_addr_layout.addWidget(QLabel("inst-addr"))
-        self.instIpEdit = QLineEdit(self.cbsdkConn.con_params['inst-addr'])
-        self.instIpEdit.setInputMask("000.000.000.000;_")
-        inst_addr_layout.addWidget(self.instIpEdit)
-        layout.addLayout(inst_addr_layout)
-
-        # inst-port int
-        inst_port_layout = QHBoxLayout()
-        inst_port_layout.addWidget(QLabel("inst-port"))
-        self.instPortSpin = QSpinBox()
-        self.instPortSpin.setMinimum(0)
-        self.instPortSpin.setMaximum(99999)
-        self.instPortSpin.setSingleStep(1)
-        self.instPortSpin.setValue(self.cbsdkConn.con_params['inst-port'])
-        inst_port_layout.addWidget(self.instPortSpin)
-        layout.addLayout(inst_port_layout)
-
-        # receive-buffer-size int
-        rec_buff_layout = QHBoxLayout()
-        rec_buff_layout.addWidget(QLabel("receive-buffer-size"))
-        self.recBuffSpin = QSpinBox()
-        self.recBuffSpin.setMinimum(6 * 1024 * 1024)
-        self.recBuffSpin.setMaximum(8 * 1024 * 1024)
-        self.recBuffSpin.setSingleStep(1024 * 1024)
-        self.recBuffSpin.setValue(self.cbsdkConn.con_params['receive-buffer-size'])
-        rec_buff_layout.addWidget(self.recBuffSpin)
-        layout.addLayout(rec_buff_layout)
-
-        # OK and Cancel buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
-            Qt.Horizontal, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    @staticmethod
-    def do_connect_dialog(parent=None):
-        dialog = ConnectDialog(parent)
-        result = dialog.exec_()
-        if result == QDialog.Accepted:
-            dialog.cbsdkConn.disconnect()
-            # Collect values from widgets and set them on dialog.cbsdkConn
-            new_params = {
-                'client-addr': dialog.clientIpEdit.text(),
-                'client-port': dialog.clientPortSpin.value(),
-                'inst-addr': dialog.instIpEdit.text(),
-                'inst-port': dialog.instPortSpin.value(),
-                'receive-buffer-size': dialog.recBuffSpin.value()
-            }
-            dialog.cbsdkConn.con_params = new_params
-            return dialog.cbsdkConn.connect()
-        return -1
-
-
-class CustomWidget(QWidget):
+class CustomWidget(QtWidgets.QWidget):
     """
     A simple skeleton widget.
     It is only useful if sub-classed.
     """
-    was_closed = Signal()
+    was_closed = QtCore.Signal()
 
-    def __init__(self, group_info, group_ix=0, **kwargs):
+    def __init__(self, source_dict, **kwargs):
         super(CustomWidget, self).__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint)
 
         # Init member variables
-        self.group_info = group_info
         self.awaiting_close = False
-        self.labels = {}
-
-        # Get sampling rate from group_ix
-        if (SAMPLINGGROUPS[group_ix] == "0") or (SAMPLINGGROUPS[group_ix] == "RAW"):
-            group_ix = 5
-        self.samplingRate = int(SAMPLINGGROUPS[group_ix])
+        self.labels = source_dict['channel_names']
+        self.chan_states = source_dict['chan_states']
+        self.samplingRate = source_dict['srate']
 
         # Create UI elements
-        plot_layout = QVBoxLayout()
+        plot_layout = QtWidgets.QVBoxLayout()
         plot_layout.setContentsMargins(0, 0, 0, 0)
         plot_layout.setSpacing(0)
         self.setLayout(plot_layout)
         self.create_control_panel()
         self.create_plots(**kwargs)
         self.refresh_axes()
-        self.show()
 
     def create_control_panel(self):
-        cntrl_layout = QHBoxLayout()
-        clear_button = QPushButton("Clear")
+        cntrl_layout = QtWidgets.QHBoxLayout()
+        clear_button = QtWidgets.QPushButton("Clear")
         clear_button.clicked.connect(self.clear)
         clear_button.setMaximumWidth(200)
         cntrl_layout.addWidget(clear_button)
