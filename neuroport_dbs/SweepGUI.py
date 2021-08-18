@@ -9,7 +9,7 @@ import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
 from neuroport_dbs.settings import parse_ini_try_numeric
-from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, str2qcolor, get_colormap
+from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
 from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, get_now_time, CustomGUI
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
@@ -190,8 +190,19 @@ class SweepWidget(CustomWidget):
         filter_checkbox.setEnabled(False)
         filter_checkbox.stateChanged.connect(self.on_ln_filter_changed)
         cntrl_layout.addWidget(filter_checkbox)
+        # Checkbox for lock thresholds
+        threshlock_checkbox = QtWidgets.QCheckBox("Lk Thr")
+        threshlock_checkbox.setObjectName("lkthr_CheckBox")
+        threshlock_checkbox.setTristate(False)
+        threshlock_checkbox.setChecked(False)
+        cntrl_layout.addWidget(threshlock_checkbox)
         # Finish
         self.layout().addLayout(cntrl_layout)
+
+    def update_monitor_channel(self, chan_state, spike_only):
+        # Let other processes know we've changed the monitor channel
+        self.parent()._data_source.update_monitor(chan_state, spike_only=spike_only)
+        self.update_shared_memory()
 
     def on_spk_aud_changed(self, state):
         current_button_id = self._monitor_group.checkedId()
@@ -237,11 +248,6 @@ class SweepWidget(CustomWidget):
         spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
         self.update_monitor_channel(chan_state, spk_aud_cb.checkState() == QtCore.Qt.Checked)
 
-    def update_monitor_channel(self, chan_state, spike_only):
-        # Let other processes know we've changed the monitor channel
-        self.parent()._data_source.update_monitor(chan_state, spike_only=spike_only)
-        self.update_shared_memory()
-
     def update_shared_memory(self):
         # updates only the memory section needed
         if self.monitored_shared_mem.isAttached():
@@ -262,6 +268,7 @@ class SweepWidget(CustomWidget):
             self.monitored_shared_mem.unlock()
 
     def on_thresh_line_moved(self, inf_line):
+        new_thresh = None
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
@@ -269,13 +276,15 @@ class SweepWidget(CustomWidget):
                 # Let other processes know we've changed the threshold line.
                 self.parent()._data_source.update_threshold(ss_info, new_thresh)
                 # TODO: shared mem?
-        # TODO: If (new required) option is set, also set the other lines.
-
-    def update_config(self, config):
-        print(config)
+        lkthr_cb = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
+        if new_thresh is not None and lkthr_cb.checkState() == QtCore.Qt.Checked:
+            for line_label in self.segmented_series:
+                ss_info = self.segmented_series[line_label]
+                if ss_info['thresh_line'] != inf_line:
+                    ss_info['thresh_line'].setPos(new_thresh * self.UNIT_SCALING)
+                    self.parent()._data_source.update_threshold(ss_info, new_thresh)
 
     def create_plots(self, plot={}, filter={}, theme={}, alt_loc=False):
-        # TODO: plot keys: labelcolor
         # Collect PlotWidget configuration
         self.plot_config['theme'] = theme
         self.plot_config['downsample'] = plot.get('downsample', 100)
@@ -300,6 +309,9 @@ class SweepWidget(CustomWidget):
 
         spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
         spk_aud_cb.setCheckState(2 if bool(plot.get('spk_aud', True)) else 0)
+
+        thrlk_cb = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
+        thrlk_cb.setCheckState(2 if bool(plot.get('lock_threshold', False)) else 0)
 
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)  # show=False, size=None, title=None, border=None
@@ -328,7 +340,7 @@ class SweepWidget(CustomWidget):
 
         # Prepare plot
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = str2qcolor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        pen_color = make_qcolor(my_theme['pencolors'][self.plot_config['color_iterator']])
         samples_per_segment = int(
             np.ceil(self.plot_config['x_range'] * self.samplingRate / self.plot_config['n_segments']))
         for ix in range(self.plot_config['n_segments']):
@@ -344,7 +356,7 @@ class SweepWidget(CustomWidget):
             c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
         # Add threshold line
-        thresh_color = str2qcolor(my_theme.get('threshcolor', 'y'))
+        thresh_color = make_qcolor(my_theme.get('threshcolor', 'yellow'))
         pen = pg.mkPen(color=thresh_color, width=my_theme.get('threshwidth', 1))
         thresh_line = pg.InfiniteLine(angle=0, pen=pen, movable=True, label="{value:.0f}", labelOpts={'position': 0.05})
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)

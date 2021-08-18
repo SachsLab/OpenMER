@@ -24,11 +24,9 @@ def str2rgb(color_str: str):
     return np.array(_col)[None, :]
 
 
-def str2qcolor(color_str: str):
+def make_qcolor(color_str: str):
     from qtpy import QtGui
     pen_color = color_str
-    if isinstance(pen_color, str):
-        pen_color = parse_color_str(pen_color)
     if isinstance(pen_color, np.ndarray):
         pen_color = pen_color.tolist()
     if isinstance(pen_color, list):

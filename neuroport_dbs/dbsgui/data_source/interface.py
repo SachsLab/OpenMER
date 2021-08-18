@@ -23,3 +23,6 @@ class IDataSource(QtCore.QObject):
 
     def update_monitor(self, chan_info, spike_only=False):
         raise NotImplementedError("Sub-classes must implement a `update_monitor` method.")
+
+    def update_threshold(self, chan_info, new_value):
+        raise NotImplementedError("Sub-classes must implement a `update_threshold` method.")
