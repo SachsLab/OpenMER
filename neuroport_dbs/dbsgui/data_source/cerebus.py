@@ -61,3 +61,8 @@ class CerebusDataSource(IDataSource):
 
     def disconnect_requested(self):
         self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False}
+
+    def update_monitor(self, chan_info, spike_only=False):
+        _cbsdk_conn = CbSdkConnection()
+        if _cbsdk_conn.is_connected:
+            _cbsdk_conn.monitor_chan(chan_info['src'], spike_only=spike_only)
