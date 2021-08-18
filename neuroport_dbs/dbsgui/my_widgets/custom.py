@@ -42,7 +42,9 @@ class CustomGUI(QtWidgets.QMainWindow):
                 # Use default ini that ships with module.
                 self._settings_path = Path(__file__).parents[2] / 'resources' / 'config' / ini_path.name
 
-        self.plot_widget = None
+        self._plot_widget = None
+        self._plot_config = None
+        self._data_source = None
         self.restore_from_settings()
         self.show()
 
@@ -51,6 +53,7 @@ class CustomGUI(QtWidgets.QMainWindow):
         pass
 
     def restore_from_settings(self):
+        # Should be overridden in child class, but likely calling this super at top of override.
         settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
 
         # Restore size and position.
@@ -74,21 +77,50 @@ class CustomGUI(QtWidgets.QMainWindow):
         _data_source = src_cls(scoped_settings=settings, on_connect_cb=self.on_source_connected)
         settings.endGroup()
 
-        # Should continue in child class...
-
     @QtCore.Slot(QtCore.QObject)
     def on_source_connected(self, data_source):
-        self._data_source = data_source
-        # ... continue in child class ...
+        self.data_source = data_source  # Triggers setter --> self.try_reset_widget()
+
+    @property
+    def widget_cls(self):
+        return NotImplemented  # Child class must override this attribute
 
     def update(self):
         super(CustomGUI, self).update()
-        if self._data_source.is_connected and self.plot_widget:
+        if self.data_source.is_connected and self._plot_widget:
             self.do_plot_update()
 
     def do_plot_update(self):
         # abc.abstractmethod not possible because ABC does not work with Qt-derived classes, so raise error instead.
         raise NotImplementedError("This method must be overridden by sub-class.")
+
+    def try_reset_widget(self):
+        if self._plot_widget is not None:
+            # TODO: Close existing self._plot_widget
+            print("TODO: Close existing self._plot_widget")
+        if self.plot_config is not None and self.data_source is not None:
+            src_dict = self.data_source.data_stats
+            self._plot_widget = self.widget_cls(src_dict, **self.plot_config)
+            self._plot_widget.was_closed.connect(self.on_plot_closed)
+            self.setCentralWidget(self._plot_widget)
+
+    @property
+    def data_source(self):
+        return self._data_source
+
+    @data_source.setter
+    def data_source(self, value):
+        self._data_source = value
+        self.try_reset_widget()
+
+    @property
+    def plot_config(self):
+        return self._plot_config
+
+    @plot_config.setter
+    def plot_config(self, value):
+        self._plot_config = value
+        self.try_reset_widget()
 
 
 class CustomWidget(QtWidgets.QWidget):

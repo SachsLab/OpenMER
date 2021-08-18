@@ -9,13 +9,12 @@ import pyqtgraph as pg
 from cerebuswrapper import CbSdkConnection
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.settings.defaults import THEMES
+from neuroport_dbs.settings import parse_ini_try_numeric
+from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, str2qcolor, get_colormap
 from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, get_now_time, CustomGUI
-
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
-from neuroport_dbs.settings.defaults import WINDOWDIMS_SWEEP, WINDOWDIMS_LFP, NPLOTSEGMENTS, XRANGE_SWEEP, uVRANGE, \
-                                            FILTERCONFIG, DSFAC
+from neuroport_dbs.settings.defaults import uVRANGE
 
 
 class SweepGUI(CustomGUI):
@@ -23,6 +22,10 @@ class SweepGUI(CustomGUI):
     def __init__(self):
         super(SweepGUI, self).__init__()
         self.setWindowTitle('SweepGUI')
+
+    @CustomGUI.widget_cls.getter
+    def widget_cls(self):
+        return SweepWidget
 
     def restore_from_settings(self):
         super().restore_from_settings()
@@ -32,73 +35,67 @@ class SweepGUI(CustomGUI):
         settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
 
         plot_config = {}
-        settings.beginGroup("filter")
-        plot_config['filter'] = {
-            'order': settings.value('order', 4),
-            'cutoff': settings.value('cutoff', 250),
-            'btype': settings.value('btype', 'highpass'),
-            'output': settings.value('output', 'sos')
-        }
-        settings.endGroup()
-        # TODO: Setup data filter.
+        for group_name in ['filter', 'plot']:
+            plot_config[group_name] = {}
+            settings.beginGroup(group_name)
+            for k in settings.allKeys():
+                plot_config[group_name][k] = parse_ini_try_numeric(settings, k)
+            settings.endGroup()
 
-        settings.beginGroup("plot")
-        plot_config['plot'] = {
-            'x_range': settings.value('xrange', 1.05),
-            'y_range': settings.value('yrange', 250),
-            'labelcolor': settings.value('labelcolor', 'gray'),
-            'axiscolor': settings.value('axiscolor', 'gray'),
-            'axiswidth': settings.value('axiswidth', 1)
-        }
-        colormap = settings.value('colormap')
-        colors = []
-        if colormap == "custom":
-            settings.beginGroup("colors")
+        # theme
+        settings.beginGroup("theme")
+        plot_config['theme'] = {}
+        for k in settings.allKeys():
+            if k == 'colormap' or k.lower().startswith('pencolors'):
+                continue
+            plot_config['theme'][k] = parse_ini_try_numeric(settings, k)
+        # theme > pencolors
+        plot_config['theme']['colormap'] = settings.value('colormap', 'custom')
+        if plot_config['theme']['colormap'] == "custom":
+            pencolors = []
+            settings.beginGroup("pencolors")
             for c_id in settings.childGroups():
                 settings.beginGroup(c_id)
                 cname = settings.value("name", None)
                 if cname is not None:
                     cvalue = QtGui.QColor(cname)
                 else:
-                    cvalue = settings.value("value", QtGui.QColor(255, 255, 255))
-                colors.append(cvalue)
+                    cvalue = settings.value("value", "#ffffff")
+                pencolors.append(cvalue)
                 settings.endGroup()
-            settings.endGroup()
-        settings.endGroup()
-        plot_config['colors'] = {'colormap': colormap, 'colors': colors}
-        self.update_plot_config(plot_config)
-
-    def on_source_connected(self, data_source):
-        super().on_source_connected(data_source)
-        src_dict = self._data_source.data_stats
-        self.plot_widget = SweepWidget(src_dict)
-        self.plot_widget.was_closed.connect(self.on_plot_closed)
-        self.setCentralWidget(self.plot_widget)
+            settings.endGroup()  # pencolors
+            plot_config['theme']['pencolors'] = pencolors
+        settings.endGroup()  # end theme
+        self.plot_config = plot_config  # Triggers setter --> self.try_reset_widget()
 
     def on_plot_closed(self):
-        if self.plot_widget.awaiting_close:
-            del self.plot_widget
-            self.plot_widget = None
-        if not self.plot_widget:
+        if self._plot_widget is not None and self._plot_widget.awaiting_close:
+            del self._plot_widget
+            self._plot_widget = None
+        if not self._plot_widget:
             self._data_source.disconnect_requested()
 
     def do_plot_update(self):
         cont_data = self._data_source.get_continuous_data()
         if cont_data is not None:
             cont_chan_ids = [x[0] for x in cont_data]
-            chart_chan_ids = [x['src'] for x in self.plot_widget.chan_states]
+            chart_chan_ids = [x['src'] for x in self._plot_widget.chan_states]
             match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
             for chan_id in match_chans:
                 ch_ix = cont_chan_ids.index(chan_id)
                 data = cont_data[ch_ix][1]
-                label = self.plot_widget.chan_states[ch_ix]['name']
-                self.plot_widget.update(label, data, ch_state=self.plot_widget.chan_states[ch_ix])
+                label = self._plot_widget.chan_states[ch_ix]['name']
+                self._plot_widget.update(label, data, ch_state=self._plot_widget.chan_states[ch_ix])
 
 
 class SweepWidget(CustomWidget):
     UNIT_SCALING = 0.25  # Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
 
     def __init__(self, *args, **kwargs):
+        """
+        *args typically contains a data_source dict with entries for 'srate', 'channel_names', 'chan_states'
+        **kwargs typically contains dicts for configuring the plotter, including 'filter', 'plot', and 'theme'.
+        """
         self._monitor_group = None  # QtWidgets.QButtonGroup(parent=self)
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
@@ -122,13 +119,13 @@ class SweepWidget(CustomWidget):
 
     def keyPressEvent(self, e):
         valid_keys = [QtCore.Qt.Key_0, QtCore.Qt.Key_1, QtCore.Qt.Key_2, QtCore.Qt.Key_3, QtCore.Qt.Key_4, QtCore.Qt.Key_5, QtCore.Qt.Key_6, QtCore.Qt.Key_7, QtCore.Qt.Key_8,
-                      QtCore.Qt.Key_9][:len(self.group_info) + 1]
+                      QtCore.Qt.Key_9][:len(self.chan_states) + 1]
         current_button_id = self._monitor_group.checkedId()
         new_button_id = None
         if e.key() == QtCore.Qt.Key_Left:
-            new_button_id = (current_button_id - 1) % (len(self.group_info) + 1)
+            new_button_id = (current_button_id - 1) % (len(self.chan_states) + 1)
         elif e.key() == QtCore.Qt.Key_Right:
-            new_button_id = (current_button_id + 1) % (len(self.group_info) + 1)
+            new_button_id = (current_button_id + 1) % (len(self.chan_states) + 1)
         elif e.key() == QtCore.Qt.Key_Space:
             new_button_id = 0
         elif e.key() in valid_keys:
@@ -213,18 +210,24 @@ class SweepWidget(CustomWidget):
             self.audio['chan_label'] = 'silence'
             monitor_chan_id = 0
         else:
-            this_label = self.group_info[button_id - 1]['label']
+            this_label = self.labels[button_id - 1]
             self.audio['chan_label'] = this_label
-            monitor_chan_id = self.group_info[button_id - 1]['chan']
+            monitor_chan_id = self.chan_states[button_id - 1]['src']
 
         # Reset plot titles
-        for gi in self.group_info:
-            plot_item = self.segmented_series[gi['label']]['plot']
-            label_kwargs = {'color': 'y', 'size': '15pt'}\
-                if gi['label'] == this_label else {'color': None, 'size': '11pt'}
+        active_kwargs = {'color': parse_color_str(self.plot_config['theme'].get('labelcolor_active', 'yellow')),
+                         'size': str(self.plot_config['theme'].get('labelsize_active', 15)) + 'pt'}
+        inactive_kwargs = {'color': self.plot_config['theme'].get('labelcolor_inactive', None),
+                           'size': str(self.plot_config['theme'].get('labelsize_inactive', 11)) + 'pt'}
+        if inactive_kwargs['color'] is not None:
+            inactive_kwargs['color'] = parse_color_str(inactive_kwargs['color'])
+        for label in self.labels:
+            plot_item = self.segmented_series[label]['plot']
+            label_kwargs = active_kwargs if label == this_label else inactive_kwargs
             plot_item.setTitle(title=plot_item.titleLabel.text, **label_kwargs)
 
         # Let other processes know we've changed the monitor channel
+        # TODO: Replace this with a method in the data abstraction layer, arg=self.chan_states[button_id - 1]
         _cbsdk_conn = CbSdkConnection()
         if _cbsdk_conn.is_connected:
             _cbsdk_conn.monitor_chan(monitor_chan_id, spike_only=self.plot_config['spk_aud'])
@@ -253,6 +256,8 @@ class SweepWidget(CustomWidget):
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
                 new_thresh = int(inf_line.getYPos() / self.UNIT_SCALING)
+                # TODO: Update through data interface
+                print("TODO: Update threshold change via data interface")
                 # Let other processes know we've changed the threshold line.
                 cbsdkconn = CbSdkConnection()
                 if cbsdkconn.is_connected:
@@ -263,47 +268,56 @@ class SweepWidget(CustomWidget):
     def update_config(self, config):
         print(config)
 
-    def create_plots(self, theme='dark', downsample=False, alt_loc=False):
+    def create_plots(self, plot={}, filter={}, theme={}, alt_loc=False):
+        # TODO: plot keys: labelcolor
         # Collect PlotWidget configuration
-        self.plot_config['downsample'] = downsample
-        self.plot_config['x_range'] = XRANGE_SWEEP
-        self.plot_config['y_range'] = uVRANGE
         self.plot_config['theme'] = theme
-        self.plot_config['color_iterator'] = -1
-        self.plot_config['n_segments'] = NPLOTSEGMENTS
+        self.plot_config['downsample'] = plot.get('downsample', 100)
+        self.plot_config['x_range'] = plot.get('x_range', 1.0)
+        self.plot_config['y_range'] = plot.get('y_range', 250)
+        self.plot_config['n_segments'] = plot.get('n_segments', 20)
         self.plot_config['alt_loc'] = alt_loc
-        if 'do_hp' not in self.plot_config:
-            self.plot_config['do_hp'] = False
+        self.plot_config['color_iterator'] = -1
+        self.plot_config['do_hp'] = filter.get('order', 4) > 0
+        if self.plot_config['do_hp']:
+            self.plot_config['hp_sos'] = signal.butter(filter.get('order', 4),
+                                                       2 * filter.get('cutoff', 250) / self.samplingRate,
+                                                       btype=filter.get('btype', 'highpass'),
+                                                       output=filter.get('output', 'sos'))
         if 'spk_aud' not in self.plot_config:
             self.plot_config['spk_aud'] = False
-        self.plot_config['hp_sos'] = signal.butter(FILTERCONFIG['order'],
-                                                   2 * FILTERCONFIG['cutoff'] / self.samplingRate,
-                                                   btype=FILTERCONFIG['type'],
-                                                   output=FILTERCONFIG['output'])
         if 'do_ln' not in self.plot_config:
             self.plot_config['do_ln'] = False
         self.plot_config['ln_filt'] = None  # TODO: comb filter coeffs
 
         # Create and add GraphicsLayoutWidget
-        glw = pg.GraphicsLayoutWidget(parent=self)
+        glw = pg.GraphicsLayoutWidget(parent=self)  # show=False, size=None, title=None, border=None
         # glw.useOpenGL(True)  # Actually seems slower.
+        if 'bgcolor' in self.plot_config['theme']:
+            glw.setBackground(parse_color_str(self.plot_config['theme']['bgcolor']))
         self.layout().addWidget(glw)
+
+        cmap = self.plot_config['theme']['colormap']
+        if cmap != 'custom':
+            self.plot_config['theme']['pencolors'] = get_colormap(self.plot_config['theme']['colormap'],
+                                                                  len(self.chan_states))
+
         # Add add a plot with a series of many curve segments for each line.
         for chan_state in self.chan_states:
             self.add_series(chan_state)
 
     def add_series(self, chan_state):
+        my_theme = self.plot_config['theme']
+
         # Plot for this channel
         glw = self.findChild(pg.GraphicsLayoutWidget)
-        new_plot = glw.addPlot(row=len(self.segmented_series), col=0, title=chan_state['name'], enableMenu=False)
+        new_plot = glw.addPlot(row=len(self.segmented_series), col=0,
+                               title=chan_state['name'], enableMenu=False)
         new_plot.setMouseEnabled(x=False, y=False)
 
-        # Appearance settings
-        my_theme = THEMES[self.plot_config['theme']]
+        # Prepare plot
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = QtGui.QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
-
-        # Prepare plot data
+        pen_color = str2qcolor(my_theme['pencolors'][self.plot_config['color_iterator']])
         samples_per_segment = int(
             np.ceil(self.plot_config['x_range'] * self.samplingRate / self.plot_config['n_segments']))
         for ix in range(self.plot_config['n_segments']):
@@ -313,13 +327,15 @@ class SweepWidget(CustomWidget):
                 # Last segment might not be full length.
                 seg_x = np.arange(ix * samples_per_segment,
                                   int(self.plot_config['x_range'] * self.samplingRate), dtype=np.int16)
-            if self.plot_config['downsample']:
-                seg_x = seg_x[::DSFAC]
-            c = new_plot.plot(parent=new_plot, pen=pen_color)  # PlotDataItem
+            seg_x = seg_x[::self.plot_config['downsample']]
+            pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
+            c = new_plot.plot(parent=new_plot, pen=pen)  # PlotDataItem
             c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
         # Add threshold line
-        thresh_line = pg.InfiniteLine(angle=0, movable=True, label="{value:.0f}", labelOpts={'position': 0.05})
+        thresh_color = str2qcolor(my_theme.get('threshcolor', 'y'))
+        pen = pg.mkPen(color=thresh_color, width=my_theme.get('threshwidth', 1))
+        thresh_line = pg.InfiniteLine(angle=0, pen=pen, movable=True, label="{value:.0f}", labelOpts={'position': 0.05})
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
         new_plot.addItem(thresh_line)
 
@@ -426,14 +442,14 @@ class SweepWidget(CustomWidget):
         for pci in ss_info['plot'].dataItems:
             old_x, old_y = pci.getData()
             x_lims = [old_x[0], old_x[-1]]
-            if self.plot_config['downsample']:
-                x_lims[1] += (DSFAC - 1)
+            x_lims[1] += (self.plot_config['downsample'] - 1)
             data_bool = np.logical_and(sample_indices >= x_lims[0], sample_indices <= x_lims[-1])
             if np.where(data_bool)[0].size > 0:
                 new_x, new_y = sample_indices[data_bool], data[data_bool]
-                if self.plot_config['downsample']:
-                    new_x = new_x[::DSFAC] - (new_x[0] % DSFAC) + (old_x[0] % DSFAC)
-                    new_y = new_y[::DSFAC]
+                if self.plot_config['downsample'] > 1:
+                    _dsfac = self.plot_config['downsample']
+                    new_x = new_x[::_dsfac] - (new_x[0] % _dsfac) + (old_x[0] % _dsfac)
+                    new_y = new_y[::_dsfac]
                 old_bool = np.in1d(old_x, new_x, assume_unique=True)
                 new_bool = np.in1d(new_x, old_x, assume_unique=True)
                 old_y[old_bool] = new_y[new_bool]
