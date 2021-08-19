@@ -74,8 +74,15 @@ class CerebusDataSource(IDataSource):
     def get_continuous_data(self):
         return self._cbsdk_conn.get_continuous_data()
 
+    def get_event_data(self):
+        return self._cbsdk_conn.get_event_data()
+
+    def get_comments(self):
+        return self._cbsdk_conn.get_comments()
+
     def disconnect_requested(self):
-        self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False}
+        self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False,
+                                         'get_events': False, 'get_comments': False}
 
     def update_monitor(self, chan_info, spike_only=False):
         _cbsdk_conn = CbSdkConnection()

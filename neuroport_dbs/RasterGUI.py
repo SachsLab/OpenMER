@@ -4,19 +4,12 @@ chadwick.boulay@gmail.com
 import sys
 import os
 import numpy as np
-import qtpy
-from qtpy.QtGui import QColor, QFont
-from qtpy.QtWidgets import QApplication
-from qtpy.QtCore import Qt, QTimer, Signal
+from qtpy import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, ConnectDialog, get_now_time
-
-# Import settings
-# TODO: Make some of these settings configurable via UI elements
-from neuroport_dbs.settings.defaults import WINDOWDIMS_RASTER, XRANGE_RASTER, YRANGE_RASTER, SIMOK, \
-                                            LABEL_FONT_POINT_SIZE, SAMPLINGRATE, SAMPLINGGROUPS, THEMES
+from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, get_colormap
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, get_now_time
 
 
 class RasterGUI(CustomGUI):
@@ -25,96 +18,92 @@ class RasterGUI(CustomGUI):
         super(RasterGUI, self).__init__()
         self.setWindowTitle('RasterGUI')
 
-    def on_connection_established(self):
-        self.cbsdk_conn.cbsdk_config = {
-            'reset': True, 'get_events': True, 'get_comments': True,
-            'buffer_parameter': {
-                'comment_length': 10
-            }
-        }
-        # TODO: Or RAW, never both
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index(str(SAMPLINGRATE)))
-        for gi_item in group_info:
-            gi_item['label'] = gi_item['label'].decode('utf-8')
-            gi_item['unit'] = gi_item['unit'].decode('utf-8')
-        self.plot_widget = RasterWidget(group_info)
-        self.plot_widget.was_closed.connect(self.on_plot_closed)
+    @CustomGUI.widget_cls.getter
+    def widget_cls(self):
+        return RasterWidget
 
     def on_plot_closed(self):
-        self.plot_widget = None
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+        self._plot_widget = None
+        self._data_source.disconnect_requested()
 
     def do_plot_update(self):
-        ev_timestamps = self.cbsdk_conn.get_event_data()
+        ev_timestamps = self._data_source.get_event_data()
         ev_chan_ids = [x[0] for x in ev_timestamps]
-        for chan_label in self.plot_widget.rasters:
-            ri = self.plot_widget.rasters[chan_label]
+        for chan_label in self._plot_widget.rasters:
+            ri = self._plot_widget.rasters[chan_label]
             if ri['chan_id'] in ev_chan_ids:
                 data = ev_timestamps[ev_chan_ids.index(ri['chan_id'])][1]['timestamps']
             else:
                 data = [[], ]
-            self.plot_widget.update(chan_label, data)
+            self._plot_widget.update(chan_label, data)
 
-        # Fetching comments is slow!
-        comments = self.cbsdk_conn.get_comments()
+        comments = self._data_source.get_comments()
         if comments:
-            self.plot_widget.parse_comments(comments)
+            self._plot_widget.parse_comments(comments)
 
 
 class RasterWidget(CustomWidget):
-    frate_changed = Signal(str, float)
+    frate_changed = QtCore.Signal(str, float)
 
     def __init__(self, *args, **kwargs):
-        super(RasterWidget, self).__init__(*args, **kwargs)
-        self.move(WINDOWDIMS_RASTER[0], WINDOWDIMS_RASTER[1])
-        self.resize(WINDOWDIMS_RASTER[2], WINDOWDIMS_RASTER[3])
         self.DTT = None
+        self.plot_config = {}
+        super().__init__(*args, **kwargs)
 
-    def create_plots(self, theme='dark', **kwargs):
-        # Collect PlotWidget configuration
-        self.plot_config = {
-            'x_range': XRANGE_RASTER,
-            'y_range': YRANGE_RASTER,
-            'theme': theme,
-            'color_iterator': -1
-        }
+    def create_plots(self, plot={}, theme={}):
+        self.plot_config['theme'] = theme
+        self.plot_config['x_range'] = plot.get('x_range', 0.5)
+        self.plot_config['y_range'] = plot.get('y_range', 8)
+        self.plot_config['color_iterator'] = -1
+
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)
         # glw.useOpenGL(True)
+        if 'bgcolor' in self.plot_config['theme']:
+            glw.setBackground(parse_color_str(self.plot_config['theme']['bgcolor']))
         self.layout().addWidget(glw)
-        self.rasters = {}  # Will contain one dictionary for each line/channel label.
-        for chan_ix in range(len(self.group_info)):
-            self.add_series(self.group_info[chan_ix])
 
-    def add_series(self, chan_info):
+        cmap = self.plot_config['theme']['colormap']
+        if cmap != 'custom':
+            self.plot_config['theme']['pencolors'] = get_colormap(self.plot_config['theme']['colormap'],
+                                                                  len(self.chan_states))
+
+        self.rasters = {}  # Will contain one dictionary for each line/channel label.
+        for chan_state in self.chan_states:
+            self.add_series(chan_state)
+
+    def add_series(self, chan_state):
+        my_theme = self.plot_config['theme']
         glw = self.findChild(pg.GraphicsLayoutWidget)
-        new_plot = glw.addPlot(row=len(self.rasters), col=0)
+        new_plot = glw.addPlot(row=len(self.rasters), col=0, enableMenu=False)
+        new_plot.setMouseEnabled(x=False, y=False)
+
         # Appearance settings
-        my_theme = THEMES[self.plot_config['theme']]
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        pen_color = QtGui.QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
         # Create PlotCurveItem for latest spikes (bottom row) and slower-updating old spikes (upper rows)
         pcis = []
         for pci_ix in range(2):
             pci = pg.PlotCurveItem(parent=new_plot, connect='pairs')
-            pci.setPen(pen_color)
+            pci.setPen(pen)
             new_plot.addItem(pci)
             pcis.append(pci)
         # Create text for displaying firing rate. Placeholder text is channel label.
-        frate_annotation = pg.TextItem(text=chan_info['label'],
+        frate_annotation = pg.TextItem(text=chan_state['name'],
                                        color=(255, 255, 255))
         frate_annotation.setPos(0, self.plot_config['y_range'])
-        my_font = QFont()
-        my_font.setPointSize(24)
+        my_font = QtGui.QFont()
+        my_font.setPointSize(my_theme.get('frate_size', 24))
         frate_annotation.setFont(my_font)
         new_plot.addItem(frate_annotation)
         # Store information
-        self.rasters[chan_info['label']] = {
+        self.rasters[chan_state['name']] = {
             'plot': new_plot,
             'old': pcis[0],
             'latest': pcis[1],
             'line_ix': len(self.rasters),
-            'chan_id': chan_info['chan'],
+            'chan_id': chan_state['src'],
             'frate_item': frate_annotation
         }
         self.clear()
@@ -233,14 +222,14 @@ class RasterWidget(CustomWidget):
 
 
 def main():
-    _ = QApplication(sys.argv)
+    _ = QtWidgets.QApplication(sys.argv)
     aw = RasterGUI()
-    timer = QTimer()
+    timer = QtCore.QTimer()
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QApplication.instance().exec_()
+    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+        QtWidgets.QApplication.instance().exec_()
 
 
 if __name__ == '__main__':

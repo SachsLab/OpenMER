@@ -21,6 +21,12 @@ class IDataSource(QtCore.QObject):
     def get_continuous_data(self):
         raise NotImplementedError("Sub-classes must implement a `get_continuous_data` method.")
 
+    def get_event_data(self):
+        raise NotImplementedError("Sub-classes must implement a `get_event_data` method.")
+
+    def get_comments(self):
+        raise NotImplementedError("Sub-classes must implement a `get_comments` method.")
+
     def update_monitor(self, chan_info, spike_only=False):
         raise NotImplementedError("Sub-classes must implement a `update_monitor` method.")
 
