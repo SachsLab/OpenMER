@@ -26,47 +26,6 @@ class SweepGUI(CustomGUI):
     def widget_cls(self):
         return SweepWidget
 
-    def restore_from_settings(self):
-        super().restore_from_settings()
-
-        # Continue parsing the ini file. Note that the connection might have already been made, but might not.
-        #  The below settings have to be flexible to creating the visualization immediately or later.
-        settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
-
-        plot_config = {}
-        for group_name in ['filter', 'plot']:
-            plot_config[group_name] = {}
-            settings.beginGroup(group_name)
-            for k in settings.allKeys():
-                plot_config[group_name][k] = parse_ini_try_numeric(settings, k)
-            settings.endGroup()
-
-        # theme
-        settings.beginGroup("theme")
-        plot_config['theme'] = {}
-        for k in settings.allKeys():
-            if k == 'colormap' or k.lower().startswith('pencolors'):
-                continue
-            plot_config['theme'][k] = parse_ini_try_numeric(settings, k)
-        # theme > pencolors
-        plot_config['theme']['colormap'] = settings.value('colormap', 'custom')
-        if plot_config['theme']['colormap'] == "custom":
-            pencolors = []
-            settings.beginGroup("pencolors")
-            for c_id in settings.childGroups():
-                settings.beginGroup(c_id)
-                cname = settings.value("name", None)
-                if cname is not None:
-                    cvalue = QtGui.QColor(cname)
-                else:
-                    cvalue = settings.value("value", "#ffffff")
-                pencolors.append(cvalue)
-                settings.endGroup()
-            settings.endGroup()  # pencolors
-            plot_config['theme']['pencolors'] = pencolors
-        settings.endGroup()  # end theme
-        self.plot_config = plot_config  # Triggers setter --> self.try_reset_widget()
-
     def on_plot_closed(self):
         if self._plot_widget is not None and self._plot_widget.awaiting_close:
             del self._plot_widget

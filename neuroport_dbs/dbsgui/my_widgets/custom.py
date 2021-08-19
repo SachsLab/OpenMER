@@ -1,12 +1,12 @@
 import time
 from pathlib import Path
-from qtpy import QtWidgets, QtCore
+from qtpy import QtWidgets, QtCore, QtGui
 from cerebuswrapper import CbSdkConnection
 
 # Import settings
 import neuroport_dbs
 import neuroport_dbs.dbsgui.data_source
-from neuroport_dbs.settings import defaults
+from neuroport_dbs.settings import defaults, parse_ini_try_numeric
 
 
 def get_now_time():
@@ -76,6 +76,42 @@ class CustomGUI(QtWidgets.QMainWindow):
         #  finishes parsing settings.
         _data_source = src_cls(scoped_settings=settings, on_connect_cb=self.on_source_connected)
         settings.endGroup()
+
+        plot_config = {}
+        for group_name in settings.childGroups():
+            if group_name.lower() in ['mainwindow', 'theme'] or group_name.lower().startswith('data-source'):
+                continue
+            plot_config[group_name] = {}
+            settings.beginGroup(group_name)
+            for k in settings.allKeys():
+                plot_config[group_name][k] = parse_ini_try_numeric(settings, k)
+            settings.endGroup()
+
+        # theme
+        settings.beginGroup("theme")
+        plot_config['theme'] = {}
+        for k in settings.allKeys():
+            if k == 'colormap' or k.lower().startswith('pencolors'):
+                continue
+            plot_config['theme'][k] = parse_ini_try_numeric(settings, k)
+        # theme > pencolors
+        plot_config['theme']['colormap'] = settings.value('colormap', 'custom')
+        if plot_config['theme']['colormap'] == "custom":
+            pencolors = []
+            settings.beginGroup("pencolors")
+            for c_id in settings.childGroups():
+                settings.beginGroup(c_id)
+                cname = settings.value("name", None)
+                if cname is not None:
+                    cvalue = QtGui.QColor(cname)
+                else:
+                    cvalue = settings.value("value", "#ffffff")
+                pencolors.append(cvalue)
+                settings.endGroup()
+            settings.endGroup()  # pencolors
+            plot_config['theme']['pencolors'] = pencolors
+        settings.endGroup()  # end theme
+        self.plot_config = plot_config  # Triggers setter --> self.try_reset_widget()
 
     @QtCore.Slot(QtCore.QObject)
     def on_source_connected(self, data_source):
