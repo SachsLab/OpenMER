@@ -47,7 +47,6 @@ class SweepGUI(CustomGUI):
 
 
 class SweepWidget(CustomWidget):
-    UNIT_SCALING = 0.25  # Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
 
     def __init__(self, *args, **kwargs):
         """
@@ -61,7 +60,7 @@ class SweepWidget(CustomWidget):
         #  - Used by features/depth
         self.monitored_shared_mem = QtCore.QSharedMemory()
 
-        super(SweepWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.refresh_axes()  # Even though super __init__ calls this, extra refresh is intentional
         self.pya_manager = pyaudio.PyAudio()
         self.pya_stream = None
@@ -100,7 +99,7 @@ class SweepWidget(CustomWidget):
                 self.pya_stream.stop_stream()
             self.pya_stream.close()
         self.pya_manager.terminate()
-        super(SweepWidget, self).closeEvent(evnt)
+        super().closeEvent(evnt)
 
     def create_control_panel(self):
         # Create control panel
@@ -231,7 +230,7 @@ class SweepWidget(CustomWidget):
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             if ss_info['thresh_line'] == inf_line:
-                new_thresh = int(inf_line.getYPos() / self.UNIT_SCALING)
+                new_thresh = int(inf_line.getYPos() / self.plot_config['unit_scaling'])
                 # Let other processes know we've changed the threshold line.
                 self.parent()._data_source.update_threshold(ss_info, new_thresh)
                 # TODO: shared mem?
@@ -240,7 +239,7 @@ class SweepWidget(CustomWidget):
             for line_label in self.segmented_series:
                 ss_info = self.segmented_series[line_label]
                 if ss_info['thresh_line'] != inf_line:
-                    ss_info['thresh_line'].setPos(new_thresh * self.UNIT_SCALING)
+                    ss_info['thresh_line'].setPos(new_thresh * self.plot_config['unit_scaling'])
                     self.parent()._data_source.update_threshold(ss_info, new_thresh)
 
     def create_plots(self, plot={}, filter={}, theme={}, alt_loc=False):
@@ -250,6 +249,8 @@ class SweepWidget(CustomWidget):
         self.plot_config['x_range'] = plot.get('x_range', 1.0)
         self.plot_config['y_range'] = plot.get('y_range', 250)
         self.plot_config['n_segments'] = plot.get('n_segments', 20)
+        self.plot_config['unit_scaling'] = plot.get('unit_scaling', 0.25)
+        # Default value of 0.25 -- Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
         self.plot_config['alt_loc'] = alt_loc
         self.plot_config['color_iterator'] = -1
         self.plot_config['do_hp'] = filter.get('order', 4) > 0
@@ -300,6 +301,7 @@ class SweepWidget(CustomWidget):
         # Prepare plot
         self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
         pen_color = make_qcolor(my_theme['pencolors'][self.plot_config['color_iterator']])
+        pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
         samples_per_segment = int(
             np.ceil(self.plot_config['x_range'] * self.samplingRate / self.plot_config['n_segments']))
         for ix in range(self.plot_config['n_segments']):
@@ -310,7 +312,6 @@ class SweepWidget(CustomWidget):
                 seg_x = np.arange(ix * samples_per_segment,
                                   int(self.plot_config['x_range'] * self.samplingRate), dtype=np.int16)
             seg_x = seg_x[::self.plot_config['downsample']]
-            pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
             c = new_plot.plot(parent=new_plot, pen=pen)  # PlotDataItem
             c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
@@ -352,7 +353,7 @@ class SweepWidget(CustomWidget):
                 pci.setData(x=old_x, y=np.zeros_like(old_x))
                 ss_info['last_sample_ix'] = last_sample_ix
 
-            gain = chan_state['gain'] if 'gain' in chan_state else self.UNIT_SCALING
+            gain = chan_state['gain'] if 'gain' in chan_state else self.plot_config['unit_scaling']
             if 'spkthrlevel' in chan_state:
                 ss_info['thresh_line'].setValue(chan_state['spkthrlevel'] * gain)
 
@@ -395,7 +396,7 @@ class SweepWidget(CustomWidget):
         """
         ss_info = self.segmented_series[line_label]
         n_in = data.shape[0]
-        gain = ch_state['gain'] if ch_state is not None and 'gain' in ch_state else self.UNIT_SCALING
+        gain = ch_state['gain'] if ch_state is not None and 'gain' in ch_state else self.plot_config['unit_scaling']
         data = data * gain
         if self.plot_config['do_hp']:
             data, ss_info['hp_zi'] = signal.sosfilt(self.plot_config['hp_sos'], data, zi=ss_info['hp_zi'])
