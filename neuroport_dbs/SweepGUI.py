@@ -8,12 +8,8 @@ from qtpy import QtCore, QtWidgets, QtGui
 import pyqtgraph as pg
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.settings import parse_ini_try_numeric
 from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
 from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, get_now_time, CustomGUI
-# Import settings
-# TODO: Make some of these settings configurable via UI elements
-from neuroport_dbs.settings.defaults import uVRANGE
 
 
 class SweepGUI(CustomGUI):
@@ -106,7 +102,7 @@ class SweepWidget(CustomWidget):
         # +/- range
         cntrl_layout = QtWidgets.QHBoxLayout()
         cntrl_layout.addWidget(QtWidgets.QLabel("+/- "))
-        self.range_edit = QtWidgets.QLineEdit("{:.2f}".format(uVRANGE))
+        self.range_edit = QtWidgets.QLineEdit("{:.2f}".format(250))  # Value overridden in create_plots
         self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
         self.range_edit.setMinimumHeight(23)
         self.range_edit.setMaximumWidth(80)
@@ -147,6 +143,7 @@ class SweepWidget(CustomWidget):
         filter_checkbox.setChecked(False)
         filter_checkbox.setEnabled(False)
         filter_checkbox.stateChanged.connect(self.on_ln_filter_changed)
+        filter_checkbox.setVisible(False)
         cntrl_layout.addWidget(filter_checkbox)
         # Checkbox for lock thresholds
         threshlock_checkbox = QtWidgets.QCheckBox("Lk Thr")
@@ -245,12 +242,16 @@ class SweepWidget(CustomWidget):
     def create_plots(self, plot={}, filter={}, theme={}, alt_loc=False):
         # Collect PlotWidget configuration
         self.plot_config['theme'] = theme
-        self.plot_config['downsample'] = plot.get('downsample', 100)
+        self.plot_config['downsample'] = plot.get('downsample', 1)
         self.plot_config['x_range'] = plot.get('x_range', 1.0)
         self.plot_config['y_range'] = plot.get('y_range', 250)
+        # Update the range_edit text, but block its signal when doing so
+        prev_state = self.range_edit.blockSignals(True)
+        self.range_edit.setText(str(self.plot_config['y_range']))
+        self.range_edit.blockSignals(prev_state)
         self.plot_config['n_segments'] = plot.get('n_segments', 20)
+        # Default scaling of 0.25 -- Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
         self.plot_config['unit_scaling'] = plot.get('unit_scaling', 0.25)
-        # Default value of 0.25 -- Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
         self.plot_config['alt_loc'] = alt_loc
         self.plot_config['color_iterator'] = -1
         self.plot_config['do_hp'] = filter.get('order', 4) > 0
