@@ -2,8 +2,11 @@ from typing import Union, Tuple
 from qtpy import QtCore
 import numpy as np
 from .interface import IDataSource
-from neuroport_dbs.settings.defaults import SAMPLINGGROUPS
 from cerebuswrapper import CbSdkConnection
+from neuroport_dbs.settings import parse_ini_try_numeric
+
+
+SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000"]  # , "RAW"]  RAW broken in cbsdk
 
 
 class CerebusDataSource(IDataSource):
@@ -13,13 +16,25 @@ class CerebusDataSource(IDataSource):
 
         self._cbsdk_conn = CbSdkConnection()
         conn_params = self._cbsdk_conn.con_params.copy()
-        sampling_group = scoped_settings.value("sampling_group")
         for key, orig_value in conn_params.items():
             conn_params[key] = scoped_settings.value(key, orig_value)
         self._cbsdk_conn.con_params = conn_params
         self._cbsdk_conn.connect()
-        self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': True}
-        self._group_ix = SAMPLINGGROUPS.index(sampling_group)
+        conn_config = {}
+        for key in scoped_settings.allKeys():
+            if key in ['class', 'sampling_group']:
+                continue
+            split_key = key.split('/')
+            if len(split_key) > 1:
+                if split_key[0] not in conn_config:
+                    conn_config[split_key[0]] = {}
+                conn_config[split_key[0]][split_key[1]] = parse_ini_try_numeric(scoped_settings, key)
+            else:
+                conn_config[key] = parse_ini_try_numeric(scoped_settings, key)
+
+        # get_events, get_comments, get_continuous, buffer_parameter: comment_length
+        self._cbsdk_conn.cbsdk_config = conn_config
+        self._group_ix = SAMPLINGGROUPS.index(scoped_settings.value("sampling_group"))
         self._group_info = self._decode_group_info(self._cbsdk_conn.get_group_config(self._group_ix))
         self._on_connect_cb(self)
 

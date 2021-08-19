@@ -8,4 +8,11 @@ def parse_ini_try_numeric(settings, key):
             res = settings.value(key, type=float)
         except TypeError:
             res = None
-    return res if res is not None else settings.value(key)
+    if res is not None:
+        return res
+    res = settings.value(key)
+    if res == 'false':
+        return False
+    elif res == 'true':
+        return True
+    return res
