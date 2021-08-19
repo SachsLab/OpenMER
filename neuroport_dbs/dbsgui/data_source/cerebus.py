@@ -36,6 +36,7 @@ class CerebusDataSource(IDataSource):
         self._cbsdk_conn.cbsdk_config = conn_config
         self._group_ix = SAMPLINGGROUPS.index(scoped_settings.value("sampling_group"))
         self._group_info = self._decode_group_info(self._cbsdk_conn.get_group_config(self._group_ix))
+        # self.wf_config = self.cbsdk_conn.get_sys_config()  # {'spklength': 48, 'spkpretrig': 10, 'sysfreq': 30000}
         self._on_connect_cb(self)
 
     @staticmethod
@@ -79,6 +80,9 @@ class CerebusDataSource(IDataSource):
 
     def get_comments(self):
         return self._cbsdk_conn.get_comments()
+
+    def get_waveforms(self, chan_info):
+        return self._cbsdk_conn.get_waveforms(chan_info['chan_id'])
 
     def disconnect_requested(self):
         self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False,
