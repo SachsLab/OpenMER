@@ -2,20 +2,16 @@ import sys
 import os
 import qtpy
 import json
-from qtpy.QtWidgets import QApplication, QHBoxLayout, QPushButton, QWidget, QCheckBox, QLabel
-from qtpy.QtWidgets import QLineEdit, QGridLayout, QTextEdit
-from qtpy.QtGui import QPixmap, QFont
-
-from qtpy.QtCore import Qt
+from qtpy import QtWidgets, QtGui, QtCore
 import pylsl
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, SAMPLINGGROUPS, THEMES
+from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget
 
 # Import settings
 # TODO: Make some of these settings configurable via UI elements
-from neuroport_dbs.settings.defaults import WINDOWDIMS_MAPPING, SAMPLINGRATE, MAPPINGSTIMULI
+from neuroport_dbs.settings.defaults import MAPPINGSTIMULI
 
 
 class MappingGUI(CustomGUI):
@@ -24,24 +20,13 @@ class MappingGUI(CustomGUI):
         super(MappingGUI, self).__init__()
         self.setWindowTitle('MappingGUI')
 
-    def on_action_add_plot_triggered(self):
-        self.cbsdk_conn.cbsdk_config = {
-            'reset': True, 'get_events': True, 'get_comments': True,
-            'buffer_parameter': {
-                'comment_length': 10
-            }
-        }
-        # TODO: Or RAW, never both
-        group_info = self.cbsdk_conn.get_group_config(SAMPLINGGROUPS.index(str(SAMPLINGRATE)))
-        for gi_item in group_info:
-            gi_item['label'] = gi_item['label'].decode('utf-8')
-            gi_item['unit'] = gi_item['unit'].decode('utf-8')
-        self.plot_widget = MappingWidget(group_info)
-        self.plot_widget.was_closed.connect(self.on_plot_closed)
+    @CustomGUI.widget_cls.getter
+    def widget_cls(self):
+        return MappingWidget
 
     def on_plot_closed(self):
-        self.plot_widget = None
-        self.cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+        self._plot_widget = None
+        self._data_source.disconnect_requested()
 
     def do_plot_update(self):
         pass
@@ -49,10 +34,8 @@ class MappingGUI(CustomGUI):
 
 class MappingWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
-        super(MappingWidget, self).__init__(*args, **kwargs)
-        self.move(WINDOWDIMS_MAPPING[0], WINDOWDIMS_MAPPING[1])
-        self.resize(WINDOWDIMS_MAPPING[2], WINDOWDIMS_MAPPING[3])
-        # configure lsl stream
+        super().__init__(*args, **kwargs)
+        # configure lsl stream for outputting markers
         outlet_info = pylsl.StreamInfo(name='sensorimotor_mapping', type='map', channel_count=1,
                                        nominal_srate=pylsl.IRREGULAR_RATE, channel_format=pylsl.cf_string,
                                        source_id='mapping1214')
@@ -62,120 +45,104 @@ class MappingWidget(CustomWidget):
         pass
 
     def create_plots(self, theme='dark', **kwargs):
-        bold_font = QFont()
+        bold_font = QtGui.QFont()
         bold_font.setPixelSize(12)
         bold_font.setBold(True)
 
         self.layout().addStretch()
-        self.layout().addWidget(QLabel("Channels: ", font=bold_font))
+        self.layout().addWidget(QtWidgets.QLabel("Channels: ", font=bold_font))
         self.layout().addSpacing(10)
         # Add check boxes for channels
         self.channels = {}
-        for chan_ix in range(len(self.group_info)):
-            chan_lbl = self.group_info[chan_ix]['label']
-            chk_box = QCheckBox(chan_lbl)
+        for chan_state in self.chan_states:
+            chan_lbl = chan_state['name']
+            chk_box = QtWidgets.QCheckBox(chan_lbl)
             chk_box.stateChanged.connect(self.check_channel_and_stim)
             self.channels[chan_lbl] = chk_box
             self.layout().addWidget(chk_box)
         self.layout().addSpacing(10)
-        bt_clear = QPushButton("Uncheck all")
+        bt_clear = QtWidgets.QPushButton("Uncheck all")
         bt_clear.clicked.connect(lambda: self.uncheck_all(self.channels))
         self.layout().addWidget(bt_clear)
         self.layout().addSpacing(20)
 
         # Stimuli types
-        self.layout().addWidget(QLabel("Stimuli: ", font=bold_font))
+        self.layout().addWidget(QtWidgets.QLabel("Stimuli: ", font=bold_font))
         self.layout().addSpacing(10)
         self.mapping_stimuli = {}
 
         for stim in MAPPINGSTIMULI:
-            self.mapping_stimuli[stim] = QCheckBox(stim)
+            self.mapping_stimuli[stim] = QtWidgets.QCheckBox(stim)
             self.mapping_stimuli[stim].stateChanged.connect(self.check_channel_and_stim)
             self.layout().addWidget(self.mapping_stimuli[stim])
-        self.mapping_stimuli['Custom'] = QCheckBox()
-        l = QHBoxLayout()
-        self.custom_stimulus = QLineEdit("Custom")
+        self.mapping_stimuli['Custom'] = QtWidgets.QCheckBox()
+        l = QtWidgets.QHBoxLayout()
+        self.custom_stimulus = QtWidgets.QLineEdit("Custom")
         l.addWidget(self.mapping_stimuli['Custom'])
         l.addSpacing(3)
         l.addWidget(self.custom_stimulus)
         self.layout().addLayout(l)
         self.layout().addSpacing(10)
-        bt_clear = QPushButton("Uncheck all")
+        bt_clear = QtWidgets.QPushButton("Uncheck all")
         bt_clear.clicked.connect(lambda: self.uncheck_all(self.mapping_stimuli))
         self.layout().addWidget(bt_clear)
         self.layout().addSpacing(20)
 
         # side
-        self.layout().addWidget(QLabel("Body Side: ", font=bold_font))
+        self.layout().addWidget(QtWidgets.QLabel("Body Side: ", font=bold_font))
         self.layout().addSpacing(10)
         self.sides = {
-            'Left': QCheckBox("Left"),
-            'Right': QCheckBox("Right")
+            'Left': QtWidgets.QCheckBox("Left"),
+            'Right': QtWidgets.QCheckBox("Right")
         }
-        l = QHBoxLayout()
+        l = QtWidgets.QHBoxLayout()
         l.addWidget(self.sides['Left'])
         l.addWidget(self.sides['Right'])
         self.layout().addLayout(l)
         self.layout().addSpacing(20)
 
         # Body part
-        self.layout().addWidget(QLabel("Limb: ", font=bold_font))
-        body_widget = QWidget(self)
-        body_widget.setLayout(QGridLayout())
+        self.layout().addWidget(QtWidgets.QLabel("Limb: ", font=bold_font))
+        body_widget = QtWidgets.QWidget(self)
+        body_widget.setLayout(QtWidgets.QGridLayout())
         body_widget.layout().setContentsMargins(0, 0, 0, 0)
-        lbl = QLabel()
-        lbl.setPixmap(QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'HalfBody.png')))
+        lbl = QtWidgets.QLabel()
+        lbl.setPixmap(QtGui.QPixmap(os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'HalfBody.png')))
         body_widget.layout().addWidget(lbl, 0, 0, 20, 10)
 
         self.body_parts = {}
-        cb = QCheckBox('')
-        self.body_parts['Head'] = cb
-        body_widget.layout().addWidget(cb, 1, 0, 1, 1)
+        for bp_name, rc in {'Head': (1, 0), 'Arm': (8, 4), 'Hand': (10, 5), 'Leg': (14, 1), 'Foot': (18, 1)}.items():
+            self.body_parts[bp_name] = QtWidgets.QCheckBox('')
+            body_widget.layout().addWidget(self.body_parts[bp_name], rc[0], rc[1], 1, 1)
 
-        cb = QCheckBox('')
-        self.body_parts['Arm'] = cb
-        body_widget.layout().addWidget(cb, 8, 4, 1, 1)
-
-        cb = QCheckBox('')
-        self.body_parts['Hand'] = cb
-        body_widget.layout().addWidget(cb, 10, 5, 1, 1)
-
-        cb = QCheckBox('')
-        self.body_parts['Leg'] = cb
-        body_widget.layout().addWidget(cb, 14, 1, 1, 1)
-
-        cb = QCheckBox('')
-        self.body_parts['Foot'] = cb
-        body_widget.layout().addWidget(cb, 18, 1, 1, 1)
-
-        bt_clear = QPushButton("Uncheck all")
+        bt_clear = QtWidgets.QPushButton("Uncheck all")
         bt_clear.clicked.connect(lambda: self.uncheck_all(self.body_parts))
         body_widget.layout().addWidget(bt_clear, 20, 0, 1, 10)
 
         self.layout().addWidget(body_widget)
         self.layout().addSpacing(20)
 
-        self.bt_map = QPushButton("Submit Response")
+        self.bt_map = QtWidgets.QPushButton("Submit Response")
         self.bt_map.setEnabled(False)
         self.bt_map.setMinimumHeight(40)
         self.bt_map.clicked.connect(self.submit_map)
         self.layout().addWidget(self.bt_map)
 
         self.layout().addSpacing(10)
-        bt_clear = QPushButton("Clear Channel")
+        bt_clear = QtWidgets.QPushButton("Clear Channel")
         bt_clear.setMinimumHeight(20)
         bt_clear.clicked.connect(self.clear_data)
         self.layout().addWidget(bt_clear)
         self.layout().addStretch()
 
         # manual notes
-        self.layout().addWidget(QLabel("Note: ", font=bold_font))
-        self.note_field = QTextEdit()
+        self.layout().addWidget(QtWidgets.QLabel("Note: ", font=bold_font))
+        self.note_field = QtWidgets.QTextEdit()
         self.note_field.setMaximumHeight(80)
         self.note_field.textChanged.connect(self.check_note)
         self.layout().addWidget(self.note_field)
         self.layout().addSpacing(10)
-        self.bt_note = QPushButton("Submit Note")
+        self.bt_note = QtWidgets.QPushButton("Submit Note")
         self.bt_note.setEnabled(False)
         self.bt_note.setMinimumHeight(20)
         self.bt_note.clicked.connect(self.submit_note)
@@ -262,14 +229,14 @@ class MappingWidget(CustomWidget):
 
 
 def main():
-    _ = QApplication(sys.argv)
+    _ = QtWidgets.QApplication(sys.argv)
     aw = MappingGUI()
     # timer = QTimer()
     # timer.timeout.connect(aw.update)
     # timer.start(1000)
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QApplication.instance().exec_()
+        QtWidgets.QApplication.instance().exec_()
 
 
 if __name__ == '__main__':
