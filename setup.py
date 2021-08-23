@@ -39,7 +39,7 @@ setup(
                         'dbs-features=neuroport_dbs.FeaturesGUI:main',
                         'dbs-mapping=neuroport_dbs.MappingGUI:main',
                         'dbs-comments=neuroport_dbs.CommentsGUI:main',
-                        'dbs-ddu=neuroport_dbs.DDUGUI:main',
+                        'dbs-ddu=neuroport_dbs.DepthGUI:main',
                         ],
     }
 )
