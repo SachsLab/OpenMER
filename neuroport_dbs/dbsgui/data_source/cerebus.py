@@ -87,13 +87,19 @@ class CerebusDataSource(IDataSource):
     def disconnect_requested(self):
         self._cbsdk_conn.cbsdk_config = {'reset': True, 'get_continuous': False,
                                          'get_events': False, 'get_comments': False}
+        self._cbsdk_conn.disconnect()
 
     def update_monitor(self, chan_info, spike_only=False):
-        _cbsdk_conn = CbSdkConnection()
-        if _cbsdk_conn.is_connected:
-            _cbsdk_conn.monitor_chan(chan_info['src'], spike_only=spike_only)
+        if not self._cbsdk_conn.is_connected:
+            self._cbsdk_conn.connect()
+        self._cbsdk_conn.monitor_chan(chan_info['src'], spike_only=spike_only)
 
     def update_threshold(self, chan_info, new_value):
-        cbsdkconn = CbSdkConnection()
-        if cbsdkconn.is_connected:
-            cbsdkconn.set_channel_info(chan_info['chan_id'], {'spkthrlevel': new_value})
+        if not self._cbsdk_conn.is_connected:
+            self._cbsdk_conn.connect()
+        self._cbsdk_conn.set_channel_info(chan_info['chan_id'], {'spkthrlevel': new_value})
+
+    def set_recording_state(self, on_off, file_info):
+        if not self._cbsdk_conn.is_connected:
+            self._cbsdk_conn.connect()
+        return self._cbsdk_conn.set_recording_state(on_off, file_info)

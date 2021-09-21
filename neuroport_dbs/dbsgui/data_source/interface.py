@@ -32,3 +32,6 @@ class IDataSource(QtCore.QObject):
 
     def update_threshold(self, chan_info, new_value):
         raise NotImplementedError("Sub-classes must implement a `update_threshold` method.")
+
+    def set_recording_state(self, on_off, file_info):
+        raise NotImplementedError("Sub-classes must implement a `set_recording_state` method.")

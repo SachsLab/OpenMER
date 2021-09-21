@@ -25,7 +25,7 @@ class CustomGUI(QtWidgets.QMainWindow):
     """
 
     def __init__(self, ini_file=None):
-        super(CustomGUI, self).__init__()
+        super().__init__()
 
         # Infer path to ini
         ini_name = ini_file if ini_file is not None else (type(self).__name__ + '.ini')
@@ -59,8 +59,10 @@ class CustomGUI(QtWidgets.QMainWindow):
         # Restore size and position.
         default_dims = defaults.WINDOWDIMS_DICT[type(self).__name__]
         settings.beginGroup("MainWindow")
-        self.resize(settings.value("size", QtCore.QSize(default_dims[2], default_dims[3])))
         self.move(settings.value("pos", QtCore.QPoint(default_dims[0], default_dims[1])))
+        size_xy = settings.value("size", QtCore.QSize(default_dims[2], default_dims[3]))
+        self.resize(size_xy)
+        self.setMaximumWidth(size_xy.width())
         if settings.value("fullScreen", 'false') == 'true':
             self.showFullScreen()
         elif settings.value("maximized", 'false') == 'true':
@@ -122,7 +124,7 @@ class CustomGUI(QtWidgets.QMainWindow):
         return NotImplemented  # Child class must override this attribute
 
     def update(self):
-        super(CustomGUI, self).update()
+        super().update()
         if self.data_source.is_connected and self._plot_widget:
             self.do_plot_update()
 
@@ -167,7 +169,7 @@ class CustomWidget(QtWidgets.QWidget):
     was_closed = QtCore.Signal()
 
     def __init__(self, source_dict, **kwargs):
-        super(CustomWidget, self).__init__()
+        super().__init__()
 
         # Init member variables
         self.awaiting_close = False
@@ -192,7 +194,7 @@ class CustomWidget(QtWidgets.QWidget):
         cntrl_layout.addWidget(clear_button)
         self.layout().addLayout(cntrl_layout)
 
-    def create_plots(self, theme='dark', **kwargs):
+    def create_plots(self, **kwargs):
         raise TypeError("Must be implemented by sub-class.")
 
     def refresh_axes(self):
@@ -202,6 +204,6 @@ class CustomWidget(QtWidgets.QWidget):
         raise TypeError("Must be implemented by sub-class.")
 
     def closeEvent(self, evnt):
-        super(CustomWidget, self).closeEvent(evnt)
+        super().closeEvent(evnt)
         self.awaiting_close = True
         self.was_closed.emit()
