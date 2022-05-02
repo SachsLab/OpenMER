@@ -1,9 +1,10 @@
-from typing import Union, Tuple
 from qtpy import QtCore
-import numpy as np
 from .interface import IDataSource
-from cerebuswrapper import CbSdkConnection
-from neuroport_dbs.settings import parse_ini_try_numeric
+from ..settings import parse_ini_try_numeric
+try:
+    from cerebuswrapper import CbSdkConnection
+except ModuleNotFoundError as e:
+    print(e, "Try `pip install git+https://github.com/SachsLab/cerebuswrapper.git`.")
 
 
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000"]  # , "RAW"]  RAW broken in cbsdk

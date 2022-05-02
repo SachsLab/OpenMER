@@ -1,15 +1,14 @@
 from matplotlib import cm
 import numpy as np
-
-# use the same GUI format as the other ones
 from qtpy.QtWidgets import QGridLayout, QWidget, QVBoxLayout, QApplication
 from qtpy.QtCore import QEvent, Qt
 from qtpy.QtGui import QColor, QFont
-
 import pyqtgraph as pg
+from ..settings.defaults import THEMES, DEPTHRANGE, DEPTHTARGET, NPLOTSRAW
 
-from neuroport_dbs.settings.defaults import THEMES, DEPTHRANGE, DEPTHTARGET, NPLOTSRAW
+
 pen_colors = THEMES['dark']['pencolors']
+
 
 # Plot settings dictionaries
 DEFAULTPLOT = {

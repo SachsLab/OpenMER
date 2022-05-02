@@ -1,8 +1,8 @@
 import sys
-import PyQt5
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+import qtpy
+from qtpy.QtCore import *
+from qtpy.QtWidgets import *
+from qtpy.QtGui import *
 import numpy as np
 import pyqtgraph as pg
 from pympler import tracker
@@ -56,5 +56,5 @@ if __name__ == '__main__':
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(PyQt5.QtCore, 'PYQT_VERSION'):
+    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QApplication.instance().exec_()
