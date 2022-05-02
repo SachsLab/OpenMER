@@ -1,11 +1,13 @@
-import sys
-from pathlib import Path
 from qtpy import QtCore, QtWidgets
-from cerebuswrapper import CbSdkConnection
+from pathlib import Path
 import pylsl
 import neuroport_dbs
-from neuroport_dbs.settings import defaults
-from neuroport_dbs.dbsgui.depth_source import CBSDKPlayback
+from ..settings import defaults
+from ..depth_source import CBSDKPlayback
+try:
+    from cerebuswrapper import CbSdkConnection
+except ModuleNotFoundError as e:
+    print(e, "Try `pip install git+https://github.com/SachsLab/cerebuswrapper.git`.")
 
 
 class DepthGUI(QtWidgets.QMainWindow):
@@ -204,19 +206,3 @@ class DepthGUI(QtWidgets.QMainWindow):
     def send(self):
         self.display_string = None  # make sure the update function runs
         self.update()
-
-
-def main():
-    _ = QtWidgets.QApplication(sys.argv)
-    window = DepthGUI()
-    window.show()
-    timer = QtCore.QTimer()
-    timer.timeout.connect(window.update)
-    timer.start(100)
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
-
-if __name__ == '__main__':
-    main()

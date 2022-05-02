@@ -5,9 +5,9 @@ from qtpy import QtCore, QtWidgets, QtGui
 from cerebuswrapper import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget
+from neuroport_dbs.dbsgui.widgets.custom import CustomGUI, CustomWidget
 from neuroport_dbs.feature_plots import *
-from neuroport_dbs.SettingsDialog import SettingsDialog
+from neuroport_dbs.dbsgui.widgets.SettingsDialog import SettingsDialog
 
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
 

@@ -3,9 +3,9 @@ from neo.rawio import BlackrockRawIO
 import os
 import sys
 import datetime
-import regex as re
+import re
 import numpy as np
-from neuroport_dbs.SettingsDialog import SettingsDialog
+from neuroport_dbs.dbsgui.widgets.SettingsDialog import SettingsDialog
 from qtpy.QtWidgets import QProgressDialog
 from qtpy.QtCore import Qt
 from serf.tools.db_wrap import DBWrapper

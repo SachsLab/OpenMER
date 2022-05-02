@@ -1,11 +1,8 @@
-import sys
-import argparse
 from pathlib import Path
-from qtpy import QtCore, QtGui, QtWidgets
-from neuroport_dbs.settings import defaults, parse_ini_try_numeric, locate_ini
-from neuroport_dbs.SettingsDialog import SettingsDialog
+from qtpy import QtCore, QtWidgets
+from ..settings import defaults, locate_ini
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
-from neuroport_dbs.feature_plots import *
+from ..feature_plots import *
 
 
 class FeaturesGUI(QtWidgets.QMainWindow):
@@ -292,23 +289,3 @@ class FeaturesGUI(QtWidgets.QMainWindow):
             self.monitored_channel_mem.attach()
             # self.sweep_control.setChecked(False)
             self.manage_sweep_control()
-
-
-def main(**kwargs):
-    app = QtWidgets.QApplication(sys.argv)
-    window = FeaturesGUI(**kwargs)
-    window.show()
-    timer = QtCore.QTimer()
-    timer.timeout.connect(window.update)
-    timer.start(100)
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog="FeaturesGUI",
-                                     description="Visualize MER trajectory segments and features.")
-    parser.add_argument('-i', '--ini_file', nargs='?', help="Path to ini settings file.")
-    args = parser.parse_args()
-    main(**args.__dict__)

@@ -1,16 +1,8 @@
-import sys
 import os
-import qtpy
 import json
-from qtpy import QtWidgets, QtGui, QtCore
+from qtpy import QtWidgets, QtGui
 import pylsl
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
-# Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget
-
-# Import settings
-# TODO: Make some of these settings configurable via UI elements
+from neuroport_dbs.dbsgui.widgets.custom import CustomGUI, CustomWidget
 from neuroport_dbs.settings.defaults import MAPPINGSTIMULI
 
 
@@ -226,18 +218,3 @@ class MappingWidget(CustomWidget):
 
     def clear(self):
         pass
-
-
-def main():
-    _ = QtWidgets.QApplication(sys.argv)
-    aw = MappingGUI()
-    # timer = QTimer()
-    # timer.timeout.connect(aw.update)
-    # timer.start(1000)
-
-    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
-
-if __name__ == '__main__':
-    main()

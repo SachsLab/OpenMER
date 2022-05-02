@@ -1,15 +1,9 @@
-"""
-chadwick.boulay@gmail.com
-"""
-import sys
-import os
 import numpy as np
-from qtpy import QtCore, QtGui, QtWidgets
+from qtpy import QtCore, QtGui
 import pyqtgraph as pg
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
-# Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, get_colormap
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget, get_now_time
+from ..dbsgui.utilities.pyqtgraph import parse_color_str, get_colormap
+from ..dbsgui.widgets.custom import CustomGUI, CustomWidget
+from ..data_source import get_now_time
 
 
 class RasterGUI(CustomGUI):
@@ -113,7 +107,7 @@ class RasterWidget(CustomWidget):
         for rs_key in self.rasters:
             plot = self.rasters[rs_key]['plot']
             plot.setXRange(0, self.plot_config['x_range'] * self.samplingRate)
-            plot.setYRange(-0.05, self.plot_config['y_range']+0.05)
+            plot.setYRange(-0.05, self.plot_config['y_range'] + 0.05)
             plot.hideAxis('bottom')
             plot.hideAxis('left')
 
@@ -123,7 +117,7 @@ class RasterWidget(CustomWidget):
             rs = self.rasters[key]
             rs['old'].clear()
             rs['latest'].clear()
-            rs['old_timestamps'] = np.empty(0, dtype=np.uint32)     # Row 1 to top row
+            rs['old_timestamps'] = np.empty(0, dtype=np.uint32)  # Row 1 to top row
             rs['latest_timestamps'] = np.empty(0, dtype=np.uint32)  # Bottom row
             rs['count'] = 0
             rs['start_time'] = start_time
@@ -158,7 +152,7 @@ class RasterWidget(CustomWidget):
         :return:
         """
         rs = self.rasters[line_label]  # A dictionary of info unique to each channel
-        
+
         # Calculate timestamp of last sample in bottom row
         now_time = int(get_now_time())
         new_r0_tmin = now_time - (now_time % self.x_lim)
@@ -219,18 +213,3 @@ class RasterWidget(CustomWidget):
         if samples_elapsed > 0:
             frate = rs['count'] * self.samplingRate / samples_elapsed
             self.modify_frate(line_label, frate)
-
-
-def main():
-    _ = QtWidgets.QApplication(sys.argv)
-    aw = RasterGUI()
-    timer = QtCore.QTimer()
-    timer.timeout.connect(aw.update)
-    timer.start(1)
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
-
-if __name__ == '__main__':
-    main()

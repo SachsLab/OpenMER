@@ -1,15 +1,11 @@
-import sys
-import os
 import numpy as np
 from scipy import signal
 import pyaudio
-import qtpy
-from qtpy import QtCore, QtWidgets, QtGui
+from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
-# Note: If import dbsgui fails, then set the working directory to be this script's directory.
 from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomWidget, get_now_time, CustomGUI
+from neuroport_dbs.dbsgui.widgets.custom import CustomWidget, CustomGUI
+from neuroport_dbs.data_source import get_now_time
 
 
 class SweepGUI(CustomGUI):
@@ -441,19 +437,3 @@ class SweepWidget(CustomWidget):
                 pci.setData(x=old_x, y=old_y)
         # Store last_sample_ix for next iteration.
         self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
-
-
-def main():
-    from qtpy import QtWidgets, QtCore
-    _ = QtWidgets.QApplication(sys.argv)
-    aw = SweepGUI()
-    timer = QtCore.QTimer()
-    timer.timeout.connect(aw.update)
-    timer.start(1)
-
-    if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
-
-if __name__ == '__main__':
-    main()

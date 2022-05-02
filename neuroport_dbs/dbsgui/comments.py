@@ -1,17 +1,14 @@
 import os
-import sys
-from qtpy import QtCore, QtGui, QtWidgets
+from qtpy import QtWidgets
 from qtpy import uic
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
-import dbsgui
-# Note: If import dbsgui fails, then set the working directory to be this script's directory.
-
-ui_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui', 'my_widgets', 'ui')
-Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(ui_path, 'send_comments.ui'))
+import neuroport_dbs.dbsgui
 
 
-class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
+Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(neuroport_dbs.dbsgui.widgets.ui.__file__),
+                                                         'send_comments.ui'))
+
+
+class CommentsGUI(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
@@ -37,7 +34,7 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
     #     CbSdkConnection().disconnect()
 
     def on_connect(self):
-        from dbsgui.my_widgets.cbsdk_connect import ConnectDialog
+        from ..dbsgui.widgets.cbsdk_connect import ConnectDialog
         dlg = ConnectDialog()
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             dlg.do_connect()
@@ -69,15 +66,3 @@ class MyGUI(QtWidgets.QMainWindow, Ui_MainWindow):
             comment_string = json.dumps(comment_dict, sort_keys=True)
             conn.set_comments(comment_string)
             self.statusBar().showMessage("Sent: " + comment_string)
-
-
-def main():
-    import sys
-    qapp = QtWidgets.QApplication(sys.argv)
-    window = MyGUI()
-    window.show()
-    sys.exit(qapp.exec_())
-
-
-if __name__ == '__main__':
-    main()

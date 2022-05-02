@@ -1,16 +1,8 @@
-"""
-chadwick.boulay@gmail.com
-"""
-import sys
-import os
 import numpy as np
-from qtpy import QtCore, QtWidgets
+from qtpy import QtWidgets
 import pyqtgraph as pg
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dbsgui'))
-# Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
-from neuroport_dbs.dbsgui.my_widgets.custom import CustomGUI, CustomWidget
+from .utilities.pyqtgraph import parse_color_str, get_colormap
+from .widgets.custom import CustomGUI, CustomWidget
 
 
 class WaveformGUI(CustomGUI):
@@ -170,18 +162,3 @@ class WaveformWidget(CustomWidget):
         if len(data_items) > self.plot_config['n_waveforms']:
             for di in data_items[:-self.plot_config['n_waveforms']]:
                 self.wf_info[line_label]['plot'].removeItem(di)
-
-
-def main():
-    _ = QtWidgets.QApplication(sys.argv)
-    aw = WaveformGUI()
-    timer = QtCore.QTimer()
-    timer.timeout.connect(aw.update)
-    timer.start(1)
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
-
-
-if __name__ == '__main__':
-    main()
