@@ -1,20 +1,20 @@
 def parse_ini_try_numeric(settings, key):
+    putative = settings.value(key)
+    if putative == 'false':
+        return False
+    elif putative == 'true':
+        return True
     try:
         res = settings.value(key, type=int)
     except TypeError:
         res = None
-    if res is None:
+    if res is None or (res == 0 and putative):
         try:
             res = settings.value(key, type=float)
         except TypeError:
             res = None
-    if res is not None:
-        return res
-    res = settings.value(key)
-    if res == 'false':
-        return False
-    elif res == 'true':
-        return True
+    if res is None or (res == 0.0 and putative):
+        res = settings.value(key)
     return res
 
 

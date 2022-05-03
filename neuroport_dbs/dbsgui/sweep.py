@@ -117,7 +117,7 @@ class SweepWidget(CustomWidget):
             self._monitor_group.addButton(new_button)
             self._monitor_group.setId(new_button, chan_ix + 1)
             cntrl_layout.addWidget(new_button)
-        self._monitor_group.buttonClicked[int].connect(self.on_monitor_group_clicked)
+        self._monitor_group.buttonClicked.connect(self.on_monitor_group_clicked)
         # Checkbox for whether the audio out should be spike only
         spk_aud_checkbox = QtWidgets.QCheckBox("Spike Aud")
         spk_aud_checkbox.setObjectName("spkaud_CheckBox")
@@ -173,16 +173,17 @@ class SweepWidget(CustomWidget):
         self.refresh_axes()
         self.update_shared_memory()
 
-    def on_monitor_group_clicked(self, button_id):
+    def on_monitor_group_clicked(self, button):
         self.reset_audio()
         this_label = ''
-        if button_id == 0:
+        if button.text() == 'None':
             self.audio['chan_label'] = 'silence'
             chan_state = {'src': 0}
         else:
-            this_label = self.labels[button_id - 1]
+            this_label = button.text()
+            button_idx = self.labels.index(this_label)
             self.audio['chan_label'] = this_label
-            chan_state = self.chan_states[button_id - 1]
+            chan_state = self.chan_states[button_idx]
 
         # Reset plot titles
         active_kwargs = {'color': parse_color_str(self.plot_config['theme'].get('labelcolor_active', 'yellow')),
@@ -257,18 +258,19 @@ class SweepWidget(CustomWidget):
                                                        btype=filter.get('btype', 'highpass'),
                                                        output=filter.get('output', 'sos'))
         hp_filt_cb = self.findChild(QtWidgets.QCheckBox, name="hpfilt_CheckBox")
-        hp_filt_cb.setCheckState(2 if self.plot_config['do_hp'] else 0)
+
+        hp_filt_cb.setCheckState(QtCore.Qt.Checked if self.plot_config['do_hp'] else QtCore.Qt.Unchecked)
 
         ln_filt_cb = self.findChild(QtWidgets.QCheckBox, name="lnfilt_CheckBox")
         self.plot_config['do_ln'] = bool(plot.get('do_ln', True))
-        ln_filt_cb.setCheckState(2 if self.plot_config['do_ln'] else 0)
+        ln_filt_cb.setCheckState(QtCore.Qt.Checked if self.plot_config['do_ln'] else QtCore.Qt.Unchecked)
         self.plot_config['ln_filt'] = None  # TODO: comb filter coeffs
 
         spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
-        spk_aud_cb.setCheckState(2 if bool(plot.get('spk_aud', True)) else 0)
+        spk_aud_cb.setCheckState(QtCore.Qt.Checked if bool(plot.get('spk_aud', True)) else QtCore.Qt.Unchecked)
 
         thrlk_cb = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
-        thrlk_cb.setCheckState(2 if bool(plot.get('lock_threshold', False)) else 0)
+        thrlk_cb.setCheckState(QtCore.Qt.Checked if bool(plot.get('lock_threshold', False)) else QtCore.Qt.Unchecked)
 
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)  # show=False, size=None, title=None, border=None

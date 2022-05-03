@@ -43,8 +43,8 @@ class CerebusDataSource(IDataSource):
     @staticmethod
     def _decode_group_info(group_info: dict):
         for gi_item in group_info:
-            gi_item['label'] = gi_item['label'].decode('utf-8')
-            gi_item['unit'] = gi_item['unit'].decode('utf-8')
+            gi_item['label'] = gi_item['label']
+            gi_item['unit'] = gi_item['unit']
         return group_info
 
     @property
