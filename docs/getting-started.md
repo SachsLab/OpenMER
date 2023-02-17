@@ -1,4 +1,4 @@
-Our primary method of distributing the full NeuroportDBS Suite is as a giant zip file. TODO: Link!
+Our primary method of distributing the full OpenMER Suite is as a giant zip file. TODO: Link!
 
 If you want to setup the individual pieces on an internet-connected computer (e.g., for development or testing) then please look at the [For Developers](./for-developers.md) documentation. 
 
