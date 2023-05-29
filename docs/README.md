@@ -1,6 +1,6 @@
 # OpenMER
 
-A collection of software developed in the Sachs Lab at the Ottawa Hospital for for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER). We use the Blackrock Neuroport but OpenMER should work with other systems.
+A collection of software developed in the Sachs Lab at the Ottawa Hospital for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER). We use the Blackrock Neuroport but OpenMER should work with other systems.
 
 ![Image of vis apps](https://github.com/SachsLab/OpenMER/blob/master/vis_apps_screenshot.PNG?raw=true)
 
