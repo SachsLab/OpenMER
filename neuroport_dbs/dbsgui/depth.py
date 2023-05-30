@@ -127,24 +127,25 @@ class DepthGUI(QtWidgets.QMainWindow):
 
         # add a frame for the LCD numbers
         self.lcd_frame = QtWidgets.QFrame()
-        self.lcd_frame.setFrameShape(1)
+        self.lcd_frame.setFrameShape(QtWidgets.QFrame.Shape.Box)
         lcd_layout = QtWidgets.QGridLayout()
         self.lcd_frame.setLayout(lcd_layout)
 
         # RAW reading from DDU
         self.raw_ddu = QtWidgets.QLCDNumber()
         self.raw_ddu.setDigitCount(7)
-        self.raw_ddu.setFrameShape(0)
+        self.raw_ddu.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self.raw_ddu.setSmallDecimalPoint(True)
         self.raw_ddu.setFixedHeight(50)
         self.raw_ddu.display("{0:.3f}".format(0))
         lcd_layout.addWidget(self.raw_ddu, 0, 3, 2, 3)
 
+        # TODO: Use custom class and reimplement self.offset_ddu.mouseDoubleClickEvent(), then git rid of "Send!"
         self.offset_ddu = QtWidgets.QLCDNumber()
         self.offset_ddu.setDigitCount(7)
         self.offset_ddu.setFixedHeight(150)
         self.offset_ddu.display("{0:.3f}".format(-10))
-        self.offset_ddu.setFrameShape(0)
+        self.offset_ddu.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         lcd_layout.addWidget(self.offset_ddu, 2, 0, 5, 6)
         v_layout.addWidget(self.lcd_frame)
 
