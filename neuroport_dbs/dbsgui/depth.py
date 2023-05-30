@@ -75,6 +75,17 @@ class DepthGUI(QtWidgets.QMainWindow):
         v_layout.setContentsMargins(10, 0, 10, 10)
         h_layout = QtWidgets.QHBoxLayout()
 
+        h_layout.addWidget(QLabel("DTT: "))
+        self._doubleSpinBox_DTT = QDoubleSpinBox()
+        self._doubleSpinBox_DTT = QDoubleSpinBox()
+        self._doubleSpinBox_DTT.setMinimum(-100.00)
+        self._doubleSpinBox_DTT.setMaximum(100.00)
+        self._doubleSpinBox_DTT.setSingleStep(1.00)
+        self._doubleSpinBox_DTT.setDecimals(2)
+        self._doubleSpinBox_DTT.setValue(0.00)
+        self._doubleSpinBox_DTT.setFixedWidth(60)
+        h_layout.addWidget(self._doubleSpinBox_DTT)
+        
         # Manual offset added to the depth before display and mirroring
         h_layout.addWidget(QtWidgets.QLabel("Offset: "))
         self._doubleSpinBox_offset = QtWidgets.QDoubleSpinBox()
@@ -82,7 +93,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         self._doubleSpinBox_offset.setMaximum(100.00)
         self._doubleSpinBox_offset.setSingleStep(1.00)
         self._doubleSpinBox_offset.setDecimals(2)
-        self._doubleSpinBox_offset.setValue(-10.00)
+        self._doubleSpinBox_offset.setValue(0.00)
         self._doubleSpinBox_offset.setFixedWidth(60)
         h_layout.addWidget(self._doubleSpinBox_offset)
 
@@ -180,7 +191,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         value = self._depth_source.update()
         if value is not None:
             self.raw_ddu.display("{0:.3f}".format(value))
-            value = value + self._doubleSpinBox_offset.value()
+            value += self._doubleSpinBox_DTT.value() + self._doubleSpinBox_offset.value()
             display_string = "{0:.3f}".format(value)
             if display_string != self.display_string:
                 new_value = True
