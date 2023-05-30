@@ -40,7 +40,7 @@ TODO
 * Run the WinPython self-extracting executable. This will create a folder containing a full Python distribution with many useful packages installed (see full list [here](https://github.com/winpython/winpython/blob/master/changelogs/WinPython-64bit-3.8.5.0.md)).
 * [Edit the `WPy64-3850\settings\winpython.ini` file](https://sourceforge.net/p/winpython/wiki/Environment/) and add the following line: `PATH = %WINPYDIR%\Lib\site-packages\PyQt5\Qt\bin;%PATH%`
 * Download [MySQL Windows ZIP Archive](https://dev.mysql.com/downloads/mysql/)
-    * Tested with mysql-8.0.2.1-win64.zip
+    * Tested with mysql-8.0.29-win64.zip
 * Next to the WinPython folder, extract the mysql zip and rename the extracted folder to `mysql`
 * In the WinPython folder, run "WinPython Command Prompt". This will open a Command Prompt with all the paths configured to use this new Python distribution.
 * Install all of the Python packages listed in the table below.
@@ -51,7 +51,7 @@ TODO
 * In the command prompt, `cd` into the `bin` subfolder of the unzipped mysql folder.
 * Create a mysql\data folder along with the base databases: `mysqld --initialize-insecure --console`
     * You can change the default data directory, username, and password. See the section below "Configuring MySQL Database Server"
-* Double-click on the `mysqld` executable in the bin folder.
+* Run `mysqld` in the `mysql\bin` folder. (Windows: `start /B mysqld.exe`; allow network access if asked.)
 * Back in the command prompt, run `mysqladmin --user=root create serf`
 * Install the serf databases with the following commands:
     ```
@@ -119,3 +119,8 @@ We assume you know how to work with conda environments and that you have a MySQL
 * Install the Python packages from the table above.
 * Adapt the instructions at [Segmented Electrophys Recordings and Features Database (SERF)](https://github.com/cboulay/SERF) to prepare the database server for these tools.
 * If you have a hybrid distribution/system-MySQL environment (i.e., your name is Guillaume) then you may also wish to use some of the MySQL DB config settings from above.
+
+## Future goal - installable package
+
+-[] Refactor this repo to exist only as a library
+-[] Create a new repo for entry points, leveraging above library, create installer using [fman build system](https://build-system.fman.io/)
