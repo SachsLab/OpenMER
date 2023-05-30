@@ -1,17 +1,16 @@
+import re
 import sys
+
 import serial
 import serial.tools.list_ports
-
 # use the same GUI format as the other ones
 import qtpy.QtCore
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QComboBox, QLabel, QLCDNumber, QPushButton, QDoubleSpinBox, \
                            QCheckBox, QHBoxLayout, QWidget, QVBoxLayout, QMainWindow, \
                            QFrame, QGridLayout
-
 from qtpy.QtWidgets import QApplication
 from qtpy.QtCore import QTimer
-
 from cerebuswrapper import CbSdkConnection
 import pylsl
 
@@ -27,13 +26,26 @@ class DepthGUI(QMainWindow):
         self.display_string = None
 
         # Serial port config
-        self.ser = serial.Serial()
+        self.ser = serial.Serial(timeout=1)
         self.ser.baudrate = 19200
+
+        self._is_v2 = False
+        self._gain = 1.000
 
         self.depth_stream = None
         self._prev_port = None
 
         self.setup_ui()
+
+    @property
+    def is_v2(self):
+        return self._is_v2
+
+    @is_v2.setter
+    def is_v2(self, value):
+        self._is_v2 = value
+        self._gain = 0.001 if value else 1.0
+        self.doubleSpinBox_offset.setValue(60.00 if value else 0.00)
 
     def setup_ui(self):
         self.setWindowTitle('Neuroport DBS - Electrodes Depth')
@@ -60,6 +72,19 @@ class DepthGUI(QMainWindow):
         h_layout.addWidget(self.pushButton_open)
         h_layout.addStretch()
 
+        self.label_DTT = QLabel("DTT: ")
+        h_layout.addWidget(self.label_DTT)
+
+        self.doubleSpinBox_DTT = QDoubleSpinBox()
+        self.doubleSpinBox_DTT = QDoubleSpinBox()
+        self.doubleSpinBox_DTT.setMinimum(-100.00)
+        self.doubleSpinBox_DTT.setMaximum(100.00)
+        self.doubleSpinBox_DTT.setSingleStep(1.00)
+        self.doubleSpinBox_DTT.setDecimals(2)
+        self.doubleSpinBox_DTT.setValue(0.00)
+        self.doubleSpinBox_DTT.setFixedWidth(60)
+        h_layout.addWidget(self.doubleSpinBox_DTT)
+
         self.label_offset = QLabel("Offset: ")
         h_layout.addWidget(self.label_offset)
 
@@ -68,7 +93,7 @@ class DepthGUI(QMainWindow):
         self.doubleSpinBox_offset.setMaximum(100.00)
         self.doubleSpinBox_offset.setSingleStep(1.00)
         self.doubleSpinBox_offset.setDecimals(2)
-        self.doubleSpinBox_offset.setValue(-10.00)
+        self.doubleSpinBox_offset.setValue(0.00)
         self.doubleSpinBox_offset.setFixedWidth(60)
         h_layout.addWidget(self.doubleSpinBox_offset)
 
@@ -111,14 +136,14 @@ class DepthGUI(QMainWindow):
         # define Qt GUI elements
         # add a frame for the LCD numbers
         self.lcd_frame = QFrame()
-        self.lcd_frame.setFrameShape(1)
+        self.lcd_frame.setFrameShape(qtpy.QtWidgets.QFrame.Shape.Box)
         lcd_layout = QGridLayout()
         self.lcd_frame.setLayout(lcd_layout)
 
         # RAW reading from DDU
         self.raw_ddu = QLCDNumber()
         self.raw_ddu.setDigitCount(7)
-        self.raw_ddu.setFrameShape(0)
+        self.raw_ddu.setFrameShape(qtpy.QtWidgets.QFrame.Shape.NoFrame)
         self.raw_ddu.setSmallDecimalPoint(True)
         self.raw_ddu.setFixedHeight(50)
         self.raw_ddu.display("{0:.3f}".format(0))
@@ -128,7 +153,8 @@ class DepthGUI(QMainWindow):
         self.offset_ddu.setDigitCount(7)
         self.offset_ddu.setFixedHeight(150)
         self.offset_ddu.display("{0:.3f}".format(-10))
-        self.offset_ddu.setFrameShape(0)
+        self.offset_ddu.setFrameShape(qtpy.QtWidgets.QFrame.Shape.NoFrame)
+        # TODO: Use custom class and reimplement self.offset_ddu.mouseDoubleClickEvent(), then git rid of "Send!"
         lcd_layout.addWidget(self.offset_ddu, 2, 0, 5, 6)
         v_layout.addWidget(self.lcd_frame)
 
@@ -201,8 +227,22 @@ class DepthGUI(QMainWindow):
                 if not self.ser.is_open:
                     self.ser.port = com_port
                     try:
-                        self.ser.open()  # TODO: Add timeout; Add error.
-                        self.ser.write('AXON+\r'.encode())
+                        self.ser.open()  # TODO: Add error handling.
+                        # Quiety printing for a minute
+                        self.ser.write("AXON-\r".encode())
+                        self.ser.write("V\r".encode())
+                        # readlines will capture until timeout
+                        pattern = "([0-9]+\.[0-9]+)"
+                        for line in self.ser.readlines():
+                            match = re.search(pattern, line.decode("utf-8").strip())
+                            if match is not None:
+                                v = match.group()  # e.g., "2.20"
+                                v_maj = int(v.split(".")[0])
+                                self.is_v2 = v_maj >= 2
+                                break
+                        # Resume printing
+                        self.ser.write("AXON+\r".encode())
+                        _ = self.ser.readline()  # Clear out the first response to AXON+
                     except serial.serialutil.SerialException:
                         print("Could not open serial port")
                     finally:
@@ -221,7 +261,7 @@ class DepthGUI(QMainWindow):
             if cbsdk_conn.is_connected:
                 comments = cbsdk_conn.get_comments()
                 if comments:
-                    comment_strings = [x[1].decode('utf8') for x in comments]
+                    comment_strings = [x[1].decode("utf8") for x in comments]
                 else:
                     comment_strings = ""
                 dtts = []
@@ -236,15 +276,15 @@ class DepthGUI(QMainWindow):
                     self.raw_ddu.display("{0:.3f}".format(out_value - offset))
 
         elif self.ser.is_open:
-            in_str = self.ser.readline().decode('utf-8').strip()
+            in_str = self.ser.readline().decode("utf-8").strip()
             if in_str:
                 try:
                     in_value = float(in_str)
-                    # in_value /= DDUSCALEFACTOR  # Uncomment this for FHC DDU V2.
+                    in_value *= self._gain  # Uncomment this for FHC DDU V2.
 
                     self.raw_ddu.display("{0:.3f}".format(in_value))
 
-                    out_value = in_value + self.doubleSpinBox_offset.value()
+                    out_value = in_value + self.doubleSpinBox_DTT.value() + self.doubleSpinBox_offset.value()
                     display_string = "{0:.3f}".format(out_value)
                     self.offset_ddu.display(display_string)
 
