@@ -1,10 +1,10 @@
-Our primary method of distributing the full NeuroportDBS Suite is as a giant zip file. TODO: Link!
+Our primary method of distributing the full OpenMER Suite is as a giant zip file. TODO: Link!
 
 If you want to setup the individual pieces on an internet-connected computer (e.g., for development or testing) then please look at the [For Developers](./for-developers.md) documentation. 
 
 It is expected that the target computer is a standalone computer that has a dedicated connection to the data acquisition system, such as a manufacturer-provided PC which is usually not connected to the internet. Testing without the hardware is also possible using a signal generator source or a data playback source (see below for example).
 
-Extract the zip file to the target computer. A lot of disk space is required because the data segments will be saved within.
+Extract the zip file to the target computer. Choose a destination with a lot of disk space because the data segments will be saved within.
 
 Updates may come in the form of a smaller zip file to extract within a specific subfolder of the extracted distribution.
 

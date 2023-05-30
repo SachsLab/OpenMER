@@ -16,16 +16,16 @@ Here is the list of equipment we use. It may be possible to use this software wi
 
 NeuroportDBS is a Suite of 6 different applications for visualizing signals in real-time:
 
-![Image of vis apps](https://github.com/SachsLab/NeuroportDBS/blob/master/vis_apps_screenshot.PNG?raw=true)
+![Image of vis apps](https://github.com/SachsLab/OpenMER/blob/master/vis_apps_screenshot.PNG?raw=true)
 
 * *SweepGUI* - Plots continuous signals in sweeps, optional high-pass filter, and sonifies a channel.
 * *RasterGUI* - Plots threshold crossing events in a raster plot, with spike rate displayed in the corner (up to 8 sec history)
 * *WaveformGUI* - Plots the waveforms of the last N threshold crossing events.
-* *DDUGUI* visualizes the depth readout from the drive (including adjustable offset value), and sends that depth to the Blackrock NSP as a Comment and also pushes the depth to a [labstreaminglayer](https://github.com/sccn/labstreaminglayer) stream for other processes to retrieve.
+* *DDUGUI* visualizes the depth readout from the drive (including adjustable offset value), and sends that depth to other consumers (e.g., the Blackrock NSP as a Comment; as a [labstreaminglayer](https://github.com/sccn/labstreaminglayer) outlet).
 * *FeaturesGUI* is a much fuller application than the others. It monitors the signals and the depths, then for every new depth it stores a 4-sec segment to a database, and for each segment it calculates a set of predefined features. The depth history of raw segments or features are plotted and updated automatically. The database interaction occurs via a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
 * *CommentGUI* (not shown) is for simple text entry widget to send arbitrary comments to the Blackrock NSP.
 
-We also use a GUI application we developed called [*CereStimDBS*](https://github.com/SachsLab/CereStimDBS) for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
+We also use a GUI application we developed called [*CereStimDBS*](https://github.com/CerebusOSS/CereStimDBS) for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
 
 ### Dependencies
 
