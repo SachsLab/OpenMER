@@ -1,8 +1,8 @@
 # Just some chunks of code to help with development.
 import sys, os
 import time
-dbsgui_path = os.path.abspath(os.path.join('..', 'NeuroportDBS', 'DBSGUI'))
-sys.path.append(dbsgui_path)
+open_mer_path = os.path.abspath(os.path.join('..', 'OpenMER', 'neuroport_dbs'))
+sys.path.append(open_mer_path)
 from cerebuswrapper import CbSdkConnection
 
 SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000", "RAW"]

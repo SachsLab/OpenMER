@@ -5,7 +5,7 @@ import sys
 import datetime
 import re
 import numpy as np
-from neuroport_dbs.dbsgui.widgets.SettingsDialog import SettingsDialog
+from open_mer.dbsgui.widgets.SettingsDialog import SettingsDialog
 from qtpy.QtWidgets import QProgressDialog
 from qtpy.QtCore import Qt
 from serf.tools.db_wrap import DBWrapper

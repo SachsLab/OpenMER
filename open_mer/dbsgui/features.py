@@ -1,7 +1,7 @@
 from pathlib import Path
 from qtpy import QtCore, QtWidgets
-from ..settings import defaults, locate_ini
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
+from ..settings import defaults, locate_ini
 from ..feature_plots import *
 
 

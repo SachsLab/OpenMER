@@ -1,13 +1,14 @@
 from qtpy import QtCore, QtWidgets
 from pathlib import Path
 import pylsl
-import neuroport_dbs
 from ..settings import defaults
 from ..depth_source import CBSDKPlayback
 try:
     from cerebuswrapper import CbSdkConnection
 except ModuleNotFoundError as e:
     print(e, "Try `pip install git+https://github.com/SachsLab/cerebuswrapper.git`.")
+
+from open_mer import dbsgui
 
 
 class DepthGUI(QtWidgets.QMainWindow):
@@ -54,7 +55,7 @@ class DepthGUI(QtWidgets.QMainWindow):
 
         # Infer depth source from ini file, setup data source
         settings.beginGroup("depth-source")
-        src_cls = getattr(neuroport_dbs.dbsgui.depth_source, settings.value("class"))
+        src_cls = getattr(dbsgui.depth_source, settings.value("class"))
         self._depth_source = src_cls(scoped_settings=settings)
         settings.endGroup()
 

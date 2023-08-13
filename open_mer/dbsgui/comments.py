@@ -1,10 +1,11 @@
 import os
 from qtpy import QtWidgets
 from qtpy import uic
-import neuroport_dbs.dbsgui
+
+from open_mer import dbsgui
 
 
-Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(neuroport_dbs.dbsgui.widgets.ui.__file__),
+Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(dbsgui.widgets.ui.__file__),
                                                          'send_comments.ui'))
 
 

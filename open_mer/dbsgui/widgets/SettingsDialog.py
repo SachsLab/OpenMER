@@ -8,7 +8,7 @@ from qtpy.QtGui import QRegExpValidator
 from serf.tools.db_wrap import DBWrapper
 
 # Settings
-from neuroport_dbs.settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
+from ...settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
 
 
 class SubjectWidget(QWidget):

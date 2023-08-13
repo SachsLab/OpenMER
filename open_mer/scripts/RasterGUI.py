@@ -1,15 +1,14 @@
 import sys
 from qtpy import QtCore, QtWidgets
-from neuroport_dbs.dbsgui.depth import DepthGUI
+from open_mer.dbsgui.raster import RasterGUI
 
 
 def main():
     _ = QtWidgets.QApplication(sys.argv)
-    window = DepthGUI()
-    window.show()
+    aw = RasterGUI()
     timer = QtCore.QTimer()
-    timer.timeout.connect(window.update)
-    timer.start(100)
+    timer.timeout.connect(aw.update)
+    timer.start(1)
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtWidgets.QApplication.instance().exec_()

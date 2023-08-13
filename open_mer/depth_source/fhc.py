@@ -4,7 +4,7 @@ from qtpy import QtCore
 import serial
 import serial.tools.list_ports
 from .base import MerDepthSource
-from neuroport_dbs.settings import parse_ini_try_numeric
+from ..settings import parse_ini_try_numeric
 
 
 class FHCSerial(MerDepthSource):

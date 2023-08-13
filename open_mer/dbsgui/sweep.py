@@ -3,9 +3,10 @@ from scipy import signal
 import pyaudio
 from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
-from neuroport_dbs.dbsgui.utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
-from neuroport_dbs.dbsgui.widgets.custom import CustomWidget, CustomGUI
-from neuroport_dbs.data_source import get_now_time
+
+from .utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
+from .widgets.custom import CustomWidget, CustomGUI
+from ..data_source import get_now_time
 
 
 class SweepGUI(CustomGUI):

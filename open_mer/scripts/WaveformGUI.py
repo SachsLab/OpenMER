@@ -1,11 +1,11 @@
 import sys
 from qtpy import QtCore, QtWidgets
-from neuroport_dbs.dbsgui.raster import RasterGUI
+from open_mer.dbsgui.waveform import WaveformGUI
 
 
 def main():
     _ = QtWidgets.QApplication(sys.argv)
-    aw = RasterGUI()
+    aw = WaveformGUI()
     timer = QtCore.QTimer()
     timer.timeout.connect(aw.update)
     timer.start(1)

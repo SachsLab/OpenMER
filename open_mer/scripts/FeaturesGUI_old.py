@@ -5,15 +5,15 @@ from qtpy import QtCore, QtWidgets, QtGui
 from cerebuswrapper import CbSdkConnection
 
 # Note: If import dbsgui fails, then set the working directory to be this script's directory.
-from neuroport_dbs.dbsgui.widgets.custom import CustomGUI, CustomWidget
-from neuroport_dbs.feature_plots import *
-from neuroport_dbs.dbsgui.widgets.SettingsDialog import SettingsDialog
+from open_mer.dbsgui.widgets.custom import CustomGUI, CustomWidget
+from open_mer.feature_plots import *
+from open_mer.dbsgui.widgets.SettingsDialog import SettingsDialog
 
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
 
 # Settings
-from neuroport_dbs.settings.defaults import uVRANGE, BASEPATH, SAMPLINGRATE, \
-                                            BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH, DEPTHSETTINGS
+from open_mer.settings.defaults import uVRANGE, BASEPATH, SAMPLINGRATE, \
+    BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH, DEPTHSETTINGS
 
 
 # TODO: Rewrite FeaturesGUI so it doesn't inherit from CustomGUI

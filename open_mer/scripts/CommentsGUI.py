@@ -1,5 +1,6 @@
 from qtpy import QtWidgets
-from neuroport_dbs.dbsgui.comments import CommentsGUI
+
+from open_mer.dbsgui.comments import CommentsGUI
 
 
 def main():

@@ -1,15 +1,15 @@
 import sys
 import qtpy
-from qtpy import QtWidgets, QtCore
-from neuroport_dbs.dbsgui.mapping import MappingGUI
+from open_mer.dbsgui.sweep import SweepGUI
 
 
 def main():
+    from qtpy import QtWidgets, QtCore
     _ = QtWidgets.QApplication(sys.argv)
-    aw = MappingGUI()
-    # timer = QTimer()
-    # timer.timeout.connect(aw.update)
-    # timer.start(1000)
+    aw = SweepGUI()
+    timer = QtCore.QTimer()
+    timer.timeout.connect(aw.update)
+    timer.start(1)
 
     if (sys.flags.interactive != 1) or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
         QtWidgets.QApplication.instance().exec_()

@@ -4,7 +4,7 @@ from qtpy import QtWidgets, QtCore, QtGui
 
 # Import settings
 from ...settings import defaults, parse_ini_try_numeric
-import neuroport_dbs.data_source
+import open_mer.data_source
 
 
 class CustomGUI(QtWidgets.QMainWindow):
@@ -61,7 +61,7 @@ class CustomGUI(QtWidgets.QMainWindow):
 
         # Infer data source from ini file, setup data source
         settings.beginGroup("data-source")
-        src_cls = getattr(neuroport_dbs.data_source, settings.value("class"))
+        src_cls = getattr(open_mer.data_source, settings.value("class"))
         # Get the _data_source. Note this might trigger on_source_connected before child
         #  finishes parsing settings.
         _data_source = src_cls(scoped_settings=settings, on_connect_cb=self.on_source_connected)

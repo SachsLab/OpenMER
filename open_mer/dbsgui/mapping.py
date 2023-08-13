@@ -2,8 +2,8 @@ import os
 import json
 from qtpy import QtWidgets, QtGui
 import pylsl
-from neuroport_dbs.dbsgui.widgets.custom import CustomGUI, CustomWidget
-from neuroport_dbs.settings.defaults import MAPPINGSTIMULI
+from .widgets.custom import CustomGUI, CustomWidget
+from ..settings.defaults import MAPPINGSTIMULI
 
 
 class MappingGUI(CustomGUI):

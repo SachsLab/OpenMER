@@ -1,7 +1,7 @@
 import sys
 import argparse
 from qtpy import QtCore, QtWidgets
-from neuroport_dbs.dbsgui.process import ProcessGUI
+from open_mer.dbsgui.process import ProcessGUI
 
 
 def main(**kwargs):

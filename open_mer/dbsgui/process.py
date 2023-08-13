@@ -1,8 +1,8 @@
 from pathlib import Path
 from qtpy import QtCore, QtWidgets, QtGui
-from neuroport_dbs.settings import defaults, locate_ini
-from neuroport_dbs.dbsgui.widgets.SettingsDialog import SettingsDialog
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
+from ..settings import defaults, locate_ini
+from .widgets.SettingsDialog import SettingsDialog
 
 
 class ProcessGUI(QtWidgets.QMainWindow):
