@@ -25,9 +25,9 @@ def locate_ini(ini_name):
     if ini_path.exists():
         _settings_path = ini_path
     else:
-        # Try home / .dbs_suite first
+        # Try home / .open_mer first
         home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
-        ini_path = home_dir / '.dbs_suite' / ini_path.name
+        ini_path = home_dir / '.open_mer' / ini_path.name
         if ini_path.exists():
             _settings_path = ini_path
         else:

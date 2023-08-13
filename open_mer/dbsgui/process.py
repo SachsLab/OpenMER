@@ -52,9 +52,9 @@ class ProcessGUI(QtWidgets.QMainWindow):
 
     def _save_settings(self):
         if self._settings_path.parents[0] == 'config' and self._settings_path.parents[1] == 'resources':
-            # If this was loaded with the shipped settings, then write a new one in ~/.dbs_suite
+            # If this was loaded with the shipped settings, then write a new one in ~/.open_mer
             home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
-            self._settings_path = home_dir / '.dbs_suite' / self._settings_path.name
+            self._settings_path = home_dir / '.open_mer' / self._settings_path.name
 
         settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
 
