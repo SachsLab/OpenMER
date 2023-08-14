@@ -3,8 +3,8 @@ import numpy as np
 from qtpy.QtWidgets import QComboBox, QLineEdit, QLabel, QDialog, QVBoxLayout, QWidget, \
                            QGridLayout, QDialogButtonBox, QCalendarWidget, \
                            QCheckBox, QTabWidget, QTextEdit
-from qtpy.QtCore import QDate, QRegExp, Qt, Signal
-from qtpy.QtGui import QRegExpValidator
+from qtpy.QtCore import QDate, QRegularExpression, Qt, Signal
+from qtpy.QtGui import QRegularExpressionValidator
 from serf.tools.db_wrap import DBWrapper
 
 # Settings
@@ -226,8 +226,8 @@ class ProcedureWidget(QWidget):
         return combo
 
     def coord_line_edit(self):
-        template = QRegExp(r"[-]?\d*\.?\d{0,3}")
-        validator = QRegExpValidator(template)
+        template = QRegularExpression(r"[-]?\d*\.?\d{0,3}")
+        validator = QRegularExpressionValidator(template)
 
         line = QLineEdit("0.0")
         line.setValidator(validator)
