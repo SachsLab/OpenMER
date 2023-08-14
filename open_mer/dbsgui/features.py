@@ -42,11 +42,12 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         settings_path = locate_ini(ini_name)
         settings = QtCore.QSettings(str(settings_path), QtCore.QSettings.IniFormat)
         default_dims = defaults.WINDOWDIMS_DICT[type(self).__name__]
+
         settings.beginGroup("MainWindow")
         self.move(settings.value("pos", QtCore.QPoint(default_dims[0], default_dims[1])))
         size_xy = settings.value("size", QtCore.QSize(default_dims[2], default_dims[3]))
         self.resize(size_xy)
-        self.setMaximumWidth(size_xy[0])
+        self.setMaximumWidth(size_xy.width())
         if settings.value("fullScreen", 'false') == 'true':
             self.showFullScreen()
         elif settings.value("maximized", 'false') == 'true':
@@ -55,28 +56,24 @@ class FeaturesGUI(QtWidgets.QMainWindow):
             self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         settings.endGroup()
 
-        # TODO: Other settings
-        # theme
-        # x_start
-        # x_stop
-        # y_range
-        # do_hp
+        settings.beginGroup("plot")
+        self._plot_settings['x_start'] = int(settings.value("x_start", -4000))
+        self._plot_settings['x_stop'] = int(settings.value("x_stop", 120000))
+        self._plot_settings['y_range'] = int(settings.value("y_range", 250))
+        settings.endGroup()
+
+        settings.beginGroup("buffer")
+        self._plot_settings['highpass'] = settings.value("highpass", "true") == "true"
         # buffer_length  <-- Depth buffer duration (s)
         # sample_length  <-- Depth sample size (s)
         # delay_buffer   <-- Delay depth recording (s)
         # overwrite_depth <- Overwrite depth values
         # electrode_settings
         # chk_threshold
-
-        # self._plot_settings['theme'] = theme
-        # self._plot_settings['color_iterator'] = -1
-        # self._plot_settings['x_start'] = plot.get('x_start', -4000)
-        # self._plot_settings['x_stop'] = plot.get('x_stop', 120000)
-        # self._plot_settings['y_range'] = plot.get('y_range', 250)
-        # self._plot_settings['do_hp'] = True
+        settings.endGroup()
 
     def _setup_ui(self):
-        main_widget = QtWidgets.QWidget()
+        main_widget = QtWidgets.QWidget(self)
         main_widget.setLayout(QtWidgets.QVBoxLayout())
         self.setCentralWidget(main_widget)
 
@@ -88,19 +85,21 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         lo_L1 = QtWidgets.QHBoxLayout()
         # Channel select
         lo_L1.addWidget(QtWidgets.QLabel("Electrode: ", alignment=QtCore.Qt.AlignVCenter | QtCore.Qt.AlignRight))
-        chan_select_cb = QtWidgets.QComboBox()
+        chan_select_cb = QtWidgets.QComboBox(self.centralWidget())
         chan_select_cb.setObjectName("ChanSelect_ComboBox")
         chan_select_cb.setMinimumWidth(70)
         chan_select_cb.setEnabled(False)
+        chan_select_cb.currentIndexChanged.connect(lambda idx: self.reset_stack())
         self._reset_chan_select_items()
         lo_L1.addWidget(chan_select_cb)
         # Feature select
         lo_L1.addSpacing(20)
         lo_L1.addWidget(QtWidgets.QLabel("Feature set: ", alignment=QtCore.Qt.AlignVCenter | QtCore.Qt.AlignRight))
-        feat_select_cb = QtWidgets.QComboBox()
+        feat_select_cb = QtWidgets.QComboBox(self.centralWidget())
         feat_select_cb.setObjectName("FeatureSelect_ComboBox")
         feat_select_cb.setMinimumWidth(60)
         self._reset_feat_select_items()
+        feat_select_cb.currentIndexChanged.connect(lambda idx: self.reset_stack())
         lo_L1.addWidget(feat_select_cb)
 
         # Second row
@@ -117,7 +116,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         lo_L2.addSpacing(30)
         hp_chk = QtWidgets.QCheckBox("HP")
         hp_chk.setObjectName("HP_CheckBox")
-        hp_chk.setChecked(self._plot_settings['hp'])
+        hp_chk.setChecked(self._plot_settings["highpass"])
         lo_L2.addWidget(hp_chk)
         # Match Sweep
         lo_L2.addSpacing(30)
@@ -133,7 +132,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         refresh_pb = QtWidgets.QPushButton("Refresh")
         refresh_pb.setObjectName("Refresh_PushButton")
         refresh_pb.setMaximumWidth(50)
-        refresh_pb.clicked.connect(self.on_refresh_clicked)
+        # refresh_pb.clicked.connect(self.on_refresh_clicked)
         lo_R.addWidget(refresh_pb)
         lo_R.addSpacing(10)
 
@@ -150,20 +149,20 @@ class FeaturesGUI(QtWidgets.QMainWindow):
 
     def _reset_feat_select_items(self):
         feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
-        feat_combo.disconnect()
+        feat_combo.blockSignals(True)
         feat_combo.clear()
         feat_combo.addItems(["Raw", "Mapping"])  # TODO: Put these in features_settings
         # TODO: feat_combo.addItems(self._features_settings['features'].keys())
-        feat_combo.currentIndexChanged.connect(lambda idx: self.reset_stack())
+        feat_combo.blockSignals(False)
         feat_combo.setCurrentIndex(0)
 
     def _reset_chan_select_items(self):
         chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
-        chan_combo.disconnect()
+        chan_combo.blockSignals(True)
         chan_combo.clear()
         chan_combo.addItem("None")
         # TODO: chan_combo.addItems(self._depth_settings['electrode_settings'].keys())
-        chan_combo.currentIndexChanged.connect(lambda idx: self.reset_stack())
+        chan_combo.blockSignals(False)
         chan_combo.setCurrentIndex(0)
 
     def _reset_widget_stack(self):

@@ -8,7 +8,7 @@ try:
 except ModuleNotFoundError as e:
     print(e, "Try `pip install git+https://github.com/SachsLab/cerebuswrapper.git`.")
 
-from open_mer import dbsgui
+import open_mer.depth_source
 
 
 class DepthGUI(QtWidgets.QMainWindow):
@@ -55,7 +55,7 @@ class DepthGUI(QtWidgets.QMainWindow):
 
         # Infer depth source from ini file, setup data source
         settings.beginGroup("depth-source")
-        src_cls = getattr(dbsgui.depth_source, settings.value("class"))
+        src_cls = getattr(open_mer.depth_source, settings.value("class"))
         self._depth_source = src_cls(scoped_settings=settings)
         settings.endGroup()
 
@@ -76,9 +76,9 @@ class DepthGUI(QtWidgets.QMainWindow):
         v_layout.setContentsMargins(10, 0, 10, 10)
         h_layout = QtWidgets.QHBoxLayout()
 
-        h_layout.addWidget(QLabel("DTT: "))
-        self._doubleSpinBox_DTT = QDoubleSpinBox()
-        self._doubleSpinBox_DTT = QDoubleSpinBox()
+        h_layout.addWidget(QtWidgets.QLabel("DTT: "))
+        self._doubleSpinBox_DTT = QtWidgets.QDoubleSpinBox()
+        self._doubleSpinBox_DTT = QtWidgets.QDoubleSpinBox()
         self._doubleSpinBox_DTT.setMinimum(-100.00)
         self._doubleSpinBox_DTT.setMaximum(100.00)
         self._doubleSpinBox_DTT.setSingleStep(1.00)

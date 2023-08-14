@@ -1,12 +1,13 @@
 import os
 from qtpy import QtWidgets
-from qtpy import uic
+from qtpy.uic import loadUiType
 
-from open_mer import dbsgui
+import open_mer.dbsgui.widgets.ui
 
 
-Ui_MainWindow, QtBaseClass = uic.loadUiType(os.path.join(os.path.dirname(dbsgui.widgets.ui.__file__),
-                                                         'send_comments.ui'))
+ui_filename = os.path.join(os.path.dirname(open_mer.dbsgui.widgets.__file__), "ui", "send_comments.ui")
+# The next line will fail unless the python environment's Scripts folder is on the PATH
+Ui_MainWindow, QtBaseClass = loadUiType(ui_filename)
 
 
 class CommentsGUI(QtWidgets.QMainWindow, Ui_MainWindow):
