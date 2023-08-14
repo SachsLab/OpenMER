@@ -1,3 +1,4 @@
+from pathlib import Path
 from qtpy import QtCore
 from .interface import IDataSource
 from ..settings import parse_ini_try_numeric
@@ -15,12 +16,21 @@ class CerebusDataSource(IDataSource):
     def __init__(self, scoped_settings: QtCore.QSettings, **kwargs):
         super().__init__(**kwargs)  # Sets on_connect_cb
 
+        cbsdk_settings_path = Path(scoped_settings.fileName()).parents[0] / "CbSdkConnection.ini"
+        conn_settings = QtCore.QSettings(str(cbsdk_settings_path), QtCore.QSettings.IniFormat)
+        conn_settings.beginGroup("conn-params")
+
         self._cbsdk_conn = CbSdkConnection()
         conn_params = self._cbsdk_conn.con_params.copy()
         for key, orig_value in conn_params.items():
-            conn_params[key] = scoped_settings.value(key, orig_value)
+            new_value = conn_settings.value(key, orig_value)
+            if key in ["inst-port", "client-port", "receive-buffer-size"]:
+                new_value = int(new_value)
+            conn_params[key] = new_value
         self._cbsdk_conn.con_params = conn_params
-        self._cbsdk_conn.connect()
+        result = self._cbsdk_conn.connect()
+        if result != 0:
+            raise ConnectionError("Could not connect to CerebusDataSource: {}".format(result))
         conn_config = {}
         for key in scoped_settings.allKeys():
             if key in ['class', 'sampling_group']:
