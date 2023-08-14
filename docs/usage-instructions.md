@@ -1,8 +1,5 @@
-For easier running:
-* Make a shortcut to `mysql\bin\mysqld.exe`.
-* Make a shortcut to `WPy64-3850\scripts\NeuroportDBS.bat`
-
-First run the `mysqld` binary by double-clicking its shortcut. Then do the same for the `NeuroportDBS` batch file.
+First run the `mysqld` binary by double-clicking its shortcut.
+Then do the same for the `NeuroportDBS` batch file.
 
 Additional details follow.
 

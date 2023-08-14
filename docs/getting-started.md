@@ -1,16 +1,38 @@
-Our primary method of distributing the full OpenMER Suite is as a giant zip file. TODO: Link!
+The PC which runs our software is directly connected to the acquisition system but it is never connected to the internet. Thus, we copy everything we need to a thumb drive which we then copy to the clinical PC and install.
 
-If you want to setup the individual pieces on an internet-connected computer (e.g., for development or testing) then please look at the [For Developers](./for-developers.md) documentation. 
+> For development or testing on an internet-connected computer, please look at the [For Developers](./for-developers.md) documentation.
 
-It is expected that the target computer is a standalone computer that has a dedicated connection to the data acquisition system, such as a manufacturer-provided PC which is usually not connected to the internet. Testing without the hardware is also possible using a signal generator source or a data playback source (see below for example).
+## Installation
 
-Extract the zip file to the target computer. Choose a destination with a lot of disk space because the data segments will be saved within.
+### Distribution
 
-Updates may come in the form of a smaller zip file to extract within a specific subfolder of the extracted distribution.
+Copy the `<distribution>` folder from the thumb drive to the instrument PC. Be sure to choose a location with lots of disk space because many recording segments will be stored within this folder.
 
-Proceed with the [Usage Instructions](./usage-instructions.md)
+> If you do not have the `<distribution>` folder then follow the [Preparing Distribution](./preparing-distribution.md) instructions to create it.
+
+### Configure
+
+The `<distribution>` folder is ready to use as-is. However, with some additional steps it can be more useful on the target PC.
+
+#### Shortcuts
+
+* Make a desktop shortcut to `<distribution>\mysql\bin\mysqld.exe`.
+* Make a desktop shortcut to `<distribution>\<python>\scripts\OpenMER.bat`
+
+#### Settings files
+
+Copy all of the .ini files from `<distribution>\<python>\<python-3.x.x.y>\Lib\site-packages\open_mer\resources\config`
+to %HOME%\.open_mer\.
+
+You can then edit these settings files to change some parameters. CbSkConnection.ini can be particularly important if not using Central.
+
+## Using OpenMER
+
+See [Usage Instructions](./usage-instructions.md)
 
 ## Test Environment - Without Hardware
+
+Testing without the hardware is also possible using a signal generator source or a data playback source (see below for example).
 
 ### Emulate Blackrock NSP
 

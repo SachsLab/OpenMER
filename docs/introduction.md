@@ -1,6 +1,8 @@
-Dr. Adam Sachs is a neurosurgeon at the Ottawa Hospital where he and his team implant DBS electrodes to treat motor disorders such as Parkinson's Disease, dystonia, and tremor. Part of the surgical procedure includes microelectrode recording (MER) to map the tissue around the intended DBS target to correct for intrinsic error in the DBS targeting process (i.e., due to imaging, planning, stereotaxy, and brain shift) and to refine the target location.
+The documentation is hosted online at [https://sachslab.github.io/OpenMER/](https://sachslab.github.io/OpenMER/). Please navigate there for the latest version.
 
-MER requires specialized equipment and software. While all-in-one medical devices are recommended, Dr. Sachs' research requires a more bespoke solution with multipurpose equipment and custom software. The software and some documentation are made available here with the goal of helping other clinician-scientists to use custom systems for DBS MER.
+Dr. Adam Sachs is a neurosurgeon at the Ottawa Hospital where he and his team perform DBS surgery to treat motor disorders such as Parkinson's Disease, dystonia, and tremor. Part of the surgical procedure includes microelectrode recording (MER) to map the tissue around the intended DBS target to correct for intrinsic error in the DBS targeting process (i.e., due to imaging, planning, stereotaxy, and brain shift) and to refine the target location.
+
+MER requires specialized equipment and software. While all-in-one medical devices are recommended, Dr. Sachs' research requires a more bespoke solution with multipurpose equipment and custom software. The software and some documentation are made available here with the goal of helping other clinician-scientists who wish to use custom systems for DBS MER.
 
 ## Equipment
 
