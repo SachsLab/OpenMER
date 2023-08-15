@@ -170,7 +170,7 @@ class SweepWidget(CustomWidget):
         self.plot_config['do_ln'] = state == QtCore.Qt.Checked
 
     def on_range_edit_editingFinished(self):
-        self.plot_config['y_range'] = float(self.range_edit.text())
+        self.plot_config['y_range'] = np.float64(self.range_edit.text())
         self.refresh_axes()
         self.update_shared_memory()
 
@@ -208,15 +208,15 @@ class SweepWidget(CustomWidget):
             self.monitored_shared_mem.lock()
             chan_labels = [_['name'] for _ in self.chan_states]
             if self.audio['chan_label'] in ['silence', None]:
-                curr_channel = float(0)
+                curr_channel = np.float64(0)
             else:
-                curr_channel = float(chan_labels.index(self.audio['chan_label']) + 1)  # 0 == None
+                curr_channel = np.float64(chan_labels.index(self.audio['chan_label']) + 1)  # 0 == None
 
             curr_range = self.plot_config['y_range']
 
-            curr_hp = float(self.plot_config['do_hp'])
+            curr_hp = np.float64(self.plot_config['do_hp'])
 
-            to_write = np.array([curr_channel, curr_range, curr_hp], dtype=float).tobytes()
+            to_write = np.array([curr_channel, curr_range, curr_hp], dtype=np.float64).tobytes()
             self.monitored_shared_mem.data()[-len(to_write):] = memoryview(to_write)
             self.monitored_shared_mem.unlock()
 

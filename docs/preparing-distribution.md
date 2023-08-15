@@ -9,7 +9,7 @@ Create a folder somewhere you have write access. The location should have at lea
 ## Python
 
 * Download the latest [WinPython release](https://winpython.github.io/#releases).
-  * Get the one ending in `dot` as this excludes some unnecessary bloat. Even so, it's rather huge.
+  * Get the one ending in `dot` as this excludes some unnecessary bloat.
   * These instructions were tested with WinPython64-3.11.4.0dot
 * Run the WinPython self-extracting executable and choose the `<distribution>` folder as the extraction location. This will create a `<distribution>/<winpython>` folder containing a full Python distribution with many useful packages installed.
   * The full list of installed packages can be found [here](https://github.com/winpython/winpython/blob/master/changelogs/).
@@ -38,10 +38,12 @@ In your WinPython Command Prompt, try the following commands first. If they fail
 > Developers only: For each of the SachsLab packages (mspacman, cerebuswrapper, serf, **neuroport_dbs**), you have the option of cloning the repo then installing the package in-place for easier editing. Using the WinPython command prompt, run `pip install -e .` from within the cloned directory.
 > 
 ```
-pip install PySide6 pyFFTW mysqlclient Django quantities pylsl
+python.exe -m pip install --upgrade pip
+pip install PySide6 pyFFTW mysqlclient Django quantities pylsl numpy scipy Cython pyaudio
 pip install git+https://github.com/NeuralEnsemble/python-neo.git
 pip install git+https://github.com/SachsLab/pytf.git
 pip install git+https://github.com/SachsLab/mspacman.git
+pip install https://github.com/CerebusOSS/CereLink/releases/download/v7.6.4/cerebus-0.4-cp311-cp311-win_amd64.whl
 pip install git+https://github.com/CerebusOSS/cerebuswrapper.git
 pip install git+https://github.com/cboulay/SERF.git#subdirectory=python
 pip install git+https://github.com/SachsLab/OpenMER.git

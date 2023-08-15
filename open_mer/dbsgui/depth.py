@@ -29,7 +29,7 @@ class DepthGUI(QtWidgets.QMainWindow):
                 self._settings_path = ini_path
             else:
                 # Use default ini that ships with module.
-                self._settings_path = Path(__file__).parents[0] / 'resources' / 'config' / ini_path.name
+                self._settings_path = Path(__file__).parents[1] / 'resources' / 'config' / ini_path.name
 
         self.display_string = None
         self._depth_stream = None
@@ -55,7 +55,7 @@ class DepthGUI(QtWidgets.QMainWindow):
 
         # Infer depth source from ini file, setup data source
         settings.beginGroup("depth-source")
-        src_cls = getattr(open_mer.depth_source, settings.value("class"))
+        src_cls = getattr(open_mer.depth_source, settings.value("class", "CBSDKPlayback"))
         self._depth_source = src_cls(scoped_settings=settings)
         settings.endGroup()
 

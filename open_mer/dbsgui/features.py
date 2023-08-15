@@ -278,7 +278,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         import numpy as np
         if self.monitored_channel_mem.isAttached():
             self.monitored_channel_mem.lock()
-            settings = np.frombuffer(self.monitored_channel_mem.data(), dtype=np.float)[-3:]
+            settings = np.frombuffer(self.monitored_channel_mem.data(), dtype=np.float64)[-3:]
             self.chan_select.setCurrentIndex(int(settings[0]))
             self.range_edit.setText(str(settings[1]))
             self.manage_range_edit()

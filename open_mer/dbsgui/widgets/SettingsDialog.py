@@ -8,7 +8,7 @@ from qtpy.QtGui import QRegularExpressionValidator
 from serf.tools.db_wrap import DBWrapper
 
 # Settings
-from ...settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
+from open_mer.settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
 
 
 class SubjectWidget(QWidget):
@@ -98,7 +98,7 @@ class SubjectWidget(QWidget):
         self.subject_settings['id'] = self.id_combo.currentText()
         self.subject_settings['name'] = self.name_edit.text()
         self.subject_settings['sex'] = self.sex_combo.currentText()
-        self.subject_settings['birthday'] = self.dob_calendar.selectedDate().toPyDate()
+        self.subject_settings['birthday'] = self.dob_calendar.selectedDate().toPython()
         self.subject_settings['NSP_comment'] = self.file_comment.toPlainText()
 
 
@@ -305,21 +305,21 @@ class ProcedureWidget(QWidget):
         self.procedure_settings['type'] = self.type_combo.currentText()
         self.procedure_settings['a'] = np.array([float(self.a_x.text()),
                                                  float(self.a_y.text()),
-                                                 float(self.a_z.text())], dtype=np.float)
+                                                 float(self.a_z.text())], dtype=float)
         self.procedure_settings['distance_to_target'] = float(self.dist_to_target.text())
         self.procedure_settings['e'] = np.array([float(self.e_x.text()),
                                                  float(self.e_y.text()),
-                                                 float(self.e_z.text())], dtype=np.float)
+                                                 float(self.e_z.text())], dtype=float)
         self.procedure_settings['electrode_config'] = self.electrode_combo.currentText()
         self.procedure_settings['entry'] = np.array([float(self.entry_x.text()),
                                                      float(self.entry_y.text()),
-                                                     float(self.entry_z.text())], dtype=np.float)
+                                                     float(self.entry_z.text())], dtype=float)
         self.procedure_settings['medication_status'] = self.medic_combo.currentText()
         self.procedure_settings['target_name'] = self.target_name.text()
         self.procedure_settings['recording_config'] = self.rec_combo.currentText()
         self.procedure_settings['target'] = np.array([float(self.target_x.text()),
                                                      float(self.target_y.text()),
-                                                     float(self.target_z.text())], dtype=np.float)
+                                                     float(self.target_z.text())], dtype=float)
         self.procedure_settings['offset_direction'] = self.offset_direction_combo.currentText()
         self.procedure_settings['offset_size'] = float(self.offset_size.text())
 

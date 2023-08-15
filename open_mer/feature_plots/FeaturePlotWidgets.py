@@ -624,11 +624,11 @@ class LFPPlots(QWidget):
 
         # 0.001 mm steps
         self.spectrum_x = np.arange(pwr_sett['x_range'][0] * 1000,
-                                    pwr_sett['x_range'][1] * 1000, 1, dtype=np.int)
-        self.spectrum_depths = np.array(np.round(pwr_sett['x_range'][0]*1000), dtype=np.int)
+                                    pwr_sett['x_range'][1] * 1000, 1, dtype=int)
+        self.spectrum_depths = np.array(np.round(pwr_sett['x_range'][0]*1000), dtype=int)
         self.spectrum_data = np.zeros((pwr_sett['y_range'][1], self.spectrum_x.shape[0]))
 
-        self.episodes_depths = np.array(np.round(pep_sett['x_range'][0] * 1000), dtype=np.int)
+        self.episodes_depths = np.array(np.round(pep_sett['x_range'][0] * 1000), dtype=int)
         self.episodes_data = np.zeros((pep_sett['y_range'][1], self.spectrum_x.shape[0]))
 
         self.depth_data = {}
