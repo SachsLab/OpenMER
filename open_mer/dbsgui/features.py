@@ -29,10 +29,12 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._procedure_settings = {}
         self._buffer_settings = {}
         self._features_settings = {}
+        self._chan_labels = []
+        
+        self._db = DBWrapper()
 
         self._restore_from_settings(ini_file)
         self._setup_ui()
-        self._setup_shmem()
 
     def closeEvent(self, *args, **kwargs):
         super().closeEvent(*args, **kwargs)
@@ -61,14 +63,20 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._plot_settings['x_stop'] = int(settings.value("x_stop", 120000))
         self._plot_settings['y_range'] = int(settings.value("y_range", 250))
         settings.endGroup()
+        self._plot_settings["color_iterator"] = -1
+        self._plot_settings["image_plot"] = False
+
+        settings.beginGroup("features")
+        add_features = []
+        for feat_grp in settings.childKeys():
+            b_add = settings.value(feat_grp, True, type=bool)
+            if b_add:
+                add_features.append(feat_grp)
+        self._features_settings["features"] = add_features
+        settings.endGroup()
 
         settings.beginGroup("buffer")
-        self._plot_settings['highpass'] = settings.value("highpass", "true") == "true"
-        # buffer_length  <-- Depth buffer duration (s)
-        # sample_length  <-- Depth sample size (s)
-        # delay_buffer   <-- Delay depth recording (s)
-        # overwrite_depth <- Overwrite depth values
-        # electrode_settings
+        self._plot_settings["highpass"] = settings.value("highpass", "true") == "true"
         # chk_threshold
         settings.endGroup()
 
@@ -151,8 +159,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
         feat_combo.blockSignals(True)
         feat_combo.clear()
-        feat_combo.addItems(["Raw", "Mapping"])  # TODO: Put these in features_settings
-        # TODO: feat_combo.addItems(self._features_settings['features'].keys())
+        feat_combo.addItems(self._features_settings['features'])
         feat_combo.blockSignals(False)
         feat_combo.setCurrentIndex(0)
 
@@ -161,7 +168,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         chan_combo.blockSignals(True)
         chan_combo.clear()
         chan_combo.addItem("None")
-        # TODO: chan_combo.addItems(self._depth_settings['electrode_settings'].keys())
+        chan_combo.addItems(self._chan_labels)
         chan_combo.blockSignals(False)
         chan_combo.setCurrentIndex(0)
 
@@ -182,37 +189,15 @@ class FeaturesGUI(QtWidgets.QMainWindow):
             'Raw': RawPlots, 'Mapping': MappingPlots, 'STN': STNPlots, 'LFP': LFPPlots, 'Spikes': SpikePlots,
             None: NullPlotWidget
         }
+
         n_feats = len(self._features_settings['features'])
-        for chan_ix, chan_label in enumerate(["None"] + list(self._depth_settings['electrode_settings'].keys())):
+        for chan_ix, chan_label in enumerate(["None"] + self._chan_labels):
             self._widget_stack[chan_label] = {}
-            for feat_ix, feat_label in enumerate(self._features_settings['features'].keys()):
+            for feat_ix, feat_label in enumerate(self._features_settings['features']):
                 self._widget_stack[chan_label][feat_label] = [n_feats*chan_ix + feat_ix, 0]
                 w_cls = plot_class_map[feat_label] if feat_label in plot_class_map else NullPlotWidget
-                plot_stack.addWidget(w_cls)(dict(self.plot_config))
+                plot_stack.addWidget(w_cls(dict(self._plot_settings)))
         plot_stack.setCurrentIndex(0)
-
-    def _setup_shmem(self):
-        # shared memory to display the currently monitored electrode
-        self.monitored_channel_mem = QtCore.QSharedMemory()
-        self.monitored_channel_mem.setKey("MonitoredChannelMemory")
-        self.monitored_channel_mem.attach(QtCore.QSharedMemory.ReadOnly)
-
-    def manage_depth_process(self, on_off):
-        # start process
-        if on_off and not self._depth_process_running:
-            self._depth_wrapper.start_worker()
-            self._depth_process_running = True
-        else:
-            self._depth_wrapper.kill_worker()
-            self._depth_process_running = False
-
-    def manage_feature_process(self, on_off):
-        if on_off and not self._features_process_running:
-            self._features_wrapper.start_worker()
-            self._features_process_running = True
-        else:
-            self._features_wrapper.kill_worker()
-            self._features_process_running = False
 
     def reset_stack(self):
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
@@ -220,6 +205,11 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
         if plot_stack is not None and chan_combo is not None and feat_combo is not None:
             plot_stack.setCurrentIndex(self._widget_stack[chan_combo.currentText()][feat_combo.currentText()][0])
+
+    def handle_procedure_id(self, procedure_id):
+        self._db.select_procedure(procedure_id)
+        self._chan_labels = self._db.list_channel_labels()
+        self._reset_chan_select_items()
 
     def manage_refresh(self):
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
@@ -239,52 +229,44 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         hp_chk = self.findChild(QtWidgets.QCheckBox, "HP_CheckBox")
         range_edit = self.findChild(QtWidgets.QLineEdit, "Range_LineEdit")
         for _ in [chan_combo, hp_chk, range_edit]:
-            _.setEnabled(sweep_control.isChecked() and self.monitored_channel_mem.isAttached())
-        if sweep_control.isChecked() and self.monitored_channel_mem.isAttached():
-            self.read_from_shared_memory()
+            _.setEnabled(sweep_control.isChecked())
 
-    def on_record_clicked(self):
-        # kill
-        if self._depth_process_running:
-            self.manage_depth_process(False)
-            self.manage_nsp(False)
-        else:
-            # if we terminate and re-start the processes, we need to re-enable the shared memory
-            self._depth_wrapper.manage_shared_memory()
+    def update(self):
+        if self.findChild(QtWidgets.QCheckBox, "Sweep_CheckBox").isChecked():
+            pass  # TODO: Read from zeromq sweep sub
 
-            # re-send the settings
-            self._depth_wrapper.send_settings(self.depth_settings)
+        # features plot
+        plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
+        chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
+        feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
 
-            # start nsp recording
-            if self.manage_nsp(True) == 0:
-                # re-start the worker
-                self.manage_depth_process(True)
+        curr_chan_lbl = chan_combo.currentText()
+        curr_feat = feat_combo.currentText()
+        stack_item = self._widget_stack[curr_chan_lbl][feat_combo.currentText()]
 
-    def on_features_process_clicked(self):
-        # kill
-        if self._features_process_running:
-            self.manage_feature_process(False)
-        else:
-            # if we terminate and re-start the processes, we need to re-enable the shared memory
-            self._features_wrapper.manage_shared_memory()
+        if curr_chan_lbl != 'None':
+            do_hp = self._plot_settings["highpass"]
 
-            # re-send the settings
-            self._features_wrapper.send_settings(self.features_settings)
+            if  self.y_range != plot_stack.currentWidget().plot_config['y_range']\
+                or do_hp != plot_stack.currentWidget().plot_config['do_hp']:
+                plot_stack.currentWidget().clear_plot()
+                stack_item[1] = 0
+                plot_stack.currentWidget().plot_config['do_hp'] = do_hp
+                plot_stack.currentWidget().plot_config['y_range'] = self.y_range
 
-            # re-start the worker
-            self.manage_feature_process(True)
-
-    def read_from_shared_memory(self):
-        import numpy as np
-        if self.monitored_channel_mem.isAttached():
-            self.monitored_channel_mem.lock()
-            settings = np.frombuffer(self.monitored_channel_mem.data(), dtype=np.float64)[-3:]
-            self.chan_select.setCurrentIndex(int(settings[0]))
-            self.range_edit.setText(str(settings[1]))
-            self.manage_range_edit()
-            self.do_hp.setChecked(bool(settings[2]))
-            self.monitored_channel_mem.unlock()
-        else:
-            self.monitored_channel_mem.attach()
-            # self.sweep_control.setChecked(False)
-            self.manage_sweep_control()
+            curr_datum = stack_item[1]
+            if curr_feat == 'Raw':
+                all_data = DBWrapper().load_depth_data(chan_lbl=curr_chan_lbl,
+                                                       gt=curr_datum,
+                                                       do_hp=do_hp,
+                                                       return_uV=True)
+            elif curr_feat == 'Mapping':
+                all_data = DBWrapper().load_mapping_response(chan_lbl=curr_chan_lbl,
+                                                             gt=curr_datum)
+            else:
+                all_data = DBWrapper().load_features_data(category=curr_feat,
+                                                          chan_lbl=curr_chan_lbl,
+                                                          gt=curr_datum)
+            if all_data:
+                plot_stack.currentWidget().update_plot(dict(all_data))
+                stack_item[1] = max(all_data.keys())

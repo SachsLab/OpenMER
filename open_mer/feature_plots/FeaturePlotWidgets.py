@@ -97,7 +97,7 @@ class BasePlotWidget(QWidget):
         self.plot.setTitle(title=self.plot_config['title'], **{'color': 'w', 'size': '16pt'})
         self.plot.hideButtons()
 
-        if self.plot_config['image_plot']:
+        if self.plot_config['image_plot'] and False:
             self.img = pg.ImageItem()
             self.plot.addItem(self.img)
 
@@ -376,7 +376,7 @@ class RawPlots(QWidget):
         raw_sett = {**DEFAULTPLOT,
                     'x_axis': False,  # Is Visible
                     'y_axis': False,
-                    'x_range': self.plot_config['x_range'],  # None for auto-scale, list otherwise
+                    'x_range': [self.plot_config["x_start"], self.plot_config["x_stop"]],  # self.plot_config['x_range'],  # None for auto-scale, list otherwise
                     'y_range': [-self.plot_config['y_range'], self.plot_config['y_range']],
                     'auto_scale': False,
                     'interactive': False,

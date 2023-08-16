@@ -39,7 +39,7 @@ In your WinPython Command Prompt, try the following commands first. If they fail
 > 
 ```
 python.exe -m pip install --upgrade pip
-pip install PySide6 pyFFTW mysqlclient Django quantities pylsl numpy scipy Cython pyaudio
+pip install PySide6 pyFFTW mysqlclient Django quantities pylsl numpy scipy Cython pyaudio pyzmq
 pip install git+https://github.com/NeuralEnsemble/python-neo.git
 pip install git+https://github.com/SachsLab/pytf.git
 pip install git+https://github.com/SachsLab/mspacman.git

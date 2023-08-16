@@ -258,7 +258,8 @@ class ProcedureWidget(QWidget):
         self.update_procedure()
 
     def update_settings_from_db(self, idx):
-        self.procedure_settings.update(DBWrapper().load_procedure_details(idx, exclude=['subject', 'procedure_id']))
+        res_dict = dict({"procedure_id": idx}, **DBWrapper().load_procedure_details(idx, exclude=['subject', 'procedure_id']))
+        self.procedure_settings.update(res_dict)
 
     def update_procedure(self):
         self.target_name.setText(self.read_dict_value('target_name'))
@@ -330,15 +331,19 @@ class BufferWidget(QWidget):
 
         # Settings
         self.buffer_settings = buffer_settings
-        if not self.buffer_settings:
-            self.buffer_settings['buffer_length'] = '{:.3f}'.format(BUFFERLENGTH)
-            self.buffer_settings['sample_length'] = '{:.3f}'.format(SAMPLELENGTH)
-            self.buffer_settings['delay_buffer'] = '{:.3f}'.format(DELAYBUFFER)
-            self.buffer_settings['overwrite_depth'] = OVERWRITEDEPTH
-            self.buffer_settings['electrode_settings'] = {}
+        # Fill in missing values with defaults.
+        buffer_defaults = {
+            "buffer_length": "{:.3f}".format(BUFFERLENGTH),
+            "sample_length": "{:.3f}".format(SAMPLELENGTH),
+            "delay_buffer": "{:.3f}".format(DELAYBUFFER),
+            "overwrite_depth": OVERWRITEDEPTH,
+            "electrode_settings": {}
+        }
+        for k, def_v in buffer_defaults.items():
+            self.buffer_settings[k] = self.buffer_settings.get(k, def_v)
 
+        # Create widgets and populate with values from settings.
         self.buffer_widgets = {}
-
         buffer_layout = QGridLayout(self)
         row = -1
         if 'electrode_settings' in self.buffer_settings.keys():
@@ -402,12 +407,12 @@ class FeaturesWidget(QWidget):
         self.feature_categories = DBWrapper().all_features.keys()
         self.features_settings = features_settings
         if not self.features_settings:
-            self.features_settings['features'] = {}
+            self.features_settings = {}
 
             # Check if default values are defined
             for cat in self.feature_categories:
                 # defaults to true, compute all features
-                self.features_settings['features'][cat] = True
+                self.features_settings[cat] = True
 
         self.features_widgets = {}
 
@@ -418,12 +423,11 @@ class FeaturesWidget(QWidget):
         self.all_features.setChecked(False)
         self.all_features.clicked.connect(self.toggle_all)
         features_layout.addWidget(self.all_features, 0, 0, 1, 1)
-        if 'features' in self.features_settings.keys():
-            for idx, (label, sett) in enumerate(self.features_settings['features'].items()):
-                self.features_widgets[label] = QCheckBox(label)
-                self.features_widgets[label].setChecked(sett)
-                self.features_widgets[label].clicked.connect(self.toggle)
-                features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
+        for idx, (label, sett) in enumerate(self.features_settings.items()):
+            self.features_widgets[label] = QCheckBox(label)
+            self.features_widgets[label].setChecked(sett)
+            self.features_widgets[label].clicked.connect(self.toggle)
+            features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
 
     def toggle_all(self):
         for label, sett in self.features_widgets.items():
@@ -435,7 +439,7 @@ class FeaturesWidget(QWidget):
 
     def to_dict(self):
         for key, value in self.features_widgets.items():
-            self.features_settings['features'][key] = value.isChecked()
+            self.features_settings[key] = value.isChecked()
 
 
 class SettingsDialog(QDialog):

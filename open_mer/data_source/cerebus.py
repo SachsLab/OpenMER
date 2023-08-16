@@ -16,24 +16,25 @@ class CerebusDataSource(IDataSource):
     def __init__(self, scoped_settings: QtCore.QSettings, **kwargs):
         super().__init__(**kwargs)  # Sets on_connect_cb
 
+        self._cbsdk_conn = CbSdkConnection()
         cbsdk_settings_path = Path(scoped_settings.fileName()).parents[0] / "CbSdkConnection.ini"
         conn_settings = QtCore.QSettings(str(cbsdk_settings_path), QtCore.QSettings.IniFormat)
         conn_settings.beginGroup("conn-params")
-
-        self._cbsdk_conn = CbSdkConnection()
         conn_params = self._cbsdk_conn.con_params.copy()
         for key, orig_value in conn_params.items():
             new_value = conn_settings.value(key, orig_value)
             if key in ["inst-port", "client-port", "receive-buffer-size"]:
                 new_value = int(new_value)
             conn_params[key] = new_value
+        conn_settings.endGroup()
+
         self._cbsdk_conn.con_params = conn_params
         result = self._cbsdk_conn.connect()
         if result != 0:
             raise ConnectionError("Could not connect to CerebusDataSource: {}".format(result))
         conn_config = {}
         for key in scoped_settings.allKeys():
-            if key in ['class', 'sampling_group']:
+            if key in ['basepath', 'class', 'sampling_group']:
                 continue
             split_key = key.split('/')
             if len(split_key) > 1:
@@ -48,7 +49,9 @@ class CerebusDataSource(IDataSource):
         self._group_ix = SAMPLINGGROUPS.index(scoped_settings.value("sampling_group", type=str))
         self._group_info = self._decode_group_info(self._cbsdk_conn.get_group_config(self._group_ix))
         # self.wf_config = self.cbsdk_conn.get_sys_config()  # {'spklength': 48, 'spkpretrig': 10, 'sysfreq': 30000}
-        self._on_connect_cb(self)
+
+        if self._on_connect_cb is not None:
+            self._on_connect_cb(self)
 
     @staticmethod
     def _decode_group_info(group_info: dict):
