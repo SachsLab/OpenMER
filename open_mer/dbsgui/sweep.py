@@ -204,12 +204,10 @@ class SweepWidget(CustomWidget):
             curr_channel = 0
         else:
             curr_channel = chan_labels.index(self.audio['chan_label']) + 1  # 0 == None
-        curr_range = list(self.plot_config['y_range'])
-        curr_hp = self.plot_config['do_hp']
         self._chanselect_sock.send_string("channel_select " + json.dumps({
             "channel": curr_channel,
-            "range": curr_range,
-            "highpass": curr_hp
+            "range": self.plot_config['y_range'],
+            "highpass": self.plot_config['do_hp']
         }))
 
     def on_thresh_line_moved(self, inf_line):

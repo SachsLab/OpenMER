@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 import zmq
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
-from ..settings import defaults, locate_ini
+from ..settings import defaults, locate_ini, parse_ini_try_numeric
 from ..feature_plots import *
 
 
@@ -14,7 +14,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         ((-2, 'depth_status_delay'), (-1, 'depth_status_in_use'), (1, 'depth_status_done'), (0, 'depth_status_off'))
     }
 
-    def __init__(self, ini_file: str = None, zmq_chan_port=60003, **kwargs):
+    def __init__(self, ini_file: str = None, **kwargs):
         """
         - Visualizes raw segments and calculated features from the database
         - Widgets to navigate the visualizations
@@ -34,19 +34,18 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._procedure_settings = {}
         self._buffer_settings = {}
         self._features_settings = {}
-        self._chan_labels = []
+        self._chan_labels = set([])
         
         self._db = DBWrapper()
-        self._zmq_chan_port = 60003  # TODO: Load from ini file.
+        # TODO: Load ports from ini file
+        self._zmq_ctrl_port = 60001
+        self._zmq_chan_port = 60003
+        self._zmq_feat_port = 60004
         self._restore_from_settings(ini_file)
 
-        # Subscribe to channel-change notifications
-        context = zmq.Context()
-        self._chan_sock = context.socket(zmq.SUB)
-        self._chan_sock.connect(f"tcp://localhost:{self._zmq_chan_port}")
-        self._chan_sock.setsockopt_string(zmq.SUBSCRIBE, "channel_select")
-
+        self._setup_pubsub()
         self._setup_ui()
+        self._features_sock.send_string("features refresh")
 
     def closeEvent(self, *args, **kwargs):
         super().closeEvent(*args, **kwargs)
@@ -75,8 +74,6 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._plot_settings['x_stop'] = int(settings.value("x_stop", 120000))
         self._plot_settings['y_range'] = int(settings.value("y_range", 250))
         settings.endGroup()
-        self._plot_settings["color_iterator"] = -1
-        self._plot_settings["image_plot"] = False
 
         settings.beginGroup("features")
         add_features = []
@@ -91,6 +88,50 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._plot_settings["highpass"] = settings.value("highpass", "true") == "true"
         # chk_threshold
         settings.endGroup()
+
+        self._plot_settings["color_iterator"] = -1
+        self._plot_settings["image_plot"] = False
+        # theme
+        settings.beginGroup("theme")
+        self._plot_settings["theme"] = {}
+        for k in settings.allKeys():
+            if k == 'colormap' or k.lower().startswith('pencolors'):
+                continue
+            self._plot_settings["theme"][k] = parse_ini_try_numeric(settings, k)
+        # theme > pencolors
+        self._plot_settings["theme"]['colormap'] = settings.value('colormap', 'custom')
+        if self._plot_settings["theme"]['colormap'] == "custom":
+            pencolors = []
+            settings.beginGroup("pencolors")
+            for c_id in settings.childGroups():
+                settings.beginGroup(c_id)
+                cname = settings.value("name", None)
+                if cname is not None:
+                    cvalue = QtGui.QColor(cname)
+                else:
+                    cvalue = settings.value("value", "#ffffff")
+                pencolors.append(cvalue)
+                settings.endGroup()
+            settings.endGroup()  # pencolors
+            self._plot_settings["theme"]["pencolors"] = pencolors
+        settings.endGroup()  # end theme
+
+    def _setup_pubsub(self):
+        context = zmq.Context()
+
+        # Subscribe to channel-change notifications
+        self._chan_sock = context.socket(zmq.SUB)
+        self._chan_sock.connect(f"tcp://localhost:{self._zmq_chan_port}")
+        self._chan_sock.setsockopt_string(zmq.SUBSCRIBE, "channel_select")
+
+        # Subscribe to procedure set notifications -- react to procedure id
+        self._procedure_sock = context.socket(zmq.SUB)
+        self._procedure_sock.connect(f"tcp://localhost:{self._zmq_ctrl_port}")
+        self._procedure_sock.setsockopt_string(zmq.SUBSCRIBE, "procedure_settings")
+
+        # Publish refresh notification -- on startup and when refresh is clicked
+        self._features_sock = context.socket(zmq.PUB)
+        self._features_sock.bind(f"tcp://*:{self._zmq_feat_port}")
 
     def _setup_ui(self):
         main_widget = QtWidgets.QWidget(self)
@@ -152,7 +193,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         refresh_pb = QtWidgets.QPushButton("Refresh")
         refresh_pb.setObjectName("Refresh_PushButton")
         refresh_pb.setMaximumWidth(50)
-        # refresh_pb.clicked.connect(self.on_refresh_clicked)
+        refresh_pb.clicked.connect(self.on_refresh_clicked)
         lo_R.addWidget(refresh_pb)
         lo_R.addSpacing(10)
 
@@ -182,7 +223,7 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         chan_combo.addItem("None")
         chan_combo.addItems(self._chan_labels)
         chan_combo.blockSignals(False)
-        chan_combo.setCurrentIndex(0)
+        chan_combo.setCurrentIndex(0)  # Triggers an emission --> reset_stack
 
     def _reset_widget_stack(self):
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
@@ -203,9 +244,11 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         }
 
         n_feats = len(self._features_settings['features'])
-        for chan_ix, chan_label in enumerate(["None"] + self._chan_labels):
+        my_theme = self._plot_settings["theme"]
+        for chan_ix, chan_label in enumerate({"None"}.union(self._chan_labels)):
+            self._plot_settings["color_iterator"] = (self._plot_settings["color_iterator"] + 1) % len(my_theme['pencolors'])
             self._widget_stack[chan_label] = {}
-            for feat_ix, feat_label in enumerate(self._features_settings['features']):
+            for feat_ix, feat_label in enumerate(self._features_settings["features"]):
                 self._widget_stack[chan_label][feat_label] = [n_feats*chan_ix + feat_ix, 0]
                 w_cls = plot_class_map[feat_label] if feat_label in plot_class_map else NullPlotWidget
                 plot_stack.addWidget(w_cls(dict(self._plot_settings)))
@@ -216,12 +259,16 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
         feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
         if plot_stack is not None and chan_combo is not None and feat_combo is not None:
-            plot_stack.setCurrentIndex(self._widget_stack[chan_combo.currentText()][feat_combo.currentText()][0])
+            chan_key = chan_combo.currentText()
+            feat_key = feat_combo.currentText()
+            idx = self._widget_stack[chan_key][feat_key][0]
+            plot_stack.setCurrentIndex(idx)
 
     def handle_procedure_id(self, procedure_id):
         self._db.select_procedure(procedure_id)
         self._chan_labels = self._db.list_channel_labels()
         self._reset_chan_select_items()
+        self._reset_widget_stack()
 
     def manage_refresh(self):
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
@@ -240,48 +287,69 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
         hp_chk = self.findChild(QtWidgets.QCheckBox, "HP_CheckBox")
         range_edit = self.findChild(QtWidgets.QLineEdit, "Range_LineEdit")
+        b_enable = not sweep_control.isChecked()
         for _ in [chan_combo, hp_chk, range_edit]:
-            _.setEnabled(sweep_control.isChecked())
+            _.setEnabled(b_enable)
+
+    def on_refresh_clicked(self):
+        self._features_sock.send_string("features refresh")
+
+    def _check_subs(self):
+        try:
+            received_msg = self._chan_sock.recv_string(flags=zmq.NOBLOCK)[len("channel_select") + 1:]
+            chan_settings = json.loads(received_msg)
+            # ^ dict with k,v_type "channel":int, "range":[float, float], "highpass":bool
+            # TODO: chan_combo set new idx
+        except zmq.ZMQError:
+            pass
+
+        try:
+            received_msg = self._procedure_sock.recv_string(flags=zmq.NOBLOCK)[len("procedure_settings") + 1:]
+            procedure_settings = json.loads(received_msg)
+            # ^ dict with settings for "procedure", "subject"
+            if "procedure" in procedure_settings and "procedure_id" in procedure_settings["procedure"]:
+                self.handle_procedure_id(procedure_settings["procedure"]["procedure_id"])
+        except zmq.ZMQError:
+            pass
 
     def update(self):
-        if self.findChild(QtWidgets.QCheckBox, "Sweep_CheckBox").isChecked():
-            received_msg = self._chan_sock.recv_string(flags=zmq.NOBLOCK)[len("channel_select") + 1:]
-            if received_msg:
-                chan_settings = json.loads(received_msg)
-                # ^ dict with k,v_type "channel":int, "range":[float, float], "highpass":bool
-
-        # features plot
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
         chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
         feat_combo = self.findChild(QtWidgets.QComboBox, "FeatureSelect_ComboBox")
+        b_sweep_sync = self.findChild(QtWidgets.QCheckBox, "Sweep_CheckBox").isChecked()
+
+        self._check_subs()
 
         curr_chan_lbl = chan_combo.currentText()
-        curr_feat = feat_combo.currentText()
-        stack_item = self._widget_stack[curr_chan_lbl][feat_combo.currentText()]
-
+        curr_widget = plot_stack.currentWidget()
         if curr_chan_lbl != 'None':
+            curr_feat = feat_combo.currentText()
+            stack_item = self._widget_stack[curr_chan_lbl][curr_feat]
             do_hp = self._plot_settings["highpass"]
+            y_range = self._plot_settings["y_range"]
 
-            if  self.y_range != plot_stack.currentWidget().plot_config['y_range']\
-                or do_hp != plot_stack.currentWidget().plot_config['do_hp']:
-                plot_stack.currentWidget().clear_plot()
+            # If widget values don't match stored values
+            if y_range != curr_widget.plot_config['y_range']\
+                or do_hp != curr_widget.plot_config['highpass']:
+                # Clear plots and update widgets with stored settings
+                curr_widget.clear_plot()
                 stack_item[1] = 0
-                plot_stack.currentWidget().plot_config['do_hp'] = do_hp
-                plot_stack.currentWidget().plot_config['y_range'] = self.y_range
+                curr_widget.plot_config['highpass'] = do_hp
+                curr_widget.plot_config['y_range'] = y_range
 
             curr_datum = stack_item[1]
             if curr_feat == 'Raw':
-                all_data = DBWrapper().load_depth_data(chan_lbl=curr_chan_lbl,
-                                                       gt=curr_datum,
-                                                       do_hp=do_hp,
-                                                       return_uV=True)
+                all_data = self._db.load_depth_data(chan_lbl=curr_chan_lbl,
+                                                    gt=curr_datum,
+                                                    do_hp=do_hp,
+                                                    return_uV=True)
             elif curr_feat == 'Mapping':
-                all_data = DBWrapper().load_mapping_response(chan_lbl=curr_chan_lbl,
-                                                             gt=curr_datum)
-            else:
-                all_data = DBWrapper().load_features_data(category=curr_feat,
-                                                          chan_lbl=curr_chan_lbl,
+                all_data = self._db.load_mapping_response(chan_lbl=curr_chan_lbl,
                                                           gt=curr_datum)
+            else:
+                all_data = self._db.load_features_data(category=curr_feat,
+                                                       chan_lbl=curr_chan_lbl,
+                                                       gt=curr_datum)
             if all_data:
                 plot_stack.currentWidget().update_plot(dict(all_data))
                 stack_item[1] = max(all_data.keys())

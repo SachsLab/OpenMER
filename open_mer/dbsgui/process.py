@@ -4,7 +4,7 @@ import time
 import json
 import zmq
 from qtpy import QtCore, QtWidgets, QtGui
-from serf.tools.db_wrap import DBWrapper, ProcessWrapper
+from serf.tools.db_wrap import DBWrapper
 from ..settings import defaults, locate_ini
 from .widgets.SettingsDialog import SettingsDialog
 import open_mer.data_source
@@ -114,17 +114,21 @@ class ProcessGUI(QtWidgets.QMainWindow):
 
         self.centralWidget().layout().addLayout(lo)
 
-    def _setup_pubsub(self, zmq_ctrl_port=60001, zmq_depth_port=60002):
+    def _setup_pubsub(self, zmq_ctrl_port=60001, zmq_depth_port=60002, zmq_feat_port=60004):
         context = zmq.Context()
 
         self._depth_sock = context.socket(zmq.SUB)
         self._depth_sock.connect(f"tcp://localhost:{zmq_depth_port}")
-        self._depth_sock.setsockopt_string(zmq.SUBSCRIBE, "depth_status")
+        self._depth_sock.setsockopt_string(zmq.SUBSCRIBE, "snippet_status")
 
-        self._features_sock = context.socket(zmq.PUB)
-        self._features_sock.bind(f"tcp://*:{zmq_ctrl_port}")
+        self._features_sock = context.socket(zmq.SUB)
+        self._features_sock.connect(f"tcp://localhost:{zmq_feat_port}")
+        self._features_sock.setsockopt_string(zmq.SUBSCRIBE, "features")
 
-    def _pub_settings(self):
+        self._procedure_sock = context.socket(zmq.PUB)
+        self._procedure_sock.bind(f"tcp://*:{zmq_ctrl_port}")
+
+    def _publish_settings(self):
         # Sanitize some settings for serialization.
         _proc_settings = {}
         for k, v in self._procedure_settings.items():
@@ -141,17 +145,34 @@ class ProcessGUI(QtWidgets.QMainWindow):
             "buffer": self._buffer_settings,
             "subject": {**self._subject_settings, "birthday": self._subject_settings["birthday"].isoformat()}
         }
-        self._features_sock.send_string("feature_settings " + json.dumps(send_dict))
+        # TODO: features and buffer settings should just be in ini files. They don't change frequently.
+        self._procedure_sock.send_string("procedure_settings " + json.dumps(send_dict))
 
     def _do_modal_settings(self):
         win = SettingsDialog(self._subject_settings,
                              self._procedure_settings,
-                             self._buffer_settings,
-                             self._features_settings)
+                             # self._buffer_settings,
+                             # self._features_settings
+                             )
         result = win.exec_()
         if result == QtWidgets.QDialog.Accepted:
             win.update_settings()
-            self._pub_settings()
+
+            # Create or load subject
+            # Returns subject_id/-1 whether subject is properly created or not
+            sub_id = DBWrapper().load_or_create_subject(self._subject_settings)
+
+            if sub_id == -1:
+                print("Subject not created.")
+                return False
+            else:
+                self._subject_settings['subject_id'] = sub_id
+                self._procedure_settings['subject_id'] = sub_id
+                tmp = DBWrapper()
+                proc_id = tmp.load_or_create_procedure(self._procedure_settings)
+                self._procedure_settings["procedure_id"] = proc_id
+
+            self._publish_settings()
         else:
             return False
 
@@ -162,7 +183,7 @@ class ProcessGUI(QtWidgets.QMainWindow):
                 # Wants on but already recording. Stop then start again.
                 self.toggle_recording(False)
                 time.sleep(0.100)
-            self._pub_settings()  # re-send the settings
+            self._publish_settings()  # re-send the settings
             # start nsp recording
             self._run_recording(True)
         else:
@@ -209,21 +230,28 @@ class ProcessGUI(QtWidgets.QMainWindow):
         return f_name, m_name, l_name
 
     def update(self):
+        b_publish_settings = False
+        try:
+            received_msg = self._features_sock.recv_string(flags=zmq.NOBLOCK)[len("features") + 1:]
+            b_publish_settings |= received_msg == "refresh"
+        except zmq.ZMQError:
+            pass
+
         try:
             # Check for an update from the depth process
-            received_msg = self._depth_sock.recv_string(flags=zmq.NOBLOCK)[len("depth_status")+1:]
+            received_msg = self._depth_sock.recv_string(flags=zmq.NOBLOCK)[len("snippet_status")+1:]
 
-            if received_msg == "startup":
-                # Depth processor has (re)started since we last published our settings. Publish again.
-                self._pub_settings()
+            # Depth processor has (re)started since we last published our settings. Publish again.
+            b_publish_settings |= received_msg == "startup"
 
-            # Update the status
+            # Update the status.  TODO: Remove this or get the old code from FeaturesGUI.
             status_label = self.findChild(QtWidgets.QLabel, "Status_Label")
             status_label.setPixmap(self.status_icons[received_msg])
             
             # Change the color of the recording button.
             record_pb = self.findChild(QtWidgets.QPushButton, "Record_PushButton")
             rec_facecolor_map = {
+                "startup": "orange",
                 "notrecording": "gray",
                 "recording": "red",
                 "accumulating": "yellow",
@@ -231,10 +259,14 @@ class ProcessGUI(QtWidgets.QMainWindow):
             }
             if received_msg in rec_facecolor_map:
                 rec_facecolor = rec_facecolor_map[received_msg]
-                record_pb.setStyleSheet("QPushButton { color: white; "
+            else:
+                rec_facecolor = "gray"
+            record_pb.setStyleSheet("QPushButton { color: white; "
                                     f"background-color : {rec_facecolor}; "
                                     f"border-color : {rec_facecolor}; "
                                     "border-width: 2px}")
         except zmq.ZMQError:
-            received_msg = None
-        
+            pass
+
+        if b_publish_settings:
+            self._publish_settings()

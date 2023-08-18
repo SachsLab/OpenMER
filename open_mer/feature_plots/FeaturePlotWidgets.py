@@ -338,7 +338,7 @@ class RawPlots(QWidget):
 
         # create GLW for the depth plot
         depth_sett = {**DEPTH,
-                      'pen_color': pen_colors[self.plot_config['color_iterator']]}
+                      'pen_color': self.pen_color}
         self.depth_plot = BasePlotWidget(depth_sett)
         self.layout.addWidget(self.depth_plot, 0, 0, NPLOTSRAW, 1)
 

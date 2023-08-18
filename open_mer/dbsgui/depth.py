@@ -1,5 +1,6 @@
-from qtpy import QtCore, QtWidgets
 from pathlib import Path
+from qtpy import QtCore, QtWidgets
+import zmq
 import pylsl
 from ..settings import defaults
 from ..depth_source import CBSDKPlayback
@@ -37,6 +38,10 @@ class DepthGUI(QtWidgets.QMainWindow):
         self.restore_from_settings()
         self.setup_ui()
 
+        context = zmq.Context()
+        self._depth_sock = context.socket(zmq.PUB)
+        self._depth_sock.bind(f"tcp://*:{60005}")  # TODO: Get port from settings
+
     def restore_from_settings(self):
         settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
 
@@ -60,7 +65,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         settings.endGroup()
 
         settings.beginGroup("depth-mirror")
-        self._mirror['lsl'] = bool(settings.value("lsl_mirror", False))
+        self._mirror['lsl'] = bool(settings.value("lsl_mirror", False))  # TODO: Remove
         self._mirror['nsp'] = bool(settings.value("lsl_mirror", False))
         settings.endGroup()
 
@@ -116,6 +121,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         h_layout.addWidget(cb)
         h_layout.addSpacing(5)
 
+        # TODO: Remove
         cb = QtWidgets.QCheckBox("LSL")
         cb.setChecked(self._mirror['lsl'])
         cb.clicked.connect(self.on_mirror_LSL_clicked)
@@ -163,6 +169,7 @@ class DepthGUI(QtWidgets.QMainWindow):
 
         self.plot_widget.setLayout(v_layout)
 
+    # TODO: Remove
     def on_mirror_LSL_clicked(self, state):
         if state > 0:
             outlet_info = pylsl.StreamInfo(name='electrode_depth', type='depth', channel_count=1,
@@ -215,6 +222,10 @@ class DepthGUI(QtWidgets.QMainWindow):
         # Push to LSL
         if self._depth_stream is not None and new_value:
             self._depth_stream.push_sample([value])
+
+        # Publish on ZeroMQ
+        if new_value:
+            self._depth_sock.send_string(f"ddu {value}")
 
     def send(self):
         self.display_string = None  # make sure the update function runs
