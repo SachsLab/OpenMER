@@ -99,7 +99,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         self._doubleSpinBox_offset.setMaximum(100.00)
         self._doubleSpinBox_offset.setSingleStep(1.00)
         self._doubleSpinBox_offset.setDecimals(2)
-        self._doubleSpinBox_offset.setValue(0.00)
+        self._doubleSpinBox_offset.setValue(self._depth_source.offset)
         self._doubleSpinBox_offset.setFixedWidth(60)
         h_layout.addWidget(self._doubleSpinBox_offset)
 
@@ -211,7 +211,7 @@ class DepthGUI(QtWidgets.QMainWindow):
         if nsp_cb and nsp_cb.isChecked() and not isinstance(self._depth_source, CBSDKPlayback):
             cbsdk_conn = CbSdkConnection()
             if cbsdk_conn.is_connected:
-                if self.chk_NSP.isChecked() and self.chk_NSP.isEnabled() and new_value:
+                if new_value:
                     cbsdk_conn.set_comments("DTT:" + display_string)
             else:
                 # try connecting if not connected but button is active

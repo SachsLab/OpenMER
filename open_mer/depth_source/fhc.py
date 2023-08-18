@@ -10,13 +10,13 @@ from ..settings import parse_ini_try_numeric
 class FHCSerial(MerDepthSource):
 
     def __init__(self, scoped_settings: QtCore.QSettings):
-        scoped_settings.beginGroup("depth-source-serial")
+        scoped_settings.beginGroup("serial")
         self._baudrate = parse_ini_try_numeric(scoped_settings, 'baudrate') or 19200
         self._com_port = scoped_settings.value("com_port")
         self.ser = serial.Serial(timeout=1)
         self._is_v2 = False
-        super().__init__(scoped_settings)
         scoped_settings.endGroup()
+        super().__init__(scoped_settings)
 
     @property
     def is_v2(self):
@@ -25,19 +25,24 @@ class FHCSerial(MerDepthSource):
     @is_v2.setter
     def is_v2(self, value):
         self._is_v2 = value
-        self._scale_factor = 0.001 if value else 1.0
-        self.doubleSpinBox_offset.setValue(60.00 if value else 0.00)
+        self.scale_factor = 0.001 if value else 1.0
+        self.offset = 60.00 if value else 0.00
 
     def do_open(self):
         self.ser.baudrate = self._baudrate
-        if self._com_port not in serial.tools.list_ports.comports():
+        for port, desc, hwid in sorted(serial.tools.list_ports.comports()):
+            if port == self._com_port:
+                break
+        else:
             print(f"Port {self._com_port} not found in list of comports.")
+            return
         if not self.ser.is_open:
             self.ser.port = self._com_port
             try:
                 self.ser.open()  # TODO: Add error.
-                # Quiet transmission for a minute
+                # Silence transmission temporarily
                 self.ser.write("AXON-\r".encode())
+                # Request version information.
                 self.ser.write("V\r".encode())
                 # readlines will capture until timeout
                 pattern = "([0-9]+\.[0-9]+)"
@@ -62,7 +67,7 @@ class FHCSerial(MerDepthSource):
             in_str = self.ser.readline().decode('utf-8').strip()
             if in_str:
                 try:
-                    raw_value = float(in_str) * (self._scale_factor or 1.0)
+                    raw_value = float(in_str) * (self.scale_factor or 1.0)
                     return raw_value
 
                 except ValueError:
