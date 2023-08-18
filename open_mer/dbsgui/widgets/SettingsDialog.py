@@ -17,8 +17,6 @@ class SubjectWidget(QWidget):
     def __init__(self, subject_settings):
         super(SubjectWidget, self).__init__()
 
-        self.subject_enums = DBWrapper().return_enums('subject')
-
         subject_layout = QGridLayout(self)
         subject_layout.setColumnMinimumWidth(2, 60)
 
@@ -37,9 +35,10 @@ class SubjectWidget(QWidget):
         self.name_edit.setMaxLength(135)
         subject_layout.addWidget(self.name_edit, 1, 1, 1, 4)
 
+        _subj_enums = DBWrapper().return_enums('subject')
         subject_layout.addWidget(QLabel("Sex: "), 2, 0, 1, 1)
         self.sex_combo = QComboBox()
-        self.sex_combo.addItems(self.subject_enums['sex'] if 'sex' in self.subject_enums.keys() else [])
+        self.sex_combo.addItems(_subj_enums['sex'] if 'sex' in _subj_enums.keys() else [])
         self.sex_combo.setCurrentIndex(0)
         subject_layout.addWidget(self.sex_combo, 2, 1, 1, 1)
 
@@ -57,9 +56,9 @@ class SubjectWidget(QWidget):
         if not self.subject_settings:
             self.update_settings_from_db(-1)
 
-        self.update_subject()
+        self.update_subj_widgets_from_settings()
 
-    def update_subject(self):
+    def update_subj_widgets_from_settings(self):
         self.name_edit.setText(self.read_dict_value(self.subject_settings, 'name'))
         self.id_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'id'))
         self.sex_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'sex'))
@@ -77,7 +76,7 @@ class SubjectWidget(QWidget):
     def load_subject(self):
         # id is a unique and mandatory field
         self.check_subject()
-        self.update_subject()
+        self.update_subj_widgets_from_settings()
 
     def check_subject(self):
         # when changing the id in the combobox, can be modifying or entering an existing subject id. Check to load data
@@ -207,7 +206,7 @@ class ProcedureWidget(QWidget):
         row += 1
         proc_layout.addWidget(QWidget(), row, 1, 1, 3)
 
-        self.update_procedure()
+        self.update_proc_widgets_from_settings()
 
     def check_all_procedures(self, subject_id, block):
         self.prev_proc.blockSignals(block)
@@ -250,18 +249,18 @@ class ProcedureWidget(QWidget):
         self.check_all_procedures(sub_id, block)
 
     def procedure_selection_change(self):
+        id = -1
         if self.prev_proc.currentIndex() > 0:
-            self.update_settings_from_db(
-                self.all_procedures[self.prev_proc.currentIndex()-1].procedure_id)
-        else:
-            self.update_settings_from_db(-1)
-        self.update_procedure()
+            ix = self.prev_proc.currentIndex() - 1  # -1 because first entry is always blank.
+            id = self.all_procedures[ix].procedure_id
+        self.update_settings_from_db(id)
+        self.update_proc_widgets_from_settings()
 
     def update_settings_from_db(self, idx):
         res_dict = dict({"procedure_id": idx}, **DBWrapper().load_procedure_details(idx, exclude=['subject', 'procedure_id']))
         self.procedure_settings.update(res_dict)
 
-    def update_procedure(self):
+    def update_proc_widgets_from_settings(self):
         self.target_name.setText(self.read_dict_value('target_name'))
         self.type_combo.setCurrentText(self.read_dict_value('type'))
         self.rec_combo.setCurrentText(self.read_dict_value('recording_config'))
@@ -325,133 +324,135 @@ class ProcedureWidget(QWidget):
         self.procedure_settings['offset_size'] = float(self.offset_size.text())
 
 
-class BufferWidget(QWidget):
-    def __init__(self, buffer_settings):
-        super(BufferWidget, self).__init__()
-
-        # Settings
-        self.buffer_settings = buffer_settings
-        # Fill in missing values with defaults.
-        buffer_defaults = {
-            "buffer_length": "{:.3f}".format(BUFFERLENGTH),
-            "sample_length": "{:.3f}".format(SAMPLELENGTH),
-            "delay_buffer": "{:.3f}".format(DELAYBUFFER),
-            "overwrite_depth": OVERWRITEDEPTH,
-            "electrode_settings": {}
-        }
-        for k, def_v in buffer_defaults.items():
-            self.buffer_settings[k] = self.buffer_settings.get(k, def_v)
-
-        # Create widgets and populate with values from settings.
-        self.buffer_widgets = {}
-        buffer_layout = QGridLayout(self)
-        row = -1
-        if 'electrode_settings' in self.buffer_settings.keys():
-            for label, sett in self.buffer_settings['electrode_settings'].items():
-                row += 1
-                buffer_layout.addWidget(QLabel(label), row, 0, 1, 1)
-                self.buffer_widgets[label] = {}
-                self.buffer_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
-                self.buffer_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
-                self.buffer_widgets[label]['edit_validity'] = QLineEdit()
-                self.buffer_widgets[label]['edit_validity'].setText(str(sett['validity']))
-
-                buffer_layout.addWidget(self.buffer_widgets[label]['chk_threshold'], row, 1, 1, 1)
-                buffer_layout.addWidget(QLabel('Validity Threshold (%)'), row, 2, 1, 1)
-                buffer_layout.addWidget(self.buffer_widgets[label]['edit_validity'], row, 3, 1, 1)
-
-            row += 1
-            buffer_layout.addWidget(QLabel("Depth buffer size (s): "), row, 0, 1, 1)
-            self.edit_buffer_length = QLineEdit(self.buffer_settings['buffer_length'])
-            self.edit_buffer_length.setInputMask("0.000")
-            self.edit_buffer_length.setFixedWidth(40)
-            buffer_layout.addWidget(self.edit_buffer_length, row, 1, 1, 1)
-
-            row += 1
-            buffer_layout.addWidget(QLabel("Depth samples size (s): "), row, 0, 1, 1)
-            self.edit_sample_length = QLineEdit(self.buffer_settings['sample_length'])
-            self.edit_sample_length.setInputMask("0.000")
-            self.edit_sample_length.setFixedWidth(40)
-            buffer_layout.addWidget(self.edit_sample_length, row, 1, 1, 1)
-
-            row += 1
-            buffer_layout.addWidget(QLabel("Delay depth recording (s): "), row, 0, 1, 1)
-            self.delay_buffer = QLineEdit(self.buffer_settings['delay_buffer'])
-            self.delay_buffer.setInputMask("0.000")
-            self.delay_buffer.setFixedWidth(40)
-            buffer_layout.addWidget(self.delay_buffer, row, 1, 1, 1)
-
-            row += 1
-            self.overwrite_depth = QCheckBox("Overwrite depth values")
-            self.overwrite_depth.setChecked(self.buffer_settings['overwrite_depth'])
-            buffer_layout.addWidget(self.overwrite_depth, row, 0, 1, 1)
-
-    def to_dict(self):
-        # convert all fields to dictionary and return it
-        self.buffer_settings['buffer_length'] = self.edit_buffer_length.text()
-        self.buffer_settings['sample_length'] = self.edit_sample_length.text()
-        self.buffer_settings['delay_buffer'] = self.delay_buffer.text()
-        self.buffer_settings['overwrite_depth'] = self.overwrite_depth.isChecked()
-
-        for key, value in self.buffer_widgets.items():
-            self.buffer_settings['electrode_settings'][key] = {}
-            self.buffer_settings['electrode_settings'][key]['threshold'] = value['chk_threshold'].isChecked()
-            self.buffer_settings['electrode_settings'][key]['validity'] = float(value['edit_validity'].text())
-
-
-class FeaturesWidget(QWidget):
-    def __init__(self, features_settings):
-        super(FeaturesWidget, self).__init__()
-
-        # Settings
-        self.feature_categories = DBWrapper().all_features.keys()
-        self.features_settings = features_settings
-        if not self.features_settings:
-            self.features_settings = {}
-
-            # Check if default values are defined
-            for cat in self.feature_categories:
-                # defaults to true, compute all features
-                self.features_settings[cat] = True
-
-        self.features_widgets = {}
-
-        features_layout = QGridLayout(self)
-
-        # Add an option to toggle all features
-        self.all_features = QCheckBox('All')
-        self.all_features.setChecked(False)
-        self.all_features.clicked.connect(self.toggle_all)
-        features_layout.addWidget(self.all_features, 0, 0, 1, 1)
-        for idx, (label, sett) in enumerate(self.features_settings.items()):
-            self.features_widgets[label] = QCheckBox(label)
-            self.features_widgets[label].setChecked(sett)
-            self.features_widgets[label].clicked.connect(self.toggle)
-            features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
-
-    def toggle_all(self):
-        for label, sett in self.features_widgets.items():
-            self.features_widgets[label].setChecked(self.all_features.isChecked())
-
-    def toggle(self):
-        if any([not x.isChecked() for x in self.features_widgets.values()]):
-            self.all_features.setChecked(False)
-
-    def to_dict(self):
-        for key, value in self.features_widgets.items():
-            self.features_settings[key] = value.isChecked()
+# class BufferWidget(QWidget):
+#     def __init__(self, buffer_settings):
+#         super(BufferWidget, self).__init__()
+#
+#         # Settings
+#         self.buffer_settings = buffer_settings
+#         # Fill in missing values with defaults.
+#         buffer_defaults = {
+#             "buffer_length": "{:.3f}".format(BUFFERLENGTH),
+#             "sample_length": "{:.3f}".format(SAMPLELENGTH),
+#             "delay_buffer": "{:.3f}".format(DELAYBUFFER),
+#             "overwrite_depth": OVERWRITEDEPTH,
+#             "electrode_settings": {}
+#         }
+#         for k, def_v in buffer_defaults.items():
+#             self.buffer_settings[k] = self.buffer_settings.get(k, def_v)
+#
+#         # Create widgets and populate with values from settings.
+#         self.buffer_widgets = {}
+#         buffer_layout = QGridLayout(self)
+#         row = -1
+#         if 'electrode_settings' in self.buffer_settings.keys():
+#             for label, sett in self.buffer_settings['electrode_settings'].items():
+#                 row += 1
+#                 buffer_layout.addWidget(QLabel(label), row, 0, 1, 1)
+#                 self.buffer_widgets[label] = {}
+#                 self.buffer_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
+#                 self.buffer_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
+#                 self.buffer_widgets[label]['edit_validity'] = QLineEdit()
+#                 self.buffer_widgets[label]['edit_validity'].setText(str(sett['validity']))
+#
+#                 buffer_layout.addWidget(self.buffer_widgets[label]['chk_threshold'], row, 1, 1, 1)
+#                 buffer_layout.addWidget(QLabel('Validity Threshold (%)'), row, 2, 1, 1)
+#                 buffer_layout.addWidget(self.buffer_widgets[label]['edit_validity'], row, 3, 1, 1)
+#
+#             row += 1
+#             buffer_layout.addWidget(QLabel("Depth buffer size (s): "), row, 0, 1, 1)
+#             self.edit_buffer_length = QLineEdit(self.buffer_settings['buffer_length'])
+#             self.edit_buffer_length.setInputMask("0.000")
+#             self.edit_buffer_length.setFixedWidth(40)
+#             buffer_layout.addWidget(self.edit_buffer_length, row, 1, 1, 1)
+#
+#             row += 1
+#             buffer_layout.addWidget(QLabel("Depth samples size (s): "), row, 0, 1, 1)
+#             self.edit_sample_length = QLineEdit(self.buffer_settings['sample_length'])
+#             self.edit_sample_length.setInputMask("0.000")
+#             self.edit_sample_length.setFixedWidth(40)
+#             buffer_layout.addWidget(self.edit_sample_length, row, 1, 1, 1)
+#
+#             row += 1
+#             buffer_layout.addWidget(QLabel("Delay depth recording (s): "), row, 0, 1, 1)
+#             self.delay_buffer = QLineEdit(self.buffer_settings['delay_buffer'])
+#             self.delay_buffer.setInputMask("0.000")
+#             self.delay_buffer.setFixedWidth(40)
+#             buffer_layout.addWidget(self.delay_buffer, row, 1, 1, 1)
+#
+#             row += 1
+#             self.overwrite_depth = QCheckBox("Overwrite depth values")
+#             self.overwrite_depth.setChecked(self.buffer_settings['overwrite_depth'])
+#             buffer_layout.addWidget(self.overwrite_depth, row, 0, 1, 1)
+#
+#     def to_dict(self):
+#         # convert all fields to dictionary and return it
+#         self.buffer_settings['buffer_length'] = self.edit_buffer_length.text()
+#         self.buffer_settings['sample_length'] = self.edit_sample_length.text()
+#         self.buffer_settings['delay_buffer'] = self.delay_buffer.text()
+#         self.buffer_settings['overwrite_depth'] = self.overwrite_depth.isChecked()
+#
+#         for key, value in self.buffer_widgets.items():
+#             self.buffer_settings['electrode_settings'][key] = {}
+#             self.buffer_settings['electrode_settings'][key]['threshold'] = value['chk_threshold'].isChecked()
+#             self.buffer_settings['electrode_settings'][key]['validity'] = float(value['edit_validity'].text())
+#
+#
+# class FeaturesWidget(QWidget):
+#     def __init__(self, features_settings):
+#         super(FeaturesWidget, self).__init__()
+#
+#         # Settings
+#         self.feature_categories = DBWrapper().all_features.keys()
+#         self.features_settings = features_settings
+#         if not self.features_settings:
+#             self.features_settings = {}
+#
+#             # Check if default values are defined
+#             for cat in self.feature_categories:
+#                 # defaults to true, compute all features
+#                 self.features_settings[cat] = True
+#
+#         self.features_widgets = {}
+#
+#         features_layout = QGridLayout(self)
+#
+#         # Add an option to toggle all features
+#         self.all_features = QCheckBox('All')
+#         self.all_features.setChecked(False)
+#         self.all_features.clicked.connect(self.toggle_all)
+#         features_layout.addWidget(self.all_features, 0, 0, 1, 1)
+#         for idx, (label, sett) in enumerate(self.features_settings.items()):
+#             self.features_widgets[label] = QCheckBox(label)
+#             self.features_widgets[label].setChecked(sett)
+#             self.features_widgets[label].clicked.connect(self.toggle)
+#             features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
+#
+#     def toggle_all(self):
+#         for label, sett in self.features_widgets.items():
+#             self.features_widgets[label].setChecked(self.all_features.isChecked())
+#
+#     def toggle(self):
+#         if any([not x.isChecked() for x in self.features_widgets.values()]):
+#             self.all_features.setChecked(False)
+#
+#     def to_dict(self):
+#         for key, value in self.features_widgets.items():
+#             self.features_settings[key] = value.isChecked()
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, subject_settings, procedure_settings, buffer_settings, features_settings, parent=None):
+    def __init__(self, subject_settings, procedure_settings,
+                 # buffer_settings, features_settings,
+                 parent=None):
         super(SettingsDialog, self).__init__(parent)
         self.setWindowTitle("Enter settings.")
 
         # settings dicts
         self.subject_settings = subject_settings
         self.procedure_settings = procedure_settings
-        self.buffer_settings = buffer_settings
-        self.features_settings = features_settings
+        # self.buffer_settings = buffer_settings
+        # self.features_settings = features_settings
 
         # Widgets to show/edit parameters.
         self.settings_layout = QVBoxLayout(self)
@@ -463,16 +464,17 @@ class SettingsDialog(QDialog):
         self.proc_widget = ProcedureWidget(self.procedure_settings)
         tab_widget.addTab(self.proc_widget, 'Procedure')
 
-        self.buff_widget = BufferWidget(self.buffer_settings)
-        tab_widget.addTab(self.buff_widget, 'Buffer')
-
-        self.feat_widget = FeaturesWidget(self.features_settings)
-        tab_widget.addTab(self.feat_widget, 'Features')
+        # self.buff_widget = BufferWidget(self.buffer_settings)
+        # tab_widget.addTab(self.buff_widget, 'Buffer')
+        #
+        # self.feat_widget = FeaturesWidget(self.features_settings)
+        # tab_widget.addTab(self.feat_widget, 'Features')
 
         self.settings_layout.addWidget(tab_widget)
 
         # signals
         self.subject_widget.subject_change.connect(self.proc_widget.change_subject)
+
         # update procedures when re-opening settings window
         if 'subject_id' not in self.subject_settings.keys():
             self.subject_widget.check_subject()
@@ -490,5 +492,5 @@ class SettingsDialog(QDialog):
     def update_settings(self):
         self.subject_widget.to_dict()
         self.proc_widget.to_dict()
-        self.buff_widget.to_dict()
-        self.feat_widget.to_dict()
+        # self.buff_widget.to_dict()
+        # self.feat_widget.to_dict()
