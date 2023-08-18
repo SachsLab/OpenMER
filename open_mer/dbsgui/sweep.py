@@ -1,8 +1,10 @@
+import json
 import numpy as np
 from scipy import signal
 import pyaudio
 from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
+import zmq
 
 from .utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
 from .widgets.custom import CustomWidget, CustomGUI
@@ -41,7 +43,7 @@ class SweepGUI(CustomGUI):
 
 class SweepWidget(CustomWidget):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, zmq_chan_port=60003, **kwargs):
         """
         *args typically contains a data_source dict with entries for 'srate', 'channel_names', 'chan_states'
         **kwargs typically contains dicts for configuring the plotter, including 'filter', 'plot', and 'theme'.
@@ -49,9 +51,10 @@ class SweepWidget(CustomWidget):
         self._monitor_group = None  # QtWidgets.QButtonGroup(parent=self)
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
-        # add a shared memory object to track the currently monitored channel
-        #  - Used by features/depth
-        self.monitored_shared_mem = QtCore.QSharedMemory()
+
+        context = zmq.Context()
+        self._chanselect_sock = context.socket(zmq.PUB)
+        self._chanselect_sock.bind(f"tcp://*:{zmq_chan_port}")
 
         super().__init__(*args, **kwargs)
         self.refresh_axes()  # Even though super __init__ calls this, extra refresh is intentional
@@ -59,13 +62,7 @@ class SweepWidget(CustomWidget):
         self.pya_stream = None
         self.audio = {}
         self.reset_audio()
-
-        # monitored_shared_mem needs to store 3 numbers: range, channel_id and do_hp.
-        #  The first is a float64, so make them all 64 bit.
-        #  3 * 64bit = 192 bits = 24 bytes. QtCore.QSharedMemory allocates an entire page of 4096 bytes.
-        self.monitored_shared_mem.setKey("MonitoredChannelMemory")
-        self.monitored_shared_mem.create(24)
-        self.update_shared_memory()
+        self.publish_chanselect()
 
     def keyPressEvent(self, e):
         valid_keys = [QtCore.Qt.Key_0, QtCore.Qt.Key_1, QtCore.Qt.Key_2, QtCore.Qt.Key_3, QtCore.Qt.Key_4, QtCore.Qt.Key_5, QtCore.Qt.Key_6, QtCore.Qt.Key_7, QtCore.Qt.Key_8,
@@ -154,7 +151,7 @@ class SweepWidget(CustomWidget):
     def update_monitor_channel(self, chan_state, spike_only):
         # Let other processes know we've changed the monitor channel
         self.parent()._data_source.update_monitor(chan_state, spike_only=spike_only)
-        self.update_shared_memory()
+        self.publish_chanselect()
 
     def on_spk_aud_changed(self, state):
         current_button_id = self._monitor_group.checkedId()
@@ -164,7 +161,7 @@ class SweepWidget(CustomWidget):
 
     def on_hp_filter_changed(self, state):
         self.plot_config['do_hp'] = state == QtCore.Qt.Checked
-        self.update_shared_memory()
+        self.publish_chanselect()
 
     def on_ln_filter_changed(self, state):
         self.plot_config['do_ln'] = state == QtCore.Qt.Checked
@@ -172,7 +169,7 @@ class SweepWidget(CustomWidget):
     def on_range_edit_editingFinished(self):
         self.plot_config['y_range'] = np.float64(self.range_edit.text())
         self.refresh_axes()
-        self.update_shared_memory()
+        self.publish_chanselect()
 
     def on_monitor_group_clicked(self, button):
         self.reset_audio()
@@ -201,24 +198,19 @@ class SweepWidget(CustomWidget):
         spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
         self.update_monitor_channel(chan_state, spk_aud_cb.checkState() == QtCore.Qt.Checked)
 
-    def update_shared_memory(self):
-        # updates only the memory section needed
-        if self.monitored_shared_mem.isAttached():
-            # send data to shared memory object
-            self.monitored_shared_mem.lock()
-            chan_labels = [_['name'] for _ in self.chan_states]
-            if self.audio['chan_label'] in ['silence', None]:
-                curr_channel = np.float64(0)
-            else:
-                curr_channel = np.float64(chan_labels.index(self.audio['chan_label']) + 1)  # 0 == None
-
-            curr_range = self.plot_config['y_range']
-
-            curr_hp = np.float64(self.plot_config['do_hp'])
-
-            to_write = np.array([curr_channel, curr_range, curr_hp], dtype=np.float64).tobytes()
-            self.monitored_shared_mem.data()[-len(to_write):] = memoryview(to_write)
-            self.monitored_shared_mem.unlock()
+    def publish_chanselect(self):
+        chan_labels = [_['name'] for _ in self.chan_states]
+        if self.audio['chan_label'] in ['silence', None]:
+            curr_channel = 0
+        else:
+            curr_channel = chan_labels.index(self.audio['chan_label']) + 1  # 0 == None
+        curr_range = list(self.plot_config['y_range'])
+        curr_hp = self.plot_config['do_hp']
+        self._chanselect_sock.send_string("channel_select " + json.dumps({
+            "channel": curr_channel,
+            "range": curr_range,
+            "highpass": curr_hp
+        }))
 
     def on_thresh_line_moved(self, inf_line):
         new_thresh = None

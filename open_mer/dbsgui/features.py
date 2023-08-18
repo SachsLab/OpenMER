@@ -1,4 +1,7 @@
+import json
 from pathlib import Path
+
+import zmq
 from qtpy import QtCore, QtWidgets
 from serf.tools.db_wrap import DBWrapper, ProcessWrapper
 from ..settings import defaults, locate_ini
@@ -11,13 +14,15 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         ((-2, 'depth_status_delay'), (-1, 'depth_status_in_use'), (1, 'depth_status_done'), (0, 'depth_status_off'))
     }
 
-    def __init__(self, ini_file: str = None, **kwargs):
+    def __init__(self, ini_file: str = None, zmq_chan_port=60003, **kwargs):
         """
-        FeaturesGUI is the most complicated of all applications in this package.
-        - Has a GUI to configure many different settings.
-        - Sets up a sub-process (Depth_Process in serf package) to capture data from Central and store in the database
-        - Sets up a sub-process (Features_Process in serf package) to compute features on new entries in the database
-        - Visualizes raw segments and features from the database
+        - Visualizes raw segments and calculated features from the database
+        - Widgets to navigate the visualizations
+        - Subscribes to zmq messages to know which features to grab
+        - Subscribes to zmq messages to know which channels to show
+        - For semi-realtime application, you should be running Depth_Process and Features_Process (from serf package)
+          in background.
+
         Args:
             ini_file:
             **kwargs:
@@ -32,8 +37,15 @@ class FeaturesGUI(QtWidgets.QMainWindow):
         self._chan_labels = []
         
         self._db = DBWrapper()
-
+        self._zmq_chan_port = 60003  # TODO: Load from ini file.
         self._restore_from_settings(ini_file)
+
+        # Subscribe to channel-change notifications
+        context = zmq.Context()
+        self._chan_sock = context.socket(zmq.SUB)
+        self._chan_sock.connect(f"tcp://localhost:{self._zmq_chan_port}")
+        self._chan_sock.setsockopt_string(zmq.SUBSCRIBE, "channel_select")
+
         self._setup_ui()
 
     def closeEvent(self, *args, **kwargs):
@@ -233,7 +245,10 @@ class FeaturesGUI(QtWidgets.QMainWindow):
 
     def update(self):
         if self.findChild(QtWidgets.QCheckBox, "Sweep_CheckBox").isChecked():
-            pass  # TODO: Read from zeromq sweep sub
+            received_msg = self._chan_sock.recv_string(flags=zmq.NOBLOCK)[len("channel_select") + 1:]
+            if received_msg:
+                chan_settings = json.loads(received_msg)
+                # ^ dict with k,v_type "channel":int, "range":[float, float], "highpass":bool
 
         # features plot
         plot_stack = self.findChild(QtWidgets.QStackedWidget, "Plot_Stack")
