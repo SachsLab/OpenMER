@@ -10,11 +10,13 @@ from ..settings import parse_ini_try_numeric
 class FHCSerial(MerDepthSource):
 
     def __init__(self, scoped_settings: QtCore.QSettings):
-        super().__init__(scoped_settings)
+        scoped_settings.beginGroup("depth-source-serial")
         self._baudrate = parse_ini_try_numeric(scoped_settings, 'baudrate') or 19200
         self._com_port = scoped_settings.value("com_port")
         self.ser = serial.Serial(timeout=1)
         self._is_v2 = False
+        super().__init__(scoped_settings)
+        scoped_settings.endGroup()
 
     @property
     def is_v2(self):
@@ -27,7 +29,6 @@ class FHCSerial(MerDepthSource):
         self.doubleSpinBox_offset.setValue(60.00 if value else 0.00)
 
     def do_open(self):
-        super().do_open()
         self.ser.baudrate = self._baudrate
         if self._com_port not in serial.tools.list_ports.comports():
             print(f"Port {self._com_port} not found in list of comports.")
