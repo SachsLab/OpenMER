@@ -1,5 +1,24 @@
 ## Connectivity
 
+### ZeroMQ Ports
+
+We use ZeroMQ sockets for inter-process communication using the pub-sub pattern. The following table lists the sockets'
+ports, topics, and notes about the accompanying messages.
+
+| Publisher            | Port  | Topic              | Message                                              | Subscribers          |
+|----------------------|-------|--------------------|------------------------------------------------------|----------------------|
+| ProcessGUI           | 60001 | procedure_settings | dict of settings dicts "procedure" and               | FeaturesGUI          |
+| Depth_Process (SERF) | 60002 | snippet_status     | startup; notrecording; recording; accumulating; done | ProcessGUI           |
+| SweepGUI             | 60003 | channel_select     | dict with channel, range, highpass                   | FeaturesGUI          |
+| FeaturesGUI          | 60004 | features           | refresh                                              | FeaturesGUI          |
+| DepthGUI             | 60005 | ddu                | float of depth                                       | Depth_Process (SERF) |
+
+### LSL
+
+| Origin   | Stream Name     | Stream Type | Content                 | Inlets               |
+|----------|-----------------|-------------|-------------------------|----------------------|
+| DepthGUi | electrode_depth | depth       | 1 float32 of elec depth | Depth_Process (SERF) |
+
 ### Blackrock NSP
 
 If Central is running then these tools should attempt to connect to Central's shared memory, and the network settings are irrelevant. If Central is not running then you'll have to make sure the network settings are correct, and this may depend on how your PC and NSP are connected.
