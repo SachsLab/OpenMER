@@ -335,6 +335,7 @@ class RawPlots(QWidget):
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
         # create GLW for the depth plot
         depth_sett = {**DEPTH,
@@ -364,6 +365,8 @@ class RawPlots(QWidget):
 
         # Prepare plot data
         self.data_layout = QVBoxLayout()
+        self.data_layout.setContentsMargins(0, 0, 0, 0)
+        self.data_layout.setSpacing(0)
         self.layout.addLayout(self.data_layout, 0, 1, NPLOTSRAW, 5)
         self.layout.setColumnStretch(0, 1)
         self.layout.setColumnStretch(1, 5)
@@ -391,7 +394,10 @@ class RawPlots(QWidget):
             tmp_txt.setX(0)
             tmp_txt.setY(0)
             tmp_txt.setAnchor((0.5, 1))
-            tmp_txt.setZValue(1)
+            tmp_txt.setZValue(100)
+            _font = QFont()
+            _font.setPointSizeF(8.5)
+            tmp_txt.setFont(_font)
             tmp.plot.addItem(tmp_txt)
             self.data_texts.append(tmp_txt)
 
