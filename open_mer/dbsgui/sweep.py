@@ -206,6 +206,7 @@ class SweepWidget(CustomWidget):
             curr_channel = chan_labels.index(self.audio['chan_label']) + 1  # 0 == None
         self._chanselect_sock.send_string("channel_select " + json.dumps({
             "channel": curr_channel,
+            "label": self.audio["chan_label"] or "",
             "range": self.plot_config['y_range'],
             "highpass": self.plot_config['do_hp']
         }))

@@ -299,7 +299,12 @@ class FeaturesGUI(QtWidgets.QMainWindow):
             received_msg = self._chan_sock.recv_string(flags=zmq.NOBLOCK)[len("channel_select") + 1:]
             chan_settings = json.loads(received_msg)
             # ^ dict with k,v_type "channel":int, "range":[float, float], "highpass":bool
-            # TODO: chan_combo set new idx
+            sweep_control = self.findChild(QtWidgets.QCheckBox, "Sweep_CheckBox")
+            if sweep_control.isChecked():
+                chan_combo = self.findChild(QtWidgets.QComboBox, "ChanSelect_ComboBox")
+                avail_chans = [chan_combo.itemText(_) for _ in range(chan_combo.count())]
+                if chan_settings["label"] in avail_chans:
+                    chan_combo.setCurrentIndex(avail_chans.index(chan_settings["label"]))
         except zmq.ZMQError:
             pass
 
