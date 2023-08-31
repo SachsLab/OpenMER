@@ -81,7 +81,7 @@ class SweepWidget(CustomWidget):
         if new_button_id is not None:
             button = self._monitor_group.button(new_button_id)
             button.setChecked(True)
-            self.on_monitor_group_clicked(new_button_id)
+            self.on_monitor_group_clicked(button)
 
     def closeEvent(self, evnt):
         if self.pya_stream:
