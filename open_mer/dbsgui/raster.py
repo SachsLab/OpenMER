@@ -16,9 +16,41 @@ class RasterGUI(CustomGUI):
     def widget_cls(self):
         return RasterWidget
 
+    def parse_settings(self):
+        settings_paths = [self._settings_paths["base"]]
+        if "custom" in self._settings_paths:
+            settings_paths.extend(self._settings_paths["custom"])
+
+        if "plot" not in self._plot_config:
+            self._plot_config["plot"] = {}
+
+        if "theme" not in self._plot_config:
+            self._plot_config["theme"] = {}
+
+        for ini_path in settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            k_t = {"x_range": float, "y_range": int}
+            keys = settings.allKeys()
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            keys = settings.allKeys()
+            k_t = {"frate_size": int}
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["theme"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+        super().parse_settings()
+
     def on_plot_closed(self):
         self._plot_widget = None
-        self._data_source.disconnect_requested()
+        # self._data_source.disconnect_requested()
 
     def do_plot_update(self):
         ev_timestamps = self._data_source.get_event_data()

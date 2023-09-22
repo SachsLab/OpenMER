@@ -21,12 +21,42 @@ class SweepGUI(CustomGUI):
     def widget_cls(self):
         return SweepWidget
 
+    def parse_settings(self):
+        settings_paths = [self._settings_paths["base"]]
+        if "custom" in self._settings_paths:
+            settings_paths.extend(self._settings_paths["custom"])
+
+        if "plot" not in self._plot_config:
+            self._plot_config["plot"] = {}
+
+        for ini_path in settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            k_t = {"x_range": float, "y_range": float, "downsample": int, "n_segments": int,
+                   "spk_aud": bool, "lock_threshold": bool, "unit_scaling": float}
+            keys = settings.allKeys()
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            keys = settings.allKeys()
+            k_t = {"threshcolor": str, "threshwidth": int}
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["theme"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+        super().parse_settings()
+
     def on_plot_closed(self):
         if self._plot_widget is not None and self._plot_widget.awaiting_close:
             del self._plot_widget
             self._plot_widget = None
-        if not self._plot_widget:
-            self._data_source.disconnect_requested()
+        # if not self._plot_widget:
+        #     self._data_source.disconnect_requested()
 
     def do_plot_update(self):
         cont_data = self._data_source.get_continuous_data()
@@ -52,11 +82,12 @@ class SweepWidget(CustomWidget):
         self.plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
 
-        context = zmq.Context()
-        self._chanselect_sock = context.socket(zmq.PUB)
+        self._chanselect_context = zmq.Context()
+        self._chanselect_sock = self._chanselect_context.socket(zmq.PUB)
         self._chanselect_sock.bind(f"tcp://*:{zmq_chan_port}")
 
         super().__init__(*args, **kwargs)
+
         self.refresh_axes()  # Even though super __init__ calls this, extra refresh is intentional
         self.pya_manager = pyaudio.PyAudio()
         self.pya_stream = None
@@ -89,6 +120,11 @@ class SweepWidget(CustomWidget):
                 self.pya_stream.stop_stream()
             self.pya_stream.close()
         self.pya_manager.terminate()
+
+        self._chanselect_sock.setsockopt(zmq.LINGER, 0)
+        self._chanselect_sock.close()
+        self._chanselect_context.term()
+
         super().closeEvent(evnt)
 
     def create_control_panel(self):
@@ -324,7 +360,10 @@ class SweepWidget(CustomWidget):
         }
 
     def refresh_axes(self):
-        last_sample_ix = int(np.mod(get_now_time(), self.plot_config['x_range']) * self.samplingRate)
+        _t = get_now_time()
+        if _t is None:
+            return
+        last_sample_ix = int(np.mod(_t, self.plot_config["x_range"]) * self.samplingRate)
         state_names = [_['name'] for _ in self.chan_states]
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]

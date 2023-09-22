@@ -1,5 +1,5 @@
 import numpy as np
-from qtpy import QtWidgets
+from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
 from .utilities.pyqtgraph import parse_color_str, get_colormap
 from .widgets.custom import CustomGUI, CustomWidget
@@ -15,9 +15,43 @@ class WaveformGUI(CustomGUI):
     def widget_cls(self):
         return WaveformWidget
 
+    def parse_settings(self):
+        settings_paths = [self._settings_paths["base"]]
+        if "custom" in self._settings_paths:
+            settings_paths.extend(self._settings_paths["custom"])
+
+        if "plot" not in self._plot_config:
+            self._plot_config["plot"] = {}
+
+        if "theme" not in self._plot_config:
+            self._plot_config["theme"] = {}
+
+        for ini_path in settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            k_t = {"x_start": int, "x_stop": int, "y_range": int,
+                   "n_waveforms": int, "unit_scaling": float}
+            keys = settings.allKeys()
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            keys = settings.allKeys()
+            k_t = {"frate_size": int}
+            for k, t in k_t.items():
+                if k in keys:
+                    self._plot_config["theme"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+        super().parse_settings()
+
     def on_plot_closed(self):
+        del self._plot_widget
         self._plot_widget = None
-        self._data_source.disconnect_requested()
+        # self._data_source.disconnect_requested()
 
     def do_plot_update(self):
         for label in self._plot_widget.wf_info:
@@ -68,11 +102,11 @@ class WaveformWidget(CustomWidget):
 
     def create_plots(self, plot={}, theme={}):
         # Collect PlotWidget configuration
-        self.plot_config['theme'] = theme
-        self.plot_config['x_range'] = (plot.get('x_start', -300), plot.get('x_stop', 1140))
-        self.plot_config['y_range'] = plot.get('y_range', 250)
-        self.plot_config['n_waveforms'] = plot.get('n_waveforms', 200)
-        self.plot_config['unit_scaling'] = plot.get('unit_scaling', 0.25)
+        self.plot_config["theme"] = theme
+        self.plot_config["x_range"] = (plot["x_start"], plot["x_stop"])
+        self.plot_config["y_range"] = plot["y_range"]
+        self.plot_config["n_waveforms"] = plot["n_waveforms"]
+        self.plot_config["unit_scaling"] = plot["unit_scaling"]
 
         # Update widget values without triggering signals
         prev_state = self.range_edit.blockSignals(True)
