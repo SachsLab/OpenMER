@@ -10,8 +10,11 @@ def main():
     timer.timeout.connect(aw.update)
     timer.start(1)
 
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtWidgets.QApplication.instance().exec_()
+    try:
+        if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+            QtWidgets.QApplication.instance().exec_()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == '__main__':
