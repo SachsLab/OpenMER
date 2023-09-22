@@ -16,7 +16,7 @@ Here is the list of equipment we use. It may be possible to use this software wi
 
 ## Software
 
-NeuroportDBS is a Suite of applications for visualizing signals in real-time:
+OpenMER is a Suite of applications for visualizing signals in real-time:
 
 ![Image of vis apps](https://github.com/SachsLab/OpenMER/blob/master/vis_apps_screenshot.PNG?raw=true)
 
@@ -31,10 +31,4 @@ NeuroportDBS is a Suite of applications for visualizing signals in real-time:
 
 We also use a GUI application we developed called [*CereStimDBS*](https://github.com/CerebusOSS/CereStimDBS) for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
 
-### Dependencies
-
-When using Blackrock hardware, the following tools and SDKs are needed.
-
-The Blackrock NSP has its own [NeuroPort Central Suite](https://www.blackrockmicro.com/technical-support/software-downloads/) to manage the configuration of the device and to store data. However, its data visualization capabilities are rather limited and not suited for DBS MER.
-
-The NSP data stream is accessible via an open source API [CereLink](https://github.com/CerebusOSS/CereLink) which includes a Python interface called `cerebus.cbpy`. These are maintained by Sachs Lab member Chadwick Boulay. Most of our Neuroport DBS software is written in Python and much of it uses `cerebus.cbpy` and a custom [cerebuswrapper](https://github.com/SachsLab/cerebuswrapper) to communicate with the NSP.
+Please see [Getting Started](getting-started.md) documentation on how to set up OpenMER then look at the [Usage Instructions](usage-instructions.md) for simple OpenMER operating instructions.

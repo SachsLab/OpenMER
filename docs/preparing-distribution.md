@@ -41,11 +41,14 @@ In your WinPython Command Prompt, try the following commands first. If they fail
 > 
 ```
 python.exe -m pip install --upgrade pip
-pip install PySide6 pyFFTW mysqlclient Django quantities pylsl numpy scipy Cython pyaudio pyzmq
+pip install Django quantities numpy scipy Cython pyFFTW mysqlclient
+# Use `mamba install` for the above line on macOS.
+pip install pylsl pyaudio PySide6 qtpy pyzmq pyqtgraph
 pip install git+https://github.com/NeuralEnsemble/python-neo.git
 pip install git+https://github.com/SachsLab/pytf.git
 pip install git+https://github.com/SachsLab/mspacman.git
 pip install https://github.com/CerebusOSS/CereLink/releases/download/v7.6.4/cerebus-0.4-cp311-cp311-win_amd64.whl
+# pip install https://github.com/CerebusOSS/CereLink/releases/download/v7.6.4/cerebus-0.4-cp311-cp311-macosx_11_0_arm64.whl
 pip install git+https://github.com/CerebusOSS/cerebuswrapper.git
 pip install git+https://github.com/cboulay/SERF.git#subdirectory=python
 pip install git+https://github.com/SachsLab/OpenMER.git
