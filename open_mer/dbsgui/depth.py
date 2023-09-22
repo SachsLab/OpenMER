@@ -30,7 +30,7 @@ class DepthGUI(QtWidgets.QMainWindow):
                 self._settings_path = ini_path
             else:
                 # Use default ini that ships with module.
-                self._settings_path = Path(__file__).parents[1] / 'resources' / 'config' / ini_path.name
+                self._settings_path = Path(__file__).parents[1] / "resources" / "settings" / ini_path.name
 
         self.display_string = None
         self._depth_stream = None

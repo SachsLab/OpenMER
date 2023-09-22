@@ -10,7 +10,7 @@ def copy_ini_resources_from_package_to_home():
     root_pkg = __package__.split(".")[0]
     dest_root = Path.home() / f".{root_pkg}"
     dest_root.mkdir(exist_ok=True)
-    with pkg_resources.path(f"{root_pkg}.resources", "config") as path:
+    with pkg_resources.path(f"{root_pkg}.resources", "settings") as path:
         for resource_file in path.iterdir():
             if not resource_file.name.lower().endswith(".ini"):
                 continue

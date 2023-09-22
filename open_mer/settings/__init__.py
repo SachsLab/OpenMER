@@ -32,6 +32,6 @@ def locate_ini(ini_name):
             _settings_path = ini_path
         else:
             # Use default ini that ships with module.
-            _settings_path = Path(__file__).parents[1] / 'resources' / 'config' / ini_path.name
+            _settings_path = Path(__file__).parents[1] / "resources" / "settings" / ini_path.name
     return _settings_path
 

@@ -64,7 +64,7 @@ class ProcessGUI(QtWidgets.QMainWindow):
         settings.endGroup()
 
     def _save_settings(self):
-        if self._settings_path.parents[0] == 'config' and self._settings_path.parents[1] == 'resources':
+        if self._settings_path.parents[0] == "settings" and self._settings_path.parents[1] == "resources":
             # If this was loaded with the shipped settings, then write a new one in ~/.open_mer
             home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
             self._settings_path = home_dir / '.open_mer' / self._settings_path.name
