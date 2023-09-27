@@ -10,7 +10,7 @@ from .widgets.SettingsDialog import SettingsDialog
 import open_mer.data_source
 
 
-class ProcessGUI(QtWidgets.QMainWindow):
+class ProcedureGUI(QtWidgets.QMainWindow):
 
     def __init__(self, ini_file: str = None, **kwargs):
         super().__init__(**kwargs)
@@ -33,7 +33,6 @@ class ProcessGUI(QtWidgets.QMainWindow):
 
     def closeEvent(self, *args, **kwargs):
         self.toggle_recording(False)
-        self._save_settings()
 
     def _restore_from_settings(self, ini_file=None):
         # Infer path to ini
@@ -62,27 +61,6 @@ class ProcessGUI(QtWidgets.QMainWindow):
         self._data_source = src_cls(scoped_settings=settings)
         self._recording_path = settings.value("basepath", defaults.BASEPATH, type=str)
         settings.endGroup()
-
-    def _save_settings(self):
-        if self._settings_path.parents[0] == "settings" and self._settings_path.parents[1] == "resources":
-            # If this was loaded with the shipped settings, then write a new one in ~/.open_mer
-            home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
-            self._settings_path = home_dir / '.open_mer' / self._settings_path.name
-
-        settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
-
-        # Save MainWindow geometry.
-        settings.beginGroup("MainWindow")
-        settings.setValue("fullScreen", self.isFullScreen())
-        settings.setValue("maximized", self.isMaximized())
-        if not self.isFullScreen() and not self.isMaximized():
-            settings.setValue("size", self.size())
-            settings.setValue("pos", self.pos())
-        settings.endGroup()
-
-        # TODO: Save more settings.
-
-        settings.sync()
 
     def _setup_ui(self):
         main_widget = QtWidgets.QWidget()
