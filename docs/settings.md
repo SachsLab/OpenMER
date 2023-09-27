@@ -14,6 +14,8 @@ This can be done by running `python -m open_mer.scripts.ResetUserSettings`.
 
 Settings in the home directory will take precedence over the settings in the open_mer package.
 
+## Common Settings
+
 ### CbSdkConnection.ini
 
 If the OpenMER GUI ini files have `class=CerebusDataSource` in their `[data-source]` section,
@@ -45,13 +47,20 @@ such as MainWindow framing and line colors.
 
 Settings in Style.ini may be overwritten by settings in GUI-specific ini files.
 
+## Application Settings
+
 ### DepthGUI.ini
+
+* Choose the COM port the depth digitizer is connected to then click Open.
+    * Choosing the wrong serial port may cause the application to hang. Force close then try again.
+    * You can probably identify the correct COM port in Windows Control Panel >Device Manager > Serial & LPT devices.
+* By default, it will automatically stream the depth to both LSL and to the NSP (added to the .nev datafile as comments). You can change this behaviour by unchecking the boxes.
 
 ### FeaturesGUI.ini
 
 ### MappingGUI.ini
 
-### ProcessGUI.ini
+### ProcedureGUI.ini
 
 ### RasterGUI.ini
 

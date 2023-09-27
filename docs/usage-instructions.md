@@ -12,29 +12,37 @@ Additional details follow.
 ### Blackrock NSP
 
 * The NSP must be on.
-  * Can use nPlayServer instead for testing.
+  * Can use nPlayServer instead for testing. See the [relevant section in the developer docs](for-developers.md#nplayserver).
 * Central should be running first if OpenMER and Central are on the same PC.
+
+### LSL Source
+
+It is also possible to use an LSL outlet as a data source.
+Documentation for this feature is currently unavailable.
 
 ## Raw data visualization
 
 SweepGUI -- RasterGUI -- WaveformGUI
 
-No special instructions. These should work as long as a recognized data source is available.
+No special instructions. These should work as long as a recognized data source is available and transmitting data.
+
+Check out the relevant sections in the [settings docs](settings.md).
 
 ### Sweep Plot Audio
 
-The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). Alternatively, you may use left-arrow and right-arrow for cycling through the channels, and Space selects silence.
-We map a footpedal to right-arrow so the channels can be cycled without using hands.
+The SweepGUI has the ability to stream one of the visualized channels out over the computer's speaker system. You can select which channel is being streamed either by clicking on one of the radio buttons near the top or by using a number on the keyboard (0 for silence, 1-N for each visualized channel). Additionally, you may use left-arrow and right-arrow for cycling through the channels, and Spacebar selects silence.
 
-## DDU
+We map a USB footpedal to right-arrow so the channels can be cycled without using our hands.
 
-* Choose the COM port the depth digitizer is connected to then click Open.
-    * Choosing the wrong serial port may cause the application to hang. Force close then try again.
-    * You can probably identify the correct COM port in Windows Control Panel >Device Manager > Serial & LPT devices.
-* By default, it will automatically stream the depth to both LSL and to the NSP (added to the .nev datafile as comments). You can change this behaviour by unchecking the boxes.
+## Depth
+
+It is very important to modify the [DepthGUI settings](settings.md#depthguiini) to set the source of the depth information. 
+
 * Enter your distance to target
 * If, like us, the depth readout isn't the same as your distance to target, then add an offset.
-  * It defaults to -60 mm if it detects the DDU version most commonly associated with the StarDrive.
+  * It defaults to -60 mm if it detects that the DDU is the version most commonly associated with the StarDrive.
+
+## Procedure
 
 ## Features
 

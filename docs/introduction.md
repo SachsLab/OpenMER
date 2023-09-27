@@ -9,10 +9,10 @@ MER requires specialized equipment and software. While all-in-one medical device
 Here is the list of equipment we use. It may be possible to use this software with other equipment.
 
 * A variety of microelectrodes, but mostly [FHC Microtargeting Electrodes](https://www.fh-co.com/product-category/microtargeting/).
-* We use the [Blackrock Neuroport](https://www.blackrockmicro.com/neuroscience-research-products/neural-data-acquisition-systems/neuroport-daq-system/) for signal acquisition, processing, and digitization. Other devices are possible.
+* We use the [Blackrock Neuroport](https://www.blackrockmicro.com/neuroscience-research-products/neural-data-acquisition-systems/neuroport-daq-system/) for signal acquisition, processing, and digitization. Other devices are possible via [labstreaminglayer](https://labstreaminglayer.readthedocs.io/).
 * An [FHC Depth Digitizing Unit (DDU)](https://www.fh-co.com/product/microtargeting-controller-power-assist-system-2-0/) - they have similar units for the Nexdrive and STar Drive.
 * A drive compatible with the DDU, such as the [Medtronic Nexdrive](https://www.medicalexpo.com/prod/medtronic/product-70691-503248.html) or the [FHC STar Drive](https://www.fh-co.com/product/star-drive-motor-encoder-system/)
-* The [Blackrock Cerestim](https://www.blackrockmicro.com/neuroscience-research-products/ephys-stimulation-systems/cerestim-96-neurostimulation-system/) for microstimulation. The Cerestim is not required.
+* [Optional] A [Blackrock Cerestim](https://www.blackrockmicro.com/neuroscience-research-products/ephys-stimulation-systems/cerestim-96-neurostimulation-system/) for microstimulation.
 
 ## Software
 
@@ -21,13 +21,18 @@ OpenMER is a Suite of applications for visualizing signals in real-time:
 ![Image of vis apps](https://github.com/SachsLab/OpenMER/blob/master/vis_apps_screenshot.PNG?raw=true)
 
 * *SweepGUI* - Plots continuous signals in sweeps, optional high-pass filter, and sonifies a channel.
-* *RasterGUI* - Plots threshold crossing events in a raster plot, with spike rate displayed in the corner (up to 8 sec history)
+* *RasterGUI* - Plots events (i.e., spikes) in a raster plot, with event rate displayed in the corner (up to 8 sec history)
 * *WaveformGUI* - Plots the waveforms of the last N threshold crossing events.
-* *DDUGUI* visualizes the depth readout from the drive (including adjustable offset value), and sends that depth to other consumers (e.g., the Blackrock NSP as a Comment; as a [labstreaminglayer](https://github.com/sccn/labstreaminglayer) outlet).
-* *ProcessGUI* - Set patient and procedure info, and it has widgets to control recording state. Further, the recording button changes colour depending on what a background database process is doing (monitoring, accumulating, etc).
-* *FeaturesGUI* plots the depth history of raw segments or features from the database and it is updated automatically. The database interaction occurs via a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
-  * In addition to the MySQL database, 2 SERF applications must be running: *serf-cbacquire* and *serf-procfeatures*.
-* *CommentGUI* (not shown) is for simple text entry widget to send arbitrary comments to the Blackrock NSP.
+* *DepthGUI* - Displays the depth readout from the drive (including optional offset), and sends that depth to other consumers.
+  * sent to Blackrock NSP as a Comment;
+  * pushed on a [labstreaminglayer](https://github.com/sccn/labstreaminglayer) outlet;
+  * broadcast over ZeroMQ (see [ZeroMQ Port list](for-developers.md#interprocess-communication))
+* *ProcedureGUI* - Sets patient and procedure info, and controls recording state.
+  * The recording button colour reflects a background database process (monitoring: blue, accumulating: red).
+* *FeaturesGUI* - Plots the history of raw segments or features by depth.
+  * The database interaction occurs via a Django app called [SERF](https://github.com/cboulay/SERF) backed by a MySQL database.
+  * Requires running MySQL database, and 2 SERF applications: *serf-cbacquire* and *serf-procfeatures*.
+* *CommentGUI* (not shown) - Send comments to the Blackrock NSP, with some widgets specialized for kinesthetic mapping.
 
 We also use a GUI application we developed called [*CereStimDBS*](https://github.com/CerebusOSS/CereStimDBS) for controlling the Blackrock CereStim96 in a convenient manner for DBS surgeries.
 
