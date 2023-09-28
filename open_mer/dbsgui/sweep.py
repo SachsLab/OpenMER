@@ -6,97 +6,60 @@ from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
 import zmq
 
-from .utilities.pyqtgraph import parse_color_str, make_qcolor, get_colormap
+from .utilities.pyqtgraph import parse_color_str, make_qcolor
 from .widgets.custom import CustomWidget, CustomGUI
 from ..data_source import get_now_time
 
 
-class SweepGUI(CustomGUI):
-
-    def __init__(self):
-        super(SweepGUI, self).__init__()
-        self.setWindowTitle('SweepGUI')
-
-    @CustomGUI.widget_cls.getter
-    def widget_cls(self):
-        return SweepWidget
-
-    def parse_settings(self):
-        settings_paths = [self._settings_paths["base"]]
-        if "custom" in self._settings_paths:
-            settings_paths.extend(self._settings_paths["custom"])
-
-        if "plot" not in self._plot_config:
-            self._plot_config["plot"] = {}
-
-        for ini_path in settings_paths:
-            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
-
-            settings.beginGroup("plot")
-            k_t = {"x_range": float, "y_range": float, "downsample": int, "n_segments": int,
-                   "spk_aud": bool, "lock_threshold": bool, "unit_scaling": float}
-            keys = settings.allKeys()
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["plot"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-            settings.beginGroup("theme")
-            keys = settings.allKeys()
-            k_t = {"threshcolor": str, "threshwidth": int}
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["theme"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-        super().parse_settings()
-
-    def on_plot_closed(self):
-        if self._plot_widget is not None and self._plot_widget.awaiting_close:
-            del self._plot_widget
-            self._plot_widget = None
-        # if not self._plot_widget:
-        #     self._data_source.disconnect_requested()
-
-    def do_plot_update(self):
-        cont_data = self._data_source.get_continuous_data()
-        if cont_data is not None:
-            cont_chan_ids = [x[0] for x in cont_data]
-            chart_chan_ids = [x['src'] for x in self._plot_widget.chan_states]
-            match_chans = list(set(cont_chan_ids) & set(chart_chan_ids))
-            for chan_id in match_chans:
-                ch_ix = cont_chan_ids.index(chan_id)
-                data = cont_data[ch_ix][1]
-                label = self._plot_widget.chan_states[ch_ix]['name']
-                self._plot_widget.update(label, data, ch_state=self._plot_widget.chan_states[ch_ix])
+# TODO: Continue decoupling effort to get all data and audio processing into SweepGUI and
+#  only plotting in SweepWidget. Search and fix all self.parent() and some self._plot_widget.
+#  Fixes will likely require more signals and slots.
 
 
 class SweepWidget(CustomWidget):
+    chanselect_updated = QtCore.Signal()
 
-    def __init__(self, *args, zmq_chan_port=60003, **kwargs):
+    def __init__(self, *args, theme={}, plot={}):
         """
-        *args typically contains a data_source dict with entries for 'srate', 'channel_names', 'chan_states'
-        **kwargs typically contains dicts for configuring the plotter, including 'filter', 'plot', and 'theme'.
+        *args is passed directly to super.
+        **kwargs is passed (via super) directly to _parse_config. Optionally includes dicts for theme and plot.
         """
         self._monitor_group = None  # QtWidgets.QButtonGroup(parent=self)
-        self.plot_config = {}
+        self._plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
 
-        self._chanselect_context = zmq.Context()
-        self._chanselect_sock = self._chanselect_context.socket(zmq.PUB)
-        self._chanselect_sock.bind(f"tcp://*:{zmq_chan_port}")
-
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, theme=theme, plot=plot)
 
         self.refresh_axes()  # Even though super __init__ calls this, extra refresh is intentional
-        self.pya_manager = pyaudio.PyAudio()
-        self.pya_stream = None
-        self.audio = {}
-        self.reset_audio()
-        self.publish_chanselect()
+        self.chanselect_updated.emit()
+
+    def _parse_config(self, theme={}, plot={}, alt_loc=False):
+        super()._parse_config(theme=theme)
+
+        filter = plot.get("filter", {})
+        plot = plot["plot"]
+        # Collect PlotWidget configuration
+        self._plot_config["downsample"] = plot.get("downsample", 1)
+        self._plot_config["x_range"] = plot.get("x_range", 1.0)
+        self._plot_config["y_range"] = plot.get("y_range", 250)
+        self._plot_config["n_segments"] = plot.get("n_segments", 20)
+        # Default scaling of 0.25 -- Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
+        self._plot_config["unit_scaling"] = plot.get("unit_scaling", 0.25)
+        self._plot_config["alt_loc"] = alt_loc
+        self._plot_config["do_hp"] = filter.get("order", 4) > 0
+        if self._plot_config["do_hp"]:
+            self._plot_config["hp_sos"] = signal.butter(filter.get("order", 4),
+                                                        2 * filter.get("cutoff", 250) / self.samplingRate,
+                                                        btype=filter.get("btype", "highpass"),
+                                                        output=filter.get("output", "sos"))
+        self._plot_config["do_ln"] = bool(plot.get("do_ln", True))
+        self._plot_config["ln_filt"] = None  # TODO: comb filter coeffs
+        self._plot_config["spk_aud"] = bool(plot.get('spk_aud', True))
+        self._plot_config["lock_threshold"] = bool(plot.get('lock_threshold', False))
 
     def keyPressEvent(self, e):
-        valid_keys = [QtCore.Qt.Key_0, QtCore.Qt.Key_1, QtCore.Qt.Key_2, QtCore.Qt.Key_3, QtCore.Qt.Key_4, QtCore.Qt.Key_5, QtCore.Qt.Key_6, QtCore.Qt.Key_7, QtCore.Qt.Key_8,
+        valid_keys = [QtCore.Qt.Key_0, QtCore.Qt.Key_1, QtCore.Qt.Key_2, QtCore.Qt.Key_3, QtCore.Qt.Key_4,
+                      QtCore.Qt.Key_5, QtCore.Qt.Key_6, QtCore.Qt.Key_7, QtCore.Qt.Key_8,
                       QtCore.Qt.Key_9][:len(self.chan_states) + 1]
         current_button_id = self._monitor_group.checkedId()
         new_button_id = None
@@ -114,29 +77,17 @@ class SweepWidget(CustomWidget):
             button.setChecked(True)
             self.on_monitor_group_clicked(button)
 
-    def closeEvent(self, evnt):
-        if self.pya_stream:
-            if self.pya_stream.is_active():
-                self.pya_stream.stop_stream()
-            self.pya_stream.close()
-        self.pya_manager.terminate()
-
-        self._chanselect_sock.setsockopt(zmq.LINGER, 0)
-        self._chanselect_sock.close()
-        self._chanselect_context.term()
-
-        super().closeEvent(evnt)
-
     def create_control_panel(self):
         # Create control panel
         # +/- range
         cntrl_layout = QtWidgets.QHBoxLayout()
         cntrl_layout.addWidget(QtWidgets.QLabel("+/- "))
-        self.range_edit = QtWidgets.QLineEdit("{:.2f}".format(250))  # Value overridden in create_plots
-        self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
-        self.range_edit.setMinimumHeight(23)
-        self.range_edit.setMaximumWidth(80)
-        cntrl_layout.addWidget(self.range_edit)
+        range_edit = QtWidgets.QLineEdit("{:.2f}".format(250))  # Value overridden in create_plots
+        range_edit.setObjectName("range_LineEdit")
+        range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
+        range_edit.setMinimumHeight(23)
+        range_edit.setMaximumWidth(80)
+        cntrl_layout.addWidget(range_edit)
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
         cntrl_layout.addWidget(QtWidgets.QLabel("Monitor: "))
@@ -187,175 +138,147 @@ class SweepWidget(CustomWidget):
     def update_monitor_channel(self, chan_state, spike_only):
         # Let other processes know we've changed the monitor channel
         self.parent()._data_source.update_monitor(chan_state, spike_only=spike_only)
-        self.publish_chanselect()
+        self.chanselect_updated.emit()
 
     def on_spk_aud_changed(self, state):
         current_button_id = self._monitor_group.checkedId()
         if current_button_id > 0:
             chan_state = self.chan_states[current_button_id - 1]
-            self.update_monitor_channel(chan_state, state == QtCore.Qt.Checked)
+            self.update_monitor_channel(chan_state, state == QtCore.Qt.Checked.value)
 
     def on_hp_filter_changed(self, state):
-        self.plot_config['do_hp'] = state == QtCore.Qt.Checked
-        self.publish_chanselect()
+        self._plot_config["do_hp"] = state == QtCore.Qt.Checked.value
+        for ch_label, ss_info in self.segmented_series.items():
+            ss_info["hp_zi"] = None
+        self.chanselect_updated.emit()
 
     def on_ln_filter_changed(self, state):
-        self.plot_config['do_ln'] = state == QtCore.Qt.Checked
+        self._plot_config["do_ln"] = state == QtCore.Qt.Checked.value
 
     def on_range_edit_editingFinished(self):
-        self.plot_config['y_range'] = np.float64(self.range_edit.text())
+        _range_edit = self.findChild(QtWidgets.QLineEdit, name="range_LineEdit")
+        self._plot_config["y_range"] = np.float64(_range_edit.text())
         self.refresh_axes()
-        self.publish_chanselect()
+        self.chanselect_updated.emit()
 
     def on_monitor_group_clicked(self, button):
-        self.reset_audio()
-        this_label = ''
-        if button.text() == 'None':
-            self.audio['chan_label'] = 'silence'
-            chan_state = {'src': 0}
+        self.parent().reset_audio()
+        this_label = ""
+        if button.text() == "None":
+            self.parent().audio["chan_label"] = "silence"
+            chan_state = {"src": 0}
         else:
             this_label = button.text()
             button_idx = self.labels.index(this_label)
-            self.audio['chan_label'] = this_label
+            self.parent().audio["chan_label"] = this_label
             chan_state = self.chan_states[button_idx]
 
         # Reset plot titles
-        active_kwargs = {'color': parse_color_str(self.plot_config['theme'].get('labelcolor_active', 'yellow')),
-                         'size': str(self.plot_config['theme'].get('labelsize_active', 15)) + 'pt'}
-        inactive_kwargs = {'color': self.plot_config['theme'].get('labelcolor_inactive', None),
-                           'size': str(self.plot_config['theme'].get('labelsize_inactive', 11)) + 'pt'}
-        if inactive_kwargs['color'] is not None:
-            inactive_kwargs['color'] = parse_color_str(inactive_kwargs['color'])
+        active_kwargs = {
+            "color": parse_color_str(self._theme.get("labelcolor_active", "yellow")),
+            "size": str(self._theme.get("labelsize_active", 15)) + "pt"
+        }
+        inactive_kwargs = {
+            "color": self._theme.get("labelcolor_inactive", None),
+            "size": str(self._theme.get("labelsize_inactive", 11)) + "pt"
+        }
+        if inactive_kwargs["color"] is not None:
+            inactive_kwargs["color"] = parse_color_str(inactive_kwargs["color"])
         for label in self.labels:
-            plot_item = self.segmented_series[label]['plot']
+            plot_item = self.segmented_series[label]["plot"]
             label_kwargs = active_kwargs if label == this_label else inactive_kwargs
             plot_item.setTitle(title=plot_item.titleLabel.text, **label_kwargs)
 
-        spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
+        spk_aud_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
         self.update_monitor_channel(chan_state, spk_aud_cb.checkState() == QtCore.Qt.Checked)
-
-    def publish_chanselect(self):
-        chan_labels = [_['name'] for _ in self.chan_states]
-        if self.audio['chan_label'] in ['silence', None]:
-            curr_channel = 0
-        else:
-            curr_channel = chan_labels.index(self.audio['chan_label']) + 1  # 0 == None
-        self._chanselect_sock.send_string("channel_select " + json.dumps({
-            "channel": curr_channel,
-            "label": self.audio["chan_label"] or "",
-            "range": self.plot_config['y_range'],
-            "highpass": self.plot_config['do_hp']
-        }))
 
     def on_thresh_line_moved(self, inf_line):
         new_thresh = None
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
-            if ss_info['thresh_line'] == inf_line:
-                new_thresh = int(inf_line.getYPos() / self.plot_config['unit_scaling'])
+            if ss_info["thresh_line"] == inf_line:
+                new_thresh = int(inf_line.getYPos() / self._plot_config["unit_scaling"])
                 # Let other processes know we've changed the threshold line.
                 self.parent()._data_source.update_threshold(ss_info, new_thresh)
-                # TODO: shared mem?
-        lkthr_cb = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
-        if new_thresh is not None and lkthr_cb.checkState() == QtCore.Qt.Checked:
+
+        # If we the "lock thresholds" buttton is checked then update the rest of the lines
+        lkthr_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
+        if new_thresh is not None and lkthr_cb.checkState() == QtCore.Qt.Checked.value:
             for line_label in self.segmented_series:
                 ss_info = self.segmented_series[line_label]
-                if ss_info['thresh_line'] != inf_line:
-                    ss_info['thresh_line'].setPos(new_thresh * self.plot_config['unit_scaling'])
+                if ss_info["thresh_line"] != inf_line:
+                    ss_info["thresh_line"].setPos(new_thresh * self._plot_config["unit_scaling"])
                     self.parent()._data_source.update_threshold(ss_info, new_thresh)
 
-    def create_plots(self, plot={}, filter={}, theme={}, alt_loc=False):
-        # Collect PlotWidget configuration
-        self.plot_config['theme'] = theme
-        self.plot_config['downsample'] = plot.get('downsample', 1)
-        self.plot_config['x_range'] = plot.get('x_range', 1.0)
-        self.plot_config['y_range'] = plot.get('y_range', 250)
+    def create_plots(self):
         # Update the range_edit text, but block its signal when doing so
-        prev_state = self.range_edit.blockSignals(True)
-        self.range_edit.setText(str(self.plot_config['y_range']))
-        self.range_edit.blockSignals(prev_state)
-        self.plot_config['n_segments'] = plot.get('n_segments', 20)
-        # Default scaling of 0.25 -- Data are 16-bit integers from -8192 uV to +8192 uV. We want plot scales in uV.
-        self.plot_config['unit_scaling'] = plot.get('unit_scaling', 0.25)
-        self.plot_config['alt_loc'] = alt_loc
-        self.plot_config['color_iterator'] = -1
-        self.plot_config['do_hp'] = filter.get('order', 4) > 0
-        if self.plot_config['do_hp']:
-            self.plot_config['hp_sos'] = signal.butter(filter.get('order', 4),
-                                                       2 * filter.get('cutoff', 250) / self.samplingRate,
-                                                       btype=filter.get('btype', 'highpass'),
-                                                       output=filter.get('output', 'sos'))
-        hp_filt_cb = self.findChild(QtWidgets.QCheckBox, name="hpfilt_CheckBox")
+        range_edit: QtWidgets.QLineEdit = self.findChild(QtWidgets.QLineEdit, name="range_LineEdit")
+        prev_state = range_edit.blockSignals(True)
+        range_edit.setText(str(self._plot_config["y_range"]))
+        range_edit.blockSignals(prev_state)
 
-        hp_filt_cb.setCheckState(QtCore.Qt.Checked if self.plot_config['do_hp'] else QtCore.Qt.Unchecked)
+        hp_filt_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="hpfilt_CheckBox")
 
-        ln_filt_cb = self.findChild(QtWidgets.QCheckBox, name="lnfilt_CheckBox")
-        self.plot_config['do_ln'] = bool(plot.get('do_ln', True))
-        ln_filt_cb.setCheckState(QtCore.Qt.Checked if self.plot_config['do_ln'] else QtCore.Qt.Unchecked)
-        self.plot_config['ln_filt'] = None  # TODO: comb filter coeffs
+        hp_filt_cb.setCheckState(QtCore.Qt.Checked if self._plot_config["do_hp"] else QtCore.Qt.Unchecked)
 
-        spk_aud_cb = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
-        spk_aud_cb.setCheckState(QtCore.Qt.Checked if bool(plot.get('spk_aud', True)) else QtCore.Qt.Unchecked)
+        ln_filt_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="lnfilt_CheckBox")
+        ln_filt_cb.setCheckState(QtCore.Qt.Checked if self._plot_config["do_ln"] else QtCore.Qt.Unchecked)
 
-        thrlk_cb = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
-        thrlk_cb.setCheckState(QtCore.Qt.Checked if bool(plot.get('lock_threshold', False)) else QtCore.Qt.Unchecked)
+        spk_aud_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="spkaud_CheckBox")
+        spk_aud_cb.setCheckState(QtCore.Qt.Checked if self._plot_config["spk_aud"] else QtCore.Qt.Unchecked)
+
+        thrlk_cb: QtWidgets.QCheckBox = self.findChild(QtWidgets.QCheckBox, name="lkthr_CheckBox")
+        thrlk_cb.setCheckState(QtCore.Qt.Checked if self._plot_config["lock_threshold"] else QtCore.Qt.Unchecked)
 
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)  # show=False, size=None, title=None, border=None
         # glw.useOpenGL(True)  # Actually seems slower.
-        if 'bgcolor' in self.plot_config['theme']:
-            glw.setBackground(parse_color_str(self.plot_config['theme']['bgcolor']))
+        if "bgcolor" in self._theme:
+            glw.setBackground(parse_color_str(self._theme["bgcolor"]))
         self.layout().addWidget(glw)
-
-        cmap = self.plot_config['theme']['colormap']
-        if cmap != 'custom':
-            self.plot_config['theme']['pencolors'] = get_colormap(self.plot_config['theme']['colormap'],
-                                                                  len(self.chan_states))
 
         # Add add a plot with a series of many curve segments for each line.
         for chan_state in self.chan_states:
             self.add_series(chan_state)
 
     def add_series(self, chan_state):
-        my_theme = self.plot_config['theme']
-
         # Plot for this channel
         glw = self.findChild(pg.GraphicsLayoutWidget)
         new_plot = glw.addPlot(row=len(self.segmented_series), col=0,
-                               title=chan_state['name'], enableMenu=False)
+                               title=chan_state["name"], enableMenu=False)
         new_plot.setMouseEnabled(x=False, y=False)
 
         # Prepare plot
-        self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = make_qcolor(my_theme['pencolors'][self.plot_config['color_iterator']])
-        pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
+        self._theme["color_iterator"] = (self._theme["color_iterator"] + 1) % len(self._theme["pencolors"])
+        pen_color = make_qcolor(self._theme["pencolors"][self._theme["color_iterator"]])
+        pen = pg.mkPen(pen_color, width=self._theme.get('linewidth', 1))
         samples_per_segment = int(
-            np.ceil(self.plot_config['x_range'] * self.samplingRate / self.plot_config['n_segments']))
-        for ix in range(self.plot_config['n_segments']):
-            if ix < (self.plot_config['n_segments'] - 1):
+            np.ceil(self._plot_config["x_range"] * self.samplingRate / self._plot_config["n_segments"]))
+        for ix in range(self._plot_config["n_segments"]):
+            if ix < (self._plot_config["n_segments"] - 1):
                 seg_x = np.arange(ix * samples_per_segment, (ix + 1) * samples_per_segment, dtype=np.int16)
             else:
                 # Last segment might not be full length.
                 seg_x = np.arange(ix * samples_per_segment,
-                                  int(self.plot_config['x_range'] * self.samplingRate), dtype=np.int16)
-            seg_x = seg_x[::self.plot_config['downsample']]
+                                  int(self._plot_config["x_range"] * self.samplingRate), dtype=np.int16)
+            seg_x = seg_x[::self._plot_config["downsample"]]
             c = new_plot.plot(parent=new_plot, pen=pen)  # PlotDataItem
             c.setData(x=seg_x, y=np.zeros_like(seg_x))  # Pre-fill.
 
         # Add threshold line
-        thresh_color = make_qcolor(my_theme.get('threshcolor', 'yellow'))
-        pen = pg.mkPen(color=thresh_color, width=my_theme.get('threshwidth', 1))
+        thresh_color = make_qcolor(self._theme.get('threshcolor', 'yellow'))
+        pen = pg.mkPen(color=thresh_color, width=self._theme.get('threshwidth', 1))
         thresh_line = pg.InfiniteLine(angle=0, pen=pen, movable=True, label="{value:.0f}", labelOpts={'position': 0.05})
         thresh_line.sigPositionChangeFinished.connect(self.on_thresh_line_moved)
         new_plot.addItem(thresh_line)
 
-        self.segmented_series[chan_state['name']] = {
+        self.segmented_series[chan_state["name"]] = {
             'chan_id': chan_state['src'],
             'line_ix': len(self.segmented_series),
-            'plot': new_plot,
+            "plot": new_plot,
             'last_sample_ix': -1,
-            'thresh_line': thresh_line,
-            'hp_zi': signal.sosfilt_zi(self.plot_config['hp_sos']),
+            "thresh_line": thresh_line,
+            'hp_zi': None,
             'ln_zi': None
         }
 
@@ -363,43 +286,170 @@ class SweepWidget(CustomWidget):
         _t = get_now_time()
         if _t is None:
             return
-        last_sample_ix = int(np.mod(_t, self.plot_config["x_range"]) * self.samplingRate)
-        state_names = [_['name'] for _ in self.chan_states]
+        last_sample_ix = int(np.mod(_t, self._plot_config["x_range"]) * self.samplingRate)
+        state_names = [_["name"] for _ in self.chan_states]
         for line_label in self.segmented_series:
             ss_info = self.segmented_series[line_label]
             chan_state = self.chan_states[state_names.index(line_label)]
 
             # Fixup axes
-            plot = ss_info['plot']
-            plot.setXRange(0, self.plot_config['x_range'] * self.samplingRate)
-            plot.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            plot = ss_info["plot"]
+            plot.setXRange(0, self._plot_config["x_range"] * self.samplingRate)
+            plot.setYRange(-self._plot_config["y_range"], self._plot_config["y_range"])
             plot.hideAxis('bottom')
             plot.hideAxis('left')
 
             # Reset data
-            for seg_ix in range(self.plot_config['n_segments']):
+            for seg_ix in range(self._plot_config["n_segments"]):
                 pci = plot.dataItems[seg_ix]
                 old_x, old_y = pci.getData()
                 pci.setData(x=old_x, y=np.zeros_like(old_x))
                 ss_info['last_sample_ix'] = last_sample_ix
 
-            gain = chan_state['gain'] if 'gain' in chan_state else self.plot_config['unit_scaling']
-            if 'spkthrlevel' in chan_state:
-                ss_info['thresh_line'].setValue(chan_state['spkthrlevel'] * gain)
+            gain = chan_state["gain"] if "gain" in chan_state else self._plot_config["unit_scaling"]
+            if "spkthrlevel" in chan_state:
+                ss_info["thresh_line"].setValue(chan_state["spkthrlevel"] * gain)
+
+    def update(self, line_label, data, ch_state=None):
+        """
+
+        :param line_label: Label of the segmented series
+        :param data: Replace data in the segmented series with these data
+        :return:
+        """
+        ss_info = self.segmented_series[line_label]
+        n_in = data.shape[0]
+
+        # Assume new samples are consecutively added to old samples (i.e., no lost samples)
+        sample_indices = np.arange(n_in, dtype=np.int32) + ss_info['last_sample_ix']
+
+        # Wrap sample indices around our plotting limit
+        n_plot_samples = int(self._plot_config["x_range"] * self.samplingRate)
+        sample_indices = np.int32(np.mod(sample_indices, n_plot_samples))
+
+        # If the data length is longer than one sweep then the indices will overlap. Trim to last n_plot_samples
+        if sample_indices.size > n_plot_samples:
+            sample_indices = sample_indices[-n_plot_samples:]
+            data = data[-n_plot_samples:]
+
+        # Go through each plotting segment and replace data with new data as needed.
+        for pci in ss_info["plot"].dataItems:
+            old_x, old_y = pci.getData()
+            x_lims = [old_x[0], old_x[-1]]
+            x_lims[1] += (self._plot_config["downsample"] - 1)
+            data_bool = np.logical_and(sample_indices >= x_lims[0], sample_indices <= x_lims[-1])
+            if np.where(data_bool)[0].size > 0:
+                new_x, new_y = sample_indices[data_bool], data[data_bool]
+                if self._plot_config["downsample"] > 1:
+                    _dsfac = self._plot_config["downsample"]
+                    new_x = new_x[::_dsfac] - (new_x[0] % _dsfac) + (old_x[0] % _dsfac)
+                    new_y = new_y[::_dsfac]
+                old_bool = np.in1d(old_x, new_x, assume_unique=True)
+                new_bool = np.in1d(new_x, old_x, assume_unique=True)
+                old_y[old_bool] = new_y[new_bool]
+                # old_y[np.where(old_bool)[0][-1]+1:] = 0  # Uncomment to zero out the end of the last seg.
+                pci.setData(x=old_x, y=old_y)
+        # Store last_sample_ix for next iteration.
+        self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
+
+
+class SweepGUI(CustomGUI):
+    widget_cls = SweepWidget
+
+    def __init__(self):
+        self._plot_widget: SweepWidget | None = None  # This will get updated in super init but it helps type hints
+        super(SweepGUI, self).__init__()
+        self.setWindowTitle('SweepGUI')
+
+        self.pya_manager = pyaudio.PyAudio()
+        self.pya_stream = None
+        self.audio = {}
+        self.reset_audio()
+
+    def __del__(self):
+        if self.pya_stream:
+            if self.pya_stream.is_active():
+                self.pya_stream.stop_stream()
+            self.pya_stream.close()
+        self.pya_manager.terminate()
+        super().__del__()
+
+    def parse_settings(self):
+        # Specialization of ini parsing
+        super().parse_settings()
+
+        if "plot" not in self._plot_settings:
+            self._plot_settings["plot"] = {}
+
+        if "filter" not in self._plot_settings:
+            self._plot_settings["filter"] = {}
+
+        for ini_path in self._settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            for k, t in {
+                "x_range": float, "y_range": float, "downsample": int, "n_segments": int,
+                "spk_aud": bool, "lock_threshold": bool, "unit_scaling": float
+            }.items():
+                if k in settings.allKeys():
+                    self._plot_settings["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("filter")
+            for k, t in {"order": int, "cutoff": int, "btype": str, "output": str}.items():
+                if k in settings.allKeys():
+                    self._plot_settings["filter"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            for k, t in {"threshcolor": str, "threshwidth": int}.items():
+                if k in settings.allKeys():
+                    self._theme_settings[k] = settings.value(k, type=t)
+            settings.endGroup()
+
+    def _setup_ipc(self):
+        self._chanselect_context = zmq.Context()
+        self._chanselect_sock = self._chanselect_context.socket(zmq.PUB)
+        self._chanselect_sock.bind(f"tcp://*:{self._ipc_settings['channel_select']}")
+
+    def _cleanup_ipc(self):
+        self._chanselect_sock.setsockopt(zmq.LINGER, 0)
+        self._chanselect_sock.close()
+        self._chanselect_context.term()
+
+    def try_reset_widget(self):
+        super().try_reset_widget()
+        self._plot_widget.chanselect_updated.connect(self.publish_chanselect)
+
+    def publish_chanselect(self):
+        # TODO: Move chan_states and audio from _plot_widget into self
+        chan_labels = [_["name"] for _ in self._plot_widget.chan_states]
+        if self.audio["chan_label"] in ["silence", None]:
+            curr_channel = 0
+        else:
+            curr_channel = chan_labels.index(self.audio["chan_label"]) + 1  # 0 == None
+        topic_msg = "channel_select " + json.dumps({
+            "channel": curr_channel,
+            "label": self.audio["chan_label"] or "",
+            "range": self._plot_widget.plot_config["y_range"],
+            "highpass": self._plot_widget.plot_config["do_hp"]
+        })
+        self._chanselect_sock.send_string(topic_msg)
 
     def reset_audio(self):
         if self.pya_stream:
             if self.pya_stream.is_active():
                 self.pya_stream.stop_stream()
             self.pya_stream.close()
-        frames_per_buffer = 1 << (int(0.030*self.samplingRate) - 1).bit_length()
-        self.audio['buffer'] = np.zeros(frames_per_buffer, dtype=np.int16)
-        self.audio['write_ix'] = 0
-        self.audio['read_ix'] = 0
-        self.audio['chan_label'] = None
+        frames_per_buffer = 1 << (int(0.030 * self._plot_widget.samplingRate) - 1).bit_length()
+        self.audio["buffer"] = np.zeros(frames_per_buffer, dtype=np.int16)
+        self.audio["write_ix"] = 0
+        self.audio["read_ix"] = 0
+        self.audio["chan_label"] = None
         self.pya_stream = self.pya_manager.open(format=pyaudio.paInt16,
                                                 channels=1,
-                                                rate=self.samplingRate,
+                                                rate=self._plot_widget.samplingRate,
                                                 output=True,
                                                 frames_per_buffer=frames_per_buffer,
                                                 stream_callback=self.pyaudio_callback)
@@ -411,62 +461,46 @@ class SweepWidget(CustomWidget):
                          status_flags):  # PaCallbackFlags
         # time_info: {'input_buffer_adc_time': ??, 'current_time': ??, 'output_buffer_dac_time': ??}
         # status_flags: https://people.csail.mit.edu/hubert/pyaudio/docs/#pacallbackflags
-        read_indices = (np.arange(frame_count) + self.audio['read_ix']) % self.audio['buffer'].shape[0]
-        out_data = self.audio['buffer'][read_indices].tobytes()
-        self.audio['read_ix'] = (self.audio['read_ix'] + frame_count) % self.audio['buffer'].shape[0]
+        read_indices = (np.arange(frame_count) + self.audio["read_ix"]) % self.audio["buffer"].shape[0]
+        out_data = self.audio["buffer"][read_indices].tobytes()
+        self.audio["read_ix"] = (self.audio["read_ix"] + frame_count) % self.audio["buffer"].shape[0]
         flag = pyaudio.paContinue
         return out_data, flag
 
-    def update(self, line_label, data, ch_state=None):
-        """
+    def do_plot_update(self):
+        cont_data = self._data_source.get_continuous_data()
+        if cont_data is not None:
+            src_chan_ids = [x[0] for x in cont_data]
+            chart_chan_ids = [x["src"] for x in self._plot_widget.chan_states]
+            match_chans = list(set(src_chan_ids) & set(chart_chan_ids))
+            for chan_id in match_chans:
+                src_ix = src_chan_ids.index(chan_id)
+                chart_ix = chart_chan_ids.index(chan_id)
+                chan_state = self._plot_widget.chan_states[chart_ix]
+                data = cont_data[src_ix][1]
 
-        :param line_label: Label of the segmented series
-        :param data: Replace data in the segmented series with these data
-        :return:
-        """
-        ss_info = self.segmented_series[line_label]
-        n_in = data.shape[0]
-        gain = ch_state['gain'] if ch_state is not None and 'gain' in ch_state else self.plot_config['unit_scaling']
+                proc_data = self._postproc_data(chan_state["name"], data, ch_state=chan_state)
+                self._sonify_data(chan_state["name"], proc_data)
+                self._plot_widget.update(chan_state["name"], proc_data, ch_state=chan_state)
+
+    def _postproc_data(self, label, data, ch_state=None):
+        # TODO: Store channel state and filter state in this class, not the plot widget
+        ss_info = self._plot_widget.segmented_series[label]
+        gain = ch_state["gain"] if ch_state is not None and "gain" in ch_state else self._plot_widget.plot_config["unit_scaling"]
         data = data * gain
-        if self.plot_config['do_hp']:
-            data, ss_info['hp_zi'] = signal.sosfilt(self.plot_config['hp_sos'], data, zi=ss_info['hp_zi'])
-        if self.plot_config['do_ln']:
+        if self._plot_widget.plot_config["do_hp"]:
+            if ss_info["hp_zi"] is None:
+                ss_info["hp_zi"] = signal.sosfilt_zi(self._plot_widget.plot_config["hp_sos"])
+            data, ss_info["hp_zi"] = signal.sosfilt(self._plot_widget.plot_config["hp_sos"], data, zi=ss_info["hp_zi"])
+        if self._plot_widget.plot_config["do_ln"]:
             pass  # TODO: Line noise / comb filter
+        return data
+
+    def _sonify_data(self, label, data):
         if self.pya_stream:
-            if 'chan_label' in self.audio and self.audio['chan_label']:
-                if self.audio['chan_label'] == line_label:
-                    write_indices = (np.arange(data.shape[0]) + self.audio['write_ix']) % self.audio['buffer'].shape[0]
-                    self.audio['buffer'][write_indices] = (np.copy(data) * (2**15 / self.plot_config['y_range'])).astype(np.int16)
-                    self.audio['write_ix'] = (self.audio['write_ix'] + data.shape[0]) % self.audio['buffer'].shape[0]
-
-        # Assume new samples are consecutively added to old samples (i.e., no lost samples)
-        sample_indices = np.arange(n_in, dtype=np.int32) + ss_info['last_sample_ix']
-
-        # Wrap sample indices around our plotting limit
-        n_plot_samples = int(self.plot_config['x_range'] * self.samplingRate)
-        sample_indices = np.int32(np.mod(sample_indices, n_plot_samples))
-
-        # If the data length is longer than one sweep then the indices will overlap. Trim to last n_plot_samples
-        if sample_indices.size > n_plot_samples:
-            sample_indices = sample_indices[-n_plot_samples:]
-            data = data[-n_plot_samples:]
-
-        # Go through each plotting segment and replace data with new data as needed.
-        for pci in ss_info['plot'].dataItems:
-            old_x, old_y = pci.getData()
-            x_lims = [old_x[0], old_x[-1]]
-            x_lims[1] += (self.plot_config['downsample'] - 1)
-            data_bool = np.logical_and(sample_indices >= x_lims[0], sample_indices <= x_lims[-1])
-            if np.where(data_bool)[0].size > 0:
-                new_x, new_y = sample_indices[data_bool], data[data_bool]
-                if self.plot_config['downsample'] > 1:
-                    _dsfac = self.plot_config['downsample']
-                    new_x = new_x[::_dsfac] - (new_x[0] % _dsfac) + (old_x[0] % _dsfac)
-                    new_y = new_y[::_dsfac]
-                old_bool = np.in1d(old_x, new_x, assume_unique=True)
-                new_bool = np.in1d(new_x, old_x, assume_unique=True)
-                old_y[old_bool] = new_y[new_bool]
-                # old_y[np.where(old_bool)[0][-1]+1:] = 0  # Uncomment to zero out the end of the last seg.
-                pci.setData(x=old_x, y=old_y)
-        # Store last_sample_ix for next iteration.
-        self.segmented_series[line_label]['last_sample_ix'] = sample_indices[-1]
+            if "chan_label" in self.audio and self.audio["chan_label"]:
+                if self.audio["chan_label"] == label:
+                    write_indices = (np.arange(data.shape[0]) + self.audio["write_ix"]) % self.audio["buffer"].shape[0]
+                    self.audio["buffer"][write_indices] = (
+                            np.copy(data) * (2 ** 15 / self._plot_widget.plot_config["y_range"])).astype(np.int16)
+                    self.audio["write_ix"] = (self.audio["write_ix"] + data.shape[0]) % self.audio["buffer"].shape[0]

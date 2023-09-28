@@ -6,24 +6,6 @@ from .widgets.custom import CustomGUI, CustomWidget
 from ..settings.defaults import MAPPINGSTIMULI
 
 
-class MappingGUI(CustomGUI):
-
-    def __init__(self):
-        super(MappingGUI, self).__init__()
-        self.setWindowTitle('MappingGUI')
-
-    @CustomGUI.widget_cls.getter
-    def widget_cls(self):
-        return MappingWidget
-
-    def on_plot_closed(self):
-        self._plot_widget = None
-        self._data_source.disconnect_requested()
-
-    def do_plot_update(self):
-        pass
-
-
 class MappingWidget(CustomWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -218,3 +200,17 @@ class MappingWidget(CustomWidget):
 
     def clear(self):
         pass
+
+
+class MappingGUI(CustomGUI):
+    widget_cls = MappingWidget
+
+    def __init__(self):
+        self._plot_widget: MappingWidget | None = None  # This will get updated in super init but it helps type hints
+        super(MappingGUI, self).__init__()
+        self.setWindowTitle('MappingGUI')
+
+    def do_plot_update(self):
+        pass
+
+

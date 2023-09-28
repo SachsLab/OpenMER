@@ -1,95 +1,47 @@
 import numpy as np
 from qtpy import QtCore, QtWidgets
 import pyqtgraph as pg
-from .utilities.pyqtgraph import parse_color_str, get_colormap
+
+from .utilities.pyqtgraph import parse_color_str
 from .widgets.custom import CustomGUI, CustomWidget
-
-
-class WaveformGUI(CustomGUI):
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle('WaveformGUI')
-
-    @CustomGUI.widget_cls.getter
-    def widget_cls(self):
-        return WaveformWidget
-
-    def parse_settings(self):
-        settings_paths = [self._settings_paths["base"]]
-        if "custom" in self._settings_paths:
-            settings_paths.extend(self._settings_paths["custom"])
-
-        if "plot" not in self._plot_config:
-            self._plot_config["plot"] = {}
-
-        if "theme" not in self._plot_config:
-            self._plot_config["theme"] = {}
-
-        for ini_path in settings_paths:
-            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
-
-            settings.beginGroup("plot")
-            k_t = {"x_start": int, "x_stop": int, "y_range": int,
-                   "n_waveforms": int, "unit_scaling": float}
-            keys = settings.allKeys()
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["plot"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-            settings.beginGroup("theme")
-            keys = settings.allKeys()
-            k_t = {"frate_size": int}
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["theme"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-        super().parse_settings()
-
-    def on_plot_closed(self):
-        del self._plot_widget
-        self._plot_widget = None
-        # self._data_source.disconnect_requested()
-
-    def do_plot_update(self):
-        for label in self._plot_widget.wf_info:
-            this_info = self._plot_widget.wf_info[label]
-            temp_wfs, unit_ids = self._data_source.get_waveforms(this_info)
-            self._plot_widget.update(label, [temp_wfs, unit_ids])
-
-        comments = self._data_source.get_comments()
-        if comments:
-            self._plot_widget.parse_comments(comments)
 
 
 class WaveformWidget(CustomWidget):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, theme={}, plot={}):
         self.DTT = None
         self.plot_config = {}
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, theme=theme, plot=plot)
+
+    def _parse_config(self, theme={}, plot={}):
+        super()._parse_config(theme=theme)
+        plot = plot["plot"]
+        self.plot_config["x_range"] = (plot["x_start"], plot["x_stop"])
+        self.plot_config["y_range"] = plot["y_range"]
+        self.plot_config["n_waveforms"] = plot["n_waveforms"]
+        self.plot_config["unit_scaling"] = plot["unit_scaling"]
 
     def create_control_panel(self):
         # Create control panel
         cntrl_layout = QtWidgets.QHBoxLayout()
         # +/- amplitude range
         cntrl_layout.addWidget(QtWidgets.QLabel("+/- "))
-        self.range_edit = QtWidgets.QLineEdit("{:.2f}".format(250))  # Value overridden in create_plots
-        self.range_edit.setMaximumWidth(80)
-        self.range_edit.setMinimumHeight(23)
-        self.range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
-        cntrl_layout.addWidget(self.range_edit)
+        range_edit = QtWidgets.QLineEdit("{:.2f}".format(250))  # Value overridden in create_plots
+        range_edit.setObjectName("range_LineEdit")
+        range_edit.setMinimumHeight(23)
+        range_edit.setMaximumWidth(80)
+        range_edit.editingFinished.connect(self.on_range_edit_editingFinished)
+        cntrl_layout.addWidget(range_edit)
         cntrl_layout.addStretch()
 
         # N Spikes
         cntrl_layout.addWidget(QtWidgets.QLabel("N Spikes "))
-        self.n_spikes_edit = QtWidgets.QLineEdit("{}".format(100))  # Value overridden in create_plots
-        self.n_spikes_edit.setMaximumWidth(80)
-        self.n_spikes_edit.setMinimumHeight(23)
-        self.n_spikes_edit.editingFinished.connect(self.on_n_spikes_edit_editingFinished)
-        cntrl_layout.addWidget(self.n_spikes_edit)
+        n_spikes_edit = QtWidgets.QLineEdit("{}".format(100))  # Value overridden in create_plots
+        n_spikes_edit.setObjectName("n_spikes_LineEdit")
+        n_spikes_edit.setMaximumWidth(80)
+        n_spikes_edit.setMinimumHeight(23)
+        n_spikes_edit.editingFinished.connect(self.on_n_spikes_edit_editingFinished)
+        cntrl_layout.addWidget(n_spikes_edit)
         cntrl_layout.addStretch()
 
         # Clear button
@@ -100,33 +52,23 @@ class WaveformWidget(CustomWidget):
         # Finish
         self.layout().addLayout(cntrl_layout)
 
-    def create_plots(self, plot={}, theme={}):
-        # Collect PlotWidget configuration
-        self.plot_config["theme"] = theme
-        self.plot_config["x_range"] = (plot["x_start"], plot["x_stop"])
-        self.plot_config["y_range"] = plot["y_range"]
-        self.plot_config["n_waveforms"] = plot["n_waveforms"]
-        self.plot_config["unit_scaling"] = plot["unit_scaling"]
-
+    def create_plots(self):
         # Update widget values without triggering signals
-        prev_state = self.range_edit.blockSignals(True)
-        self.range_edit.setText(str(self.plot_config['y_range']))
-        self.range_edit.blockSignals(prev_state)
-        prev_state = self.n_spikes_edit.blockSignals(True)
-        self.n_spikes_edit.setText(str(self.plot_config['n_waveforms']))
-        self.n_spikes_edit.blockSignals(prev_state)
+        range_edit: QtWidgets.QLineEdit = self.findChild(QtWidgets.QLineEdit, name="range_LineEdit")
+        prev_state = range_edit.blockSignals(True)
+        range_edit.setText(str(self.plot_config['y_range']))
+        range_edit.blockSignals(prev_state)
+
+        n_spikes_edit: QtWidgets.QLineEdit = self.findChild(QtWidgets.QLineEdit, name="n_spikes_LineEdit")
+        prev_state = n_spikes_edit.blockSignals(True)
+        n_spikes_edit.setText(str(self.plot_config['n_waveforms']))
+        n_spikes_edit.blockSignals(prev_state)
 
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)
         # self.glw.useOpenGL(True)
-        if 'bgcolor' in self.plot_config['theme']:
-            glw.setBackground(parse_color_str(self.plot_config['theme']['bgcolor']))
-
-        cmap = self.plot_config['theme']['colormap']
-        if cmap != 'custom':
-            cmap_colors = get_colormap(self.plot_config['theme']['colormap'],
-                                       plot.get('n_colors', 6))
-            self.plot_config['theme']['pencolors'] = np.vstack((255 * np.ones_like(cmap_colors[0]), cmap_colors))
+        if "bgcolor" in self._theme:
+            glw.setBackground(parse_color_str(self._theme["bgcolor"]))
 
         self.layout().addWidget(glw)
         self.wf_info = {}  # Will contain one dictionary for each line/channel label.
@@ -157,11 +99,13 @@ class WaveformWidget(CustomWidget):
             self.wf_info[line_label]['plot'].clear()
 
     def on_range_edit_editingFinished(self):
-        self.plot_config['y_range'] = float(self.range_edit.text())
+        range_edit: QtWidgets.QLineEdit = self.findChild(QtWidgets.QLineEdit, name="range_LineEdit")
+        self.plot_config['y_range'] = float(range_edit.text())
         self.refresh_axes()
 
     def on_n_spikes_edit_editingFinished(self):
-        self.plot_config['n_waveforms'] = int(self.n_spikes_edit.text())
+        n_spikes_edit: QtWidgets.QLineEdit = self.findChild(QtWidgets.QLineEdit, name="n_spikes_LineEdit")
+        self.plot_config['n_waveforms'] = int(n_spikes_edit.text())
         self.refresh_axes()
 
     def parse_comments(self, comments):
@@ -188,7 +132,7 @@ class WaveformWidget(CustomWidget):
         for ix in range(wfs.shape[0]):
             if np.sum(np.nonzero(wfs[ix])) > 0:
                 c = pg.PlotCurveItem()
-                pen_color = self.plot_config['theme']['pencolors'][unit_ids[ix]]
+                pen_color = self._theme['pencolors'][unit_ids[ix]]
                 c.setPen(pen_color)
                 self.wf_info[line_label]['plot'].addItem(c)
                 c.setData(x=x, y=self.plot_config['unit_scaling']*wfs[ix])
@@ -196,3 +140,49 @@ class WaveformWidget(CustomWidget):
         if len(data_items) > self.plot_config['n_waveforms']:
             for di in data_items[:-self.plot_config['n_waveforms']]:
                 self.wf_info[line_label]['plot'].removeItem(di)
+
+
+class WaveformGUI(CustomGUI):
+    widget_cls = WaveformWidget
+
+    def __init__(self):
+        self._plot_widget: WaveformWidget | None = None  # This will get updated in super init but it helps type hints
+        super().__init__()
+        self.setWindowTitle("WaveformGUI")
+
+    def parse_settings(self):
+        super().parse_settings()
+
+        if "plot" not in self._plot_settings:
+            self._plot_settings["plot"] = {}
+
+        for ini_path in self._settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            for k, t in {
+                "x_start": int, "x_stop": int, "y_range": int,
+                "n_waveforms": int, "unit_scaling": float
+            }.items():
+                if k in settings.allKeys():
+                    self._plot_settings["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            for k, t in {"frate_size": int}.items():
+                if k in settings.allKeys():
+                    self._theme_settings[k] = settings.value(k, type=t)
+            settings.endGroup()
+
+        super().parse_settings()
+
+    def do_plot_update(self):
+        for label in self._plot_widget.wf_info:
+            this_info = self._plot_widget.wf_info[label]
+            temp_wfs, unit_ids = self._data_source.get_waveforms(this_info)
+            self._plot_widget.update(label, [temp_wfs, unit_ids])
+
+        comments = self._data_source.get_comments()
+        if comments:
+            self._plot_widget.parse_comments(comments)
+

@@ -13,42 +13,61 @@ SAMPLINGGROUPS = ["0", "500", "1000", "2000", "10000", "30000"]  # , "RAW"]  RAW
 
 class CerebusDataSource(IDataSource):
 
-    def __init__(self, scoped_settings: QtCore.QSettings, **kwargs):
+    def __init__(self, settings_path: Path, **kwargs):
         super().__init__(**kwargs)  # Sets on_connect_cb
 
         self._cbsdk_conn = CbSdkConnection()
-        cbsdk_settings_path = Path(scoped_settings.fileName()).parents[0] / "CbSdkConnection.ini"
+        conn_params = self._cbsdk_conn.con_params.copy()
+
+        # Get connection-level settings from common CbSdkConnection.ini
+        cbsdk_settings_path = settings_path.parents[0] / "CbSdkConnection.ini"
         conn_settings = QtCore.QSettings(str(cbsdk_settings_path), QtCore.QSettings.IniFormat)
         conn_settings.beginGroup("conn-params")
-        conn_params = self._cbsdk_conn.con_params.copy()
-        for key, orig_value in conn_params.items():
-            new_value = conn_settings.value(key, orig_value)
-            if key in ["inst-port", "client-port", "receive-buffer-size"]:
-                new_value = int(new_value)
-            conn_params[key] = new_value
+        for k, t in {
+            "client-addr": str,
+            "client-port": int,
+            "inst-addr": str,
+            "inst-port": int,
+            "receive-buffer-size": int
+        }.items():
+            conn_params[k] = conn_settings.value(k, defaultValue=conn_params[k], type=t)
         conn_settings.endGroup()
-
         self._cbsdk_conn.con_params = conn_params
+
+        # Create a connection with default settings. This allows us to read config below.
         result = self._cbsdk_conn.connect()
         if result != 0:
             raise ConnectionError("Could not connect to CerebusDataSource: {}".format(result))
+
         conn_config = {}
-        for key in scoped_settings.allKeys():
-            if key in ['basepath', 'class', 'sampling_group']:
-                continue
-            split_key = key.split('/')
-            if len(split_key) > 1:
+        scoped_settings = QtCore.QSettings(str(settings_path), QtCore.QSettings.IniFormat)
+        scoped_settings.beginGroup("data-source")
+        # instance = 0, reset = True, buffer_parameter = None, range_parameter = None,
+        # get_events = False, get_continuous = False, get_comments = False
+        for k, t in {
+            "get_continuous": bool,
+            "get_events": bool,
+            "get_comments": bool,
+            "buffer_parameter\\comment_length": int
+        }.items():
+            if "\\" in k:
+                split_key = k.split("\\")
                 if split_key[0] not in conn_config:
                     conn_config[split_key[0]] = {}
-                conn_config[split_key[0]][split_key[1]] = parse_ini_try_numeric(scoped_settings, key)
+                if split_key[0] in scoped_settings.childGroups():
+                    scoped_settings.beginGroup(split_key[0])
+                    conn_config[split_key[0]][split_key[1]] = scoped_settings.value(split_key[1], type=t)
+                    scoped_settings.endGroup()
             else:
-                conn_config[key] = parse_ini_try_numeric(scoped_settings, key)
+                if k in scoped_settings.allKeys():
+                    conn_config[k] = scoped_settings.value(k, type=t)
+        _sampling_rate = scoped_settings.value("sampling_rate", defaultValue=30_000, type=int)
+        scoped_settings.endGroup()
 
-        # get_events, get_comments, get_continuous, buffer_parameter: comment_length
-        self._cbsdk_conn.cbsdk_config = conn_config
-        self._group_ix = SAMPLINGGROUPS.index(scoped_settings.value("sampling_group", type=str))
+        self._cbsdk_conn.cbsdk_config = conn_config  # This will trigger cbsdkConnection to update trial config
+        self._group_ix = SAMPLINGGROUPS.index(str(_sampling_rate))
         self._group_info = self._decode_group_info(self._cbsdk_conn.get_group_config(self._group_ix))
-        # self.wf_config = self.cbsdk_conn.get_sys_config()  # {'spklength': 48, 'spkpretrig': 10, 'sysfreq': 30000}
+        # self._wf_config = self._cbsdk_conn.get_sys_config()  # {'spklength': 48, 'spkpretrig': 10, 'sysfreq': 30000}
 
         if self._on_connect_cb is not None:
             self._on_connect_cb(self)

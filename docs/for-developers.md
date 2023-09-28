@@ -43,8 +43,8 @@ The applications all run independently of each other, but most of them work bett
 
 | Publisher            | Port  | Topic              | Message                                                | Subscribers          |
 |----------------------|-------|--------------------|--------------------------------------------------------|----------------------|
-| ProcedureGUI           | 60001 | procedure_settings | json of settings-dicts "procedure" and ??              | FeaturesGUI          |
-| Depth_Process (SERF) | 60002 | snippet_status     | (startup, notrecording, recording, accumulating, done) | ProcedureGUI           |
+| ProcedureGUI         | 60001 | procedure_settings | json of settings-dicts "procedure" and ??              | FeaturesGUI          |
+| Depth_Process (SERF) | 60002 | snippet_status     | (startup, notrecording, recording, accumulating, done) | ProcedureGUI         |
 | SweepGUI             | 60003 | channel_select     | json with channel, range, highpass                     | FeaturesGUI          |
 | FeaturesGUI          | 60004 | features           | refresh                                                | FeaturesGUI          |
 | DepthGUI             | 60005 | ddu                | float of depth                                         | Depth_Process (SERF) |

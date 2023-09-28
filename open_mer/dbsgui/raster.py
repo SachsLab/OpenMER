@@ -6,121 +6,55 @@ from ..dbsgui.widgets.custom import CustomGUI, CustomWidget
 from ..data_source import get_now_time
 
 
-class RasterGUI(CustomGUI):
-
-    def __init__(self):
-        super(RasterGUI, self).__init__()
-        self.setWindowTitle('RasterGUI')
-
-    @CustomGUI.widget_cls.getter
-    def widget_cls(self):
-        return RasterWidget
-
-    def parse_settings(self):
-        settings_paths = [self._settings_paths["base"]]
-        if "custom" in self._settings_paths:
-            settings_paths.extend(self._settings_paths["custom"])
-
-        if "plot" not in self._plot_config:
-            self._plot_config["plot"] = {}
-
-        if "theme" not in self._plot_config:
-            self._plot_config["theme"] = {}
-
-        for ini_path in settings_paths:
-            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
-
-            settings.beginGroup("plot")
-            k_t = {"x_range": float, "y_range": int}
-            keys = settings.allKeys()
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["plot"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-            settings.beginGroup("theme")
-            keys = settings.allKeys()
-            k_t = {"frate_size": int}
-            for k, t in k_t.items():
-                if k in keys:
-                    self._plot_config["theme"][k] = settings.value(k, type=t)
-            settings.endGroup()
-
-        super().parse_settings()
-
-    def on_plot_closed(self):
-        self._plot_widget = None
-        # self._data_source.disconnect_requested()
-
-    def do_plot_update(self):
-        ev_timestamps = self._data_source.get_event_data()
-        ev_chan_ids = [x[0] for x in ev_timestamps]
-        for chan_label in self._plot_widget.rasters:
-            ri = self._plot_widget.rasters[chan_label]
-            if ri['chan_id'] in ev_chan_ids:
-                data = ev_timestamps[ev_chan_ids.index(ri['chan_id'])][1]['timestamps']
-            else:
-                data = [[], ]
-            self._plot_widget.update(chan_label, data)
-
-        comments = self._data_source.get_comments()
-        if comments:
-            self._plot_widget.parse_comments(comments)
-
-
 class RasterWidget(CustomWidget):
     frate_changed = QtCore.Signal(str, float)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, theme={}, plot={}):
         self.DTT = None
-        self.plot_config = {}
-        super().__init__(*args, **kwargs)
+        self._plot_config = {}
+        super().__init__(*args, theme=theme, plot=plot)
 
-    def create_plots(self, plot={}, theme={}):
-        self.plot_config['theme'] = theme
-        self.plot_config['x_range'] = plot.get('x_range', 0.5)
-        self.plot_config['y_range'] = plot.get('y_range', 8)
-        self.plot_config['color_iterator'] = -1
+    def _parse_config(self, theme={}, plot={}):
+        super()._parse_config(theme=theme)
+        plot = plot["plot"]
+        self._plot_config["x_range"] = plot.get("x_range", 0.5)
+        self._plot_config["y_range"] = plot.get("y_range", 8)
 
+    def create_plots(self):
         # Create and add GraphicsLayoutWidget
         glw = pg.GraphicsLayoutWidget(parent=self)
         # glw.useOpenGL(True)
-        if 'bgcolor' in self.plot_config['theme']:
-            glw.setBackground(parse_color_str(self.plot_config['theme']['bgcolor']))
+        if 'bgcolor' in self._theme:
+            glw.setBackground(parse_color_str(self._theme['bgcolor']))
         self.layout().addWidget(glw)
-
-        cmap = self.plot_config['theme']['colormap']
-        if cmap != 'custom':
-            self.plot_config['theme']['pencolors'] = get_colormap(self.plot_config['theme']['colormap'],
-                                                                  len(self.chan_states))
 
         self.rasters = {}  # Will contain one dictionary for each line/channel label.
         for chan_state in self.chan_states:
             self.add_series(chan_state)
 
     def add_series(self, chan_state):
-        my_theme = self.plot_config['theme']
+        my_theme = self._theme
         glw = self.findChild(pg.GraphicsLayoutWidget)
         new_plot = glw.addPlot(row=len(self.rasters), col=0, enableMenu=False)
         new_plot.setMouseEnabled(x=False, y=False)
 
         # Appearance settings
-        self.plot_config['color_iterator'] = (self.plot_config['color_iterator'] + 1) % len(my_theme['pencolors'])
-        pen_color = QtGui.QColor(my_theme['pencolors'][self.plot_config['color_iterator']])
-        pen = pg.mkPen(pen_color, width=my_theme.get('linewidth', 1))
+        self._theme["color_iterator"] = (self._theme["color_iterator"] + 1) % len(my_theme["pencolors"])
+        pen_color = QtGui.QColor(my_theme["pencolors"][self._theme["color_iterator"]])
+        pen = pg.mkPen(pen_color, width=my_theme.get("linewidth", 1))
         # Create PlotCurveItem for latest spikes (bottom row) and slower-updating old spikes (upper rows)
         pcis = []
         for pci_ix in range(2):
-            pci = pg.PlotCurveItem(parent=new_plot, connect='pairs')
+            pci = pg.PlotCurveItem(parent=new_plot, connect="pairs")
             pci.setPen(pen)
             new_plot.addItem(pci)
             pcis.append(pci)
         # Create text for displaying firing rate. Placeholder text is channel label.
-        frate_annotation = pg.TextItem(text=chan_state['name'],
+        frate_annotation = pg.TextItem(text=chan_state["name"],
                                        color=(255, 255, 255))
-        frate_annotation.setPos(0, self.plot_config['y_range'])
+        frate_annotation.setPos(0, self._plot_config["y_range"])
         my_font = QtGui.QFont()
-        my_font.setPointSize(my_theme.get('frate_size', 24))
+        my_font.setPointSize(my_theme.get("frate_size", 24))
         frate_annotation.setFont(my_font)
         new_plot.addItem(frate_annotation)
         # Store information
@@ -135,11 +69,11 @@ class RasterWidget(CustomWidget):
         self.clear()
 
     def refresh_axes(self):
-        self.x_lim = int(self.plot_config['x_range'] * self.samplingRate)
+        self.x_lim = int(self._plot_config['x_range'] * self.samplingRate)
         for rs_key in self.rasters:
             plot = self.rasters[rs_key]['plot']
-            plot.setXRange(0, self.plot_config['x_range'] * self.samplingRate)
-            plot.setYRange(-0.05, self.plot_config['y_range'] + 0.05)
+            plot.setXRange(0, self._plot_config['x_range'] * self.samplingRate)
+            plot.setYRange(-0.05, self._plot_config['y_range'] + 0.05)
             plot.hideAxis('bottom')
             plot.hideAxis('left')
 
@@ -153,7 +87,7 @@ class RasterWidget(CustomWidget):
             rs['latest_timestamps'] = np.empty(0, dtype=np.uint32)  # Bottom row
             rs['count'] = 0
             rs['start_time'] = start_time
-            rs['r0_tmin'] = start_time - (start_time % (self.plot_config['x_range'] * self.samplingRate))
+            rs['r0_tmin'] = start_time - (start_time % (self._plot_config['x_range'] * self.samplingRate))
             rs['last_spike_time'] = start_time
             self.modify_frate(key, 0)
 
@@ -206,7 +140,7 @@ class RasterWidget(CustomWidget):
             rs['latest_timestamps'] = rs['latest_timestamps'][np.logical_not(b_move_old)]
 
         # Remove spikes from rs['old_timestamps'] that are outside the plot_range
-        new_tmin = new_r0_tmin - self.x_lim * (self.plot_config['y_range'] - 1)
+        new_tmin = new_r0_tmin - self.x_lim * (self._plot_config['y_range'] - 1)
         b_drop_old = rs['old_timestamps'] < new_tmin
         if np.any(b_drop_old):
             rs['old_timestamps'] = rs['old_timestamps'][np.logical_not(b_drop_old)]
@@ -225,7 +159,7 @@ class RasterWidget(CustomWidget):
             x_vals = rs['old_timestamps'] % self.x_lim
             y_vals = 1.1 * np.ones_like(x_vals)  # second-from-bottom starts at y=1.1
             # If a spike is older than row_ix, += 1
-            for row_ix in range(1, self.plot_config['y_range']):
+            for row_ix in range(1, self._plot_config['y_range']):
                 row_cutoff = new_r0_tmin - (row_ix * self.x_lim)
                 y_vals[rs['old_timestamps'] < row_cutoff] += 1
             x_vals = np.repeat(x_vals, 2)
@@ -245,3 +179,48 @@ class RasterWidget(CustomWidget):
         if samples_elapsed > 0:
             frate = rs['count'] * self.samplingRate / samples_elapsed
             self.modify_frate(line_label, frate)
+
+
+class RasterGUI(CustomGUI):
+    widget_cls = RasterWidget
+
+    def __init__(self):
+        self._plot_widget: RasterWidget | None = None  # This will get updated in super init but it helps type hints
+        super(RasterGUI, self).__init__()
+        self.setWindowTitle('RasterGUI')
+
+    def parse_settings(self):
+        super().parse_settings()
+
+        if "plot" not in self._plot_settings:
+            self._plot_settings["plot"] = {}
+
+        for ini_path in self._settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
+
+            settings.beginGroup("plot")
+            for k, t in {"x_range": float, "y_range": int}.items():
+                if k in settings.allKeys():
+                    self._plot_settings["plot"][k] = settings.value(k, type=t)
+            settings.endGroup()
+
+            settings.beginGroup("theme")
+            for k, t in {"frate_size": int}.items():
+                if k in settings.allKeys():
+                    self._theme_settings[k] = settings.value(k, type=t)
+            settings.endGroup()
+
+    def do_plot_update(self):
+        ev_timestamps = self._data_source.get_event_data()
+        ev_chan_ids = [x[0] for x in ev_timestamps]
+        for chan_label in self._plot_widget.rasters:
+            ri = self._plot_widget.rasters[chan_label]
+            if ri['chan_id'] in ev_chan_ids:
+                data = ev_timestamps[ev_chan_ids.index(ri['chan_id'])][1]['timestamps']
+            else:
+                data = [[], ]
+            self._plot_widget.update(chan_label, data)
+
+        comments = self._data_source.get_comments()
+        if comments:
+            self._plot_widget.parse_comments(comments)

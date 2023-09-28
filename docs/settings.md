@@ -21,21 +21,21 @@ Settings in the home directory will take precedence over the settings in the ope
 If the OpenMER GUI ini files have `class=CerebusDataSource` in their `[data-source]` section,
 then the CbSdkConnection.ini will be used to determine how to connect to the Cerebus (Blackrock Neuroport) data source.
 
-By default, every line is commented out and the cerebus.cbpy default settings are used. The default settings will
-first attempt to use the shared memory created by Central, then attempt to connect directly to a legacy NSP located at 
-192.168.137.128 using port 51001.
+By default, every line is commented out and the cerebus.cbpy default settings are used. The default settings will first attempt to use the shared memory created by Central, then attempt to connect directly to a legacy NSP located at 192.168.137.128 using port 51001.
 
-If neither is true (not on the same PC as Central, or not directly connected to legacy NSP), then modify the settings.
+If neither is true (not on the same PC as Central, nor directly connected to legacy NSP), then modify the settings.
 
 * `client-addr=192.168.137.1`
   * Set this to the IP address of the PC running OpenMER.
   * Use `192.168.137.1` for the Blackrock Host PC.
+  * Use `127.0.0.1` for local nPlayServer (without Central) and not in bcast mode.
 * `client-port=51002`
   * Set this to the port used to transmit control packets to the NSP. It is unlikely this will ever change from 51002.
 * `inst-addr=192.168.137.128`
   * Set this to the IP address of the NSP (or the PC running nPlayServer in bcast mode).
   * Use `192.168.137.128` for legacy NSP
   * Use `192.168.137.200` for digital Neuroport system (Gemini Hub)
+  * Use `127.0.0.1` for local nPlayServer (without Central) and not in bcast mode.
 * `inst-port=51001`
   * Use `51001` for legacy NSP and `51002` for digital Neuroport system.
 * `receive-buffer-size=8388608`
