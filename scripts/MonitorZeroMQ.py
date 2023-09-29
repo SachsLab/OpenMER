@@ -1,3 +1,5 @@
+import time
+
 import zmq
 
 
@@ -25,6 +27,6 @@ try:
                 recv_msg = sock.recv_string(flags=zmq.NOBLOCK)[len(topic) + 1:]
                 print(topic, recv_msg)
             except zmq.ZMQError:
-                pass
+                time.sleep(0.1)
 except KeyboardInterrupt:
     pass
