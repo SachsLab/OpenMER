@@ -24,8 +24,8 @@ Create a folder somewhere you have write access. The location should have at lea
     ```shell script
     @echo off
     call "%~dp0env_for_icons.bat"
-    start "" "%WINPYDIR%\Scripts\serf-cbacquire.exe" /command:%1 /B
-    start "" "%WINPYDIR%\Scripts\serf-procfeatures.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-meracquire.exe" /command:%1 /B
+    start "" "%WINPYDIR%\Scripts\dbs-procfeatures.exe" /command:%1 /B
     start "" "%WINPYDIR%\Scripts\dbs-sweep.exe" /command:%1 /B
     start "" "%WINPYDIR%\Scripts\dbs-raster.exe" /command:%1 /B
     start "" "%WINPYDIR%\Scripts\dbs-waveform.exe" /command:%1 /B
