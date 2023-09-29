@@ -3,10 +3,10 @@ from ..settings import parse_ini_try_numeric
 
 
 class MerDepthSource:
-    def __init__(self, scoped_settings: QtCore.QSettings):
+    def __init__(self, scale_factor=1.0, offset=0.0):
         # scale_factor should be 0.001 for FHC DDU V2, 1.0 otherwise.
-        self.scale_factor = scoped_settings.value("scale_factor", 1.0, type=float)
-        self.offset = scoped_settings.value("offset", 0.0, type=float)
+        self.scale_factor = scale_factor
+        self.offset = offset
         self.do_open()
 
     def do_open(self):

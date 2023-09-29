@@ -41,13 +41,13 @@ This section is referring to communication among the applications within the Ope
 
 The applications all run independently of each other, but most of them work better in combination. To communicate information between applications we use [ZeroMQ](https://zeromq.org/).
 
-| Publisher            | Port  | Topic              | Message                                                | Subscribers          |
-|----------------------|-------|--------------------|--------------------------------------------------------|----------------------|
-| ProcedureGUI         | 60001 | procedure_settings | json of settings-dicts "procedure" and ??              | FeaturesGUI          |
-| Depth_Process (SERF) | 60002 | snippet_status     | (startup, notrecording, recording, accumulating, done) | ProcedureGUI         |
-| SweepGUI             | 60003 | channel_select     | json with channel, range, highpass                     | FeaturesGUI          |
-| FeaturesGUI          | 60004 | features           | refresh                                                | FeaturesGUI          |
-| DepthGUI             | 60005 | ddu                | float of depth                                         | Depth_Process (SERF) |
+| Publisher      | Port  | Topic              | Message                                                | Subscribers    |
+|----------------|-------|--------------------|--------------------------------------------------------|----------------|
+| ProcedureGUI   | 60001 | procedure_settings | json of settings-dicts "procedure" and ??              | FeaturesGUI    |
+| Depth_Process  | 60002 | snippet_status     | (startup, notrecording, recording, accumulating, done) | ProcedureGUI   |
+| SweepGUI       | 60003 | channel_select     | json with channel, range, highpass                     | FeaturesGUI    |
+| FeaturesGUI    | 60004 | features           | refresh                                                | ProcedureGUI   |
+| DepthGUI       | 60005 | ddu                | float of depth                                         | Depth_Process  |
 
 We also have one LSL stream coming from the DepthGUI. Old version of the SERF Depth_Process might still be using it but they should be migrated. 
 

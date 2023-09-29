@@ -1,8 +1,6 @@
-from pathlib import Path
 from qtpy import QtCore, QtWidgets
 import zmq
-import pylsl
-from ..settings import defaults
+from .widgets.ini_window import IniWindow
 from ..depth_source import CBSDKPlayback
 try:
     from cerebuswrapper import CbSdkConnection
@@ -12,65 +10,105 @@ except ModuleNotFoundError as e:
 import open_mer.depth_source
 
 
-class DepthGUI(QtWidgets.QMainWindow):
+class MyLCD(QtWidgets.QLCDNumber):
+    lcd_dbl_clicked = QtCore.Signal()
 
-    def __init__(self, ini_file=None):
+    def mouseDoubleClickEvent(self, event):
+        # event is a PySide6.QtGui.QMouseEvent
+        self.lcd_dbl_clicked.emit()
+
+
+class DepthGUI(IniWindow):
+
+    def __init__(self):
+        self._depth_sock = None
+        self._data_settings = {"source": {"class": None, "serial": {}}, "mirror": {"lsl": None, "nsp": None}}
+        self._depth_source = None
         super().__init__()
-
-        # Infer path to ini
-        ini_name = ini_file if ini_file is not None else (type(self).__name__ + '.ini')
-        ini_path = Path(ini_name)
-        if ini_path.exists():
-            self._settings_path = ini_path
-        else:
-            # Try home / .open_mer first
-            home_dir = Path(QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.HomeLocation))
-            ini_path = home_dir / '.open_mer' / ini_path.name
-            if ini_path.exists():
-                self._settings_path = ini_path
-            else:
-                # Use default ini that ships with module.
-                self._settings_path = Path(__file__).parents[1] / "resources" / "settings" / ini_path.name
-
         self.display_string = None
         self._depth_stream = None
-        self._mirror = {'lsl': None, 'nsp': None}
-        self.restore_from_settings()
+        self._init_connection()
         self.setup_ui()
 
-        context = zmq.Context()
-        self._depth_sock = context.socket(zmq.PUB)
-        self._depth_sock.bind(f"tcp://*:{60005}")  # TODO: Get port from settings
+    def parse_settings(self):
+        # Handles MainWindow geometry and collects self._theme_settings and self._ipc_settings
+        super().parse_settings()
+        # Get custom settings
+        for ini_path in self._settings_paths:
+            settings = QtCore.QSettings(str(ini_path), QtCore.QSettings.IniFormat)
 
-    def restore_from_settings(self):
-        settings = QtCore.QSettings(str(self._settings_path), QtCore.QSettings.IniFormat)
+            settings.beginGroup("depth-source")
+            for k, t in {
+                "class": str,
+            }.items():
+                if k in settings.allKeys():
+                    if k == "class":
+                        src_cls = getattr(open_mer.depth_source, settings.value(k, type=t))
+                        self._data_settings["source"][k] = src_cls
+                    else:
+                        self._data_settings["source"][k] = settings.value(k, type=t)
+            settings.beginGroup("serial")
+            for k, t in {
+                "baudrate": int, "com_port": str
+            }.items():
+                if k in settings.allKeys():
+                    self._data_settings["source"]["serial"][k] = settings.value(k, type=t)
+            settings.endGroup()  # serial
+            settings.endGroup()  # depth-source
 
-        # Restore size and position.
-        default_dims = defaults.WINDOWDIMS_DICT[type(self).__name__]
-        settings.beginGroup("MainWindow")
-        self.resize(settings.value("size", QtCore.QSize(default_dims[2], default_dims[3])))
-        self.move(settings.value("pos", QtCore.QPoint(default_dims[0], default_dims[1])))
-        if settings.value("fullScreen", 'false') == 'true':
-            self.showFullScreen()
-        elif settings.value("maximized", 'false') == 'true':
-            self.showMaximized()
-        if settings.value("frameless", 'false') == 'true':
-            self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
-        settings.endGroup()
+            settings.beginGroup("depth-mirror")
+            for k, t in {
+                "lsl_mirror": bool, "nsp_mirror": bool
+            }.items():
+                if k in settings.allKeys():
+                    self._data_settings["mirror"][k] = settings.value(k, type=t)
+            settings.endGroup()  # depth-mirror
 
-        # Infer depth source from ini file, setup data source
-        settings.beginGroup("depth-source")
-        src_cls = getattr(open_mer.depth_source, settings.value("class", "CBSDKPlayback"))
-        self._depth_source = src_cls(scoped_settings=settings)
-        settings.endGroup()
+    def _setup_ipc(self):
+        self._depth_context = zmq.Context()
+        self._depth_sock = self._depth_context.socket(zmq.PUB)
+        self._depth_sock.bind(f"tcp://*:{self._ipc_settings['ddu']}")
 
-        settings.beginGroup("depth-mirror")
-        self._mirror['lsl'] = bool(settings.value("lsl_mirror", False))  # TODO: Remove
-        self._mirror['nsp'] = bool(settings.value("lsl_mirror", False))
-        settings.endGroup()
+        if self._data_settings["mirror"]["lsl"]:
+            import pylsl
+            outlet_info = pylsl.StreamInfo(name='electrode_depth', type='depth', channel_count=1,
+                                           nominal_srate=pylsl.IRREGULAR_RATE, channel_format=pylsl.cf_float32,
+                                           source_id='depth1214')
+            self._depth_stream = pylsl.StreamOutlet(outlet_info)
+
+        src_cls = self._data_settings["source"]["class"]
+        if src_cls is not None and src_cls != open_mer.depth_source.CBSDKPlayback:
+            # We have a data source that is not CBSDKPlayback (e.g., serial, or some other)
+            #  so we want to send the NSP comments about our depths so they get saved in the .nev file.
+            CbSdkConnection().connect()
+            CbSdkConnection().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+            # cbsdk_conn.set_comments("DTT:" + display_string)
+
+    def _cleanup_ipc(self):
+        self._depth_sock.setsockopt(zmq.LINGER, 0)
+        self._depth_sock.close()
+        self._depth_context.term()
+
+        if self._depth_stream is not None:
+            del self._depth_stream
+            self._depth_stream = None
+
+        src_cls = self._data_settings["source"]["class"]
+        if src_cls is not None and src_cls != open_mer.depth_source.CBSDKPlayback:
+            CbSdkConnection().disconnect()
+
+    def _init_connection(self):
+        if self._data_settings["source"]["class"] is not None:
+            self._depth_source = self._data_settings["source"]["class"]()
+
+    def __del__(self):
+        if self._depth_source is not None:
+            self._depth_source.do_close()
+            self._depth_source = None
+        super().__del__()
 
     def setup_ui(self):
-        self.setWindowTitle('Neuroport DBS - Electrodes Depth')
+        self.setWindowTitle("DDU")
         self.show()
         self.plot_widget = QtWidgets.QWidget()
         self.setCentralWidget(self.plot_widget)
@@ -79,154 +117,98 @@ class DepthGUI(QtWidgets.QMainWindow):
         v_layout = QtWidgets.QVBoxLayout()
         v_layout.setSpacing(0)
         v_layout.setContentsMargins(10, 0, 10, 10)
+
         h_layout = QtWidgets.QHBoxLayout()
 
         h_layout.addWidget(QtWidgets.QLabel("DTT: "))
-        self._doubleSpinBox_DTT = QtWidgets.QDoubleSpinBox()
-        self._doubleSpinBox_DTT = QtWidgets.QDoubleSpinBox()
-        self._doubleSpinBox_DTT.setMinimum(-100.00)
-        self._doubleSpinBox_DTT.setMaximum(100.00)
-        self._doubleSpinBox_DTT.setSingleStep(1.00)
-        self._doubleSpinBox_DTT.setDecimals(2)
-        self._doubleSpinBox_DTT.setValue(0.00)
-        self._doubleSpinBox_DTT.setFixedWidth(60)
-        h_layout.addWidget(self._doubleSpinBox_DTT)
+        dtt_spinbox = QtWidgets.QDoubleSpinBox()
+        dtt_spinbox.setObjectName("DTT_doubleSpinBox")
+        dtt_spinbox.setMinimum(-100.00)
+        dtt_spinbox.setMaximum(100.00)
+        dtt_spinbox.setSingleStep(1.00)
+        dtt_spinbox.setDecimals(2)
+        dtt_spinbox.setValue(0.00)
+        dtt_spinbox.setFixedWidth(80)
+        h_layout.addWidget(dtt_spinbox)
         
         # Manual offset added to the depth before display and mirroring
         h_layout.addWidget(QtWidgets.QLabel("Offset: "))
-        self._doubleSpinBox_offset = QtWidgets.QDoubleSpinBox()
-        self._doubleSpinBox_offset.setMinimum(-100.00)
-        self._doubleSpinBox_offset.setMaximum(100.00)
-        self._doubleSpinBox_offset.setSingleStep(1.00)
-        self._doubleSpinBox_offset.setDecimals(2)
-        self._doubleSpinBox_offset.setValue(self._depth_source.offset)
-        self._doubleSpinBox_offset.setFixedWidth(60)
-        h_layout.addWidget(self._doubleSpinBox_offset)
+        offset_spinbox = QtWidgets.QDoubleSpinBox()
+        offset_spinbox.setObjectName("offset_doubleSpinBox")
+        offset_spinbox.setMinimum(-100.00)
+        offset_spinbox.setMaximum(100.00)
+        offset_spinbox.setSingleStep(1.00)
+        offset_spinbox.setDecimals(2)
+        offset_spinbox.setValue(self._depth_source.offset)
+        offset_spinbox.setFixedWidth(80)
+        h_layout.addWidget(offset_spinbox)
 
         h_layout.addStretch()
-
-        # Widgets to manage mirroring the resulting value (including scale and offset) to other outputs
-        h_layout.addWidget(QtWidgets.QLabel("Stream to :"))
-
-        cb = QtWidgets.QCheckBox("NSP")
-        cb.setObjectName("NSP_CheckBox")
-        if isinstance(self._depth_source, CBSDKPlayback):
-            cb.setChecked(False)
-            cb.setEnabled(False)
-        else:
-            cb.setChecked(self._mirror['nsp'])
-            cb.setEnabled(True)
-            cb.clicked.connect(self.on_mirror_NSP_clicked)
-            cb.click()
-        h_layout.addWidget(cb)
-        h_layout.addSpacing(5)
-
-        # TODO: Remove
-        cb = QtWidgets.QCheckBox("LSL")
-        cb.setChecked(self._mirror['lsl'])
-        cb.clicked.connect(self.on_mirror_LSL_clicked)
-        cb.click()
-        h_layout.addWidget(cb)
-        h_layout.addSpacing(5)
-
-        # Manual close button because window has no frame.
-        quit_btn = QtWidgets.QPushButton('X')
-        quit_btn.setMaximumWidth(20)
-        quit_btn.clicked.connect(QtWidgets.QApplication.instance().quit)
-
-        quit_btn.setStyleSheet("QPushButton { color: white; "
-                               "background-color : red; "
-                               "border-color : red; "
-                               "border-width: 2px}")
-
-        h_layout.addWidget(quit_btn)
-
         v_layout.addLayout(h_layout)
 
         # add a frame for the LCD numbers
-        self.lcd_frame = QtWidgets.QFrame()
-        self.lcd_frame.setFrameShape(QtWidgets.QFrame.Shape.Box)
+        lcd_frame = QtWidgets.QFrame()
+        lcd_frame.setFrameShape(QtWidgets.QFrame.Shape.Box)
         lcd_layout = QtWidgets.QGridLayout()
-        self.lcd_frame.setLayout(lcd_layout)
+        lcd_frame.setLayout(lcd_layout)
 
         # RAW reading from DDU
-        self.raw_ddu = QtWidgets.QLCDNumber()
-        self.raw_ddu.setDigitCount(7)
-        self.raw_ddu.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        self.raw_ddu.setSmallDecimalPoint(True)
-        self.raw_ddu.setFixedHeight(50)
-        self.raw_ddu.display("{0:.3f}".format(0))
-        lcd_layout.addWidget(self.raw_ddu, 0, 3, 2, 3)
+        raw_ddu_lcd = QtWidgets.QLCDNumber()
+        raw_ddu_lcd.setObjectName("raw_ddu_LCD")
+        raw_ddu_lcd.setDigitCount(7)
+        raw_ddu_lcd.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        raw_ddu_lcd.setSmallDecimalPoint(True)
+        raw_ddu_lcd.setFixedHeight(50)
+        raw_ddu_lcd.display("{0:.3f}".format(0))
+        lcd_layout.addWidget(raw_ddu_lcd, 0, 3, 2, 3)
 
-        # TODO: Use custom class and reimplement self.offset_ddu.mouseDoubleClickEvent(), then git rid of "Send!"
-        self.offset_ddu = QtWidgets.QLCDNumber()
-        self.offset_ddu.setDigitCount(7)
-        self.offset_ddu.setFixedHeight(150)
-        self.offset_ddu.display("{0:.3f}".format(-10))
-        self.offset_ddu.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        lcd_layout.addWidget(self.offset_ddu, 2, 0, 5, 6)
-        v_layout.addWidget(self.lcd_frame)
+        offset_lcd = MyLCD()
+        offset_lcd.setObjectName("offset_LCD")
+        offset_lcd.setDigitCount(7)
+        offset_lcd.setFixedHeight(150)
+        offset_lcd.display("{0:.3f}".format(-10))
+        offset_lcd.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        offset_lcd.lcd_dbl_clicked.connect(self.publish)
+        lcd_layout.addWidget(offset_lcd, 2, 0, 5, 6)
+
+        v_layout.addWidget(lcd_frame)
 
         self.plot_widget.setLayout(v_layout)
 
-    # TODO: Remove
-    def on_mirror_LSL_clicked(self, state):
-        if state > 0:
-            outlet_info = pylsl.StreamInfo(name='electrode_depth', type='depth', channel_count=1,
-                                           nominal_srate=pylsl.IRREGULAR_RATE, channel_format=pylsl.cf_float32,
-                                           source_id='depth1214')
-            self._depth_stream = pylsl.StreamOutlet(outlet_info)
-        else:
-            self._depth_stream = None
-
-    def on_mirror_NSP_clicked(self, state):
-        if not isinstance(self._depth_source, CBSDKPlayback):
-            if state > 0:
-                CbSdkConnection().connect()
-                CbSdkConnection().cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
-                # cbsdk_conn.set_comments("DTT:" + display_string)
-            else:
-                CbSdkConnection().disconnect()
-
-    def _do_close(self, from_port):
-        self._depth_source.do_close()
-
     def update(self):
-        # Added new_value handling for playback if we ever want to post-process depth
-        # on previously recorded sessions.
-        new_value = False
-
         value = self._depth_source.update()
         if value is not None:
-            self.raw_ddu.display("{0:.3f}".format(value))
-            value += self._doubleSpinBox_DTT.value() + self._doubleSpinBox_offset.value()
-            display_string = "{0:.3f}".format(value)
-            if display_string != self.display_string:
-                new_value = True
-                self.display_string = display_string
-            self.offset_ddu.display(display_string)
+            # Find widgets
+            raw_ddu_lcd: QtWidgets.QLCDNumber = self.findChild(QtWidgets.QLCDNumber, "raw_ddu_LCD")
+            offset_lcd: MyLCD = self.findChild(MyLCD, "offset_LCD")
+            dtt_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "DTT_doubleSpinBox")
+            offset_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "offset_doubleSpinBox")
 
+            # Update displays for raw and corrected values
+            raw_ddu_lcd.display("{0:.3f}".format(value))
+            value += dtt_spinbox.value() + offset_spinbox.value()
+            display_string = "{0:.3f}".format(value)
+            offset_lcd.display(display_string)
+
+            # If value is new, store and publish
+            if display_string != self.display_string:
+                self.display_string = display_string
+                self.publish()
+
+    def publish(self):
         # Push to NSP (only if this is not NSP playback)
-        nsp_cb = self.findChild(QtWidgets.QCheckBox, "NSP_CheckBox")
-        if nsp_cb and nsp_cb.isChecked() and not isinstance(self._depth_source, CBSDKPlayback):
+        src_cls = self._data_settings["source"]["class"]
+        if src_cls is not None and src_cls != open_mer.depth_source.CBSDKPlayback:
             cbsdk_conn = CbSdkConnection()
-            if cbsdk_conn.is_connected:
-                if new_value:
-                    cbsdk_conn.set_comments("DTT:" + display_string)
-            else:
-                # try connecting if not connected but button is active
-                if self.chk_NSP.isChecked() and self.chk_NSP.isEnabled():
-                    cbsdk_conn.connect()
-                    cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+            if not cbsdk_conn.is_connected:
+                cbsdk_conn.connect()
+                cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
+            if not cbsdk_conn.is_connected:
+                cbsdk_conn.set_comments("DTT:" + self.display_string)
 
         # Push to LSL
-        if self._depth_stream is not None and new_value:
-            self._depth_stream.push_sample([value])
+        if self._depth_stream is not None:
+            self._depth_stream.push_sample([self.display_string])
 
         # Publish on ZeroMQ
-        if new_value:
-            self._depth_sock.send_string(f"ddu {value}")
-
-    def send(self):
-        self.display_string = None  # make sure the update function runs
-        self.update()
+        self._depth_sock.send_string(f"ddu {self.display_string}")

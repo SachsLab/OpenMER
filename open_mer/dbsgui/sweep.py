@@ -359,7 +359,7 @@ class SweepGUI(CustomGUI):
     def __init__(self):
         self._plot_widget: SweepWidget | None = None  # This will get updated in super init but it helps type hints
         super(SweepGUI, self).__init__()
-        self.setWindowTitle('SweepGUI')
+        self.setWindowTitle("Sweep")
 
         self.pya_manager = pyaudio.PyAudio()
         self.pya_stream = None

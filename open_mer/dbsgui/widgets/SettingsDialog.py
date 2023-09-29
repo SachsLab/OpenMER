@@ -7,27 +7,33 @@ from qtpy.QtCore import QDate, QRegularExpression, Qt, Signal
 from qtpy.QtGui import QRegularExpressionValidator
 from serf.tools.db_wrap import DBWrapper
 
-# Settings
-from open_mer.settings.defaults import BUFFERLENGTH, SAMPLELENGTH, DELAYBUFFER, OVERWRITEDEPTH
-
 
 class SubjectWidget(QWidget):
     subject_change = Signal(int)
 
-    def __init__(self, subject_settings):
-        super(SubjectWidget, self).__init__()
+    def __init__(self, subject_settings, parent=None):
+        super().__init__(parent=parent)
 
+        self._setup_ui()
+
+        # Subject Settings
+        self.subject_settings = subject_settings
+        if not self.subject_settings:
+            self.update_settings_from_db(-1)
+
+        self.update_subj_widgets_from_settings()
+
+    def _setup_ui(self):
         subject_layout = QGridLayout(self)
         subject_layout.setColumnMinimumWidth(2, 60)
 
         subject_layout.addWidget(QLabel("Id: "), 0, 0, 1, 1)
         self.id_combo = QComboBox()
         self.id_combo.setEditable(True)
-        self.id_combo.addItem('')
+        self.id_combo.addItem("")
         self.id_combo.addItems(DBWrapper().list_all_subjects())
-        self.id_combo.currentIndexChanged.connect(self.load_subject)
+        self.id_combo.currentIndexChanged.connect(self.load_subject)  # Which transitively calls check_subject
         self.id_combo.lineEdit().editingFinished.connect(self.check_subject)
-
         subject_layout.addWidget(self.id_combo, 0, 1, 1, 4)
 
         subject_layout.addWidget(QLabel("Name: "), 1, 0, 1, 1)
@@ -35,10 +41,10 @@ class SubjectWidget(QWidget):
         self.name_edit.setMaxLength(135)
         subject_layout.addWidget(self.name_edit, 1, 1, 1, 4)
 
-        _subj_enums = DBWrapper().return_enums('subject')
+        _subj_enums = DBWrapper().return_enums("subject")
         subject_layout.addWidget(QLabel("Sex: "), 2, 0, 1, 1)
         self.sex_combo = QComboBox()
-        self.sex_combo.addItems(_subj_enums['sex'] if 'sex' in _subj_enums.keys() else [])
+        self.sex_combo.addItems(_subj_enums["sex"] if "sex" in _subj_enums.keys() else [])
         self.sex_combo.setCurrentIndex(0)
         subject_layout.addWidget(self.sex_combo, 2, 1, 1, 1)
 
@@ -51,20 +57,13 @@ class SubjectWidget(QWidget):
         self.file_comment.setMaximumHeight(150)
         subject_layout.addWidget(self.file_comment, 4, 1, 1, 4)
 
-        # Subject Settings
-        self.subject_settings = subject_settings
-        if not self.subject_settings:
-            self.update_settings_from_db(-1)
-
-        self.update_subj_widgets_from_settings()
-
     def update_subj_widgets_from_settings(self):
-        self.name_edit.setText(self.read_dict_value(self.subject_settings, 'name'))
-        self.id_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'id'))
-        self.sex_combo.setCurrentText(self.read_dict_value(self.subject_settings, 'sex'))
-        dob = self.read_dict_value(self.subject_settings, 'birthday')
-        if dob not in [None, '']:
-            q_dob = QDate.fromString(dob, 'yyyy-MM-d')
+        self.name_edit.setText(self.subject_settings.get("name", ""))
+        self.id_combo.setCurrentText(self.subject_settings.get("id", ""))
+        self.sex_combo.setCurrentText(self.subject_settings.get("sex", ""))
+        dob = self.subject_settings.get("birthday", "")
+        if dob not in [None, ""]:
+            q_dob = QDate.fromString(dob.isoformat() if hasattr(dob, "year") else dob, "yyyy-MM-d")
             self.dob_calendar.setSelectedDate(q_dob)
         else:
             self.dob_calendar.setSelectedDate(QDate.currentDate())
@@ -82,23 +81,19 @@ class SubjectWidget(QWidget):
         # when changing the id in the combobox, can be modifying or entering an existing subject id. Check to load data
         # if so.
         curr_id = self.id_combo.currentText()
-        if curr_id != '':
+        if curr_id != "":
             self.update_settings_from_db(curr_id)
-            self.subject_change.emit(self.subject_settings['subject_id'])
+            self.subject_change.emit(self.subject_settings["subject_id"])
         else:
             self.update_settings_from_db(-1)
             self.subject_change.emit(-1)
 
-    @staticmethod
-    def read_dict_value(dictionary, value):
-        return str(dictionary[value]) if value in dictionary.keys() else ''
-
     def to_dict(self):
-        self.subject_settings['id'] = self.id_combo.currentText()
-        self.subject_settings['name'] = self.name_edit.text()
-        self.subject_settings['sex'] = self.sex_combo.currentText()
-        self.subject_settings['birthday'] = self.dob_calendar.selectedDate().toPython()
-        self.subject_settings['NSP_comment'] = self.file_comment.toPlainText()
+        self.subject_settings["id"] = self.id_combo.currentText()
+        self.subject_settings["name"] = self.name_edit.text()
+        self.subject_settings["sex"] = self.sex_combo.currentText()
+        self.subject_settings["birthday"] = self.dob_calendar.selectedDate().toPython()
+        self.subject_settings["NSP_comment"] = self.file_comment.toPlainText()
 
 
 class ProcedureWidget(QWidget):
@@ -112,7 +107,7 @@ class ProcedureWidget(QWidget):
         if not self.procedure_settings:
             self.update_settings_from_db(-1)
 
-        self.proc_enums = DBWrapper().return_enums('procedure')
+        self.proc_enums = DBWrapper().return_enums("procedure")
         proc_layout = QGridLayout(self)
 
         row = 0
@@ -261,198 +256,74 @@ class ProcedureWidget(QWidget):
         self.procedure_settings.update(res_dict)
 
     def update_proc_widgets_from_settings(self):
-        self.target_name.setText(self.read_dict_value('target_name'))
-        self.type_combo.setCurrentText(self.read_dict_value('type'))
-        self.rec_combo.setCurrentText(self.read_dict_value('recording_config'))
-        self.electrode_combo.setCurrentText(self.read_dict_value('electrode_config'))
-        self.medic_combo.setCurrentText(self.read_dict_value('medication_status'))
-        self.offset_size.setText(str(self.read_dict_value('offset_size')))
-        self.offset_direction_combo.setCurrentText(self.read_dict_value('offset_direction'))
-        entry = self.read_dict_value('entry')
+        self.target_name.setText(self.procedure_settings.get("target_name", ""))
+        self.type_combo.setCurrentText(self.procedure_settings.get("type", ""))
+        self.rec_combo.setCurrentText(self.procedure_settings.get("recording_config", ""))
+        self.electrode_combo.setCurrentText(self.procedure_settings.get("electrode_config", ""))
+        self.medic_combo.setCurrentText(self.procedure_settings.get("medication_status", ""))
+        self.offset_size.setText(str(self.procedure_settings.get("offset_size", None)))
+        self.offset_direction_combo.setCurrentText(self.procedure_settings.get("offset_direction", ""))
+        entry = self.procedure_settings.get("entry", None)
         if entry is None:
             entry = [0., 0., 0.]
         self.entry_x.setText(str(entry[0]))
         self.entry_y.setText(str(entry[1]))
         self.entry_z.setText(str(entry[2]))
-        target = self.read_dict_value('target')
+        target = self.procedure_settings.get("target", None)
         if target is None:
             target = [0., 0., 0.]
         self.target_x.setText(str(target[0]))
         self.target_y.setText(str(target[1]))
         self.target_z.setText(str(target[2]))
-        ddt = self.read_dict_value('distance_to_target')
+        ddt = self.procedure_settings.get("distance_to_target", None)
         if ddt is None:
             ddt = 0.000
         self.dist_to_target.setText(str(ddt))
         # self.update_dist_to_target()
-        a = self.read_dict_value('a')
+        a = self.procedure_settings.get("a", None)
         if a is None:
             a = [0., 0., 0.]
         self.a_x.setText(str(a[0]))
         self.a_y.setText(str(a[1]))
         self.a_z.setText(str(a[2]))
-        e = self.read_dict_value('e')
+        e = self.procedure_settings.get("e", None)
         if e is None:
             e = [0., 0., 0.]
         self.e_x.setText(str(e[0]))
         self.e_y.setText(str(e[1]))
         self.e_z.setText(str(e[2]))
 
-    def read_dict_value(self, value):
-        return self.procedure_settings[value] if value in self.procedure_settings.keys() else None
-
     def to_dict(self):
-        self.procedure_settings['type'] = self.type_combo.currentText()
-        self.procedure_settings['a'] = np.array([float(self.a_x.text()),
+        self.procedure_settings["type"] = self.type_combo.currentText()
+        self.procedure_settings["a"] = np.array([float(self.a_x.text()),
                                                  float(self.a_y.text()),
                                                  float(self.a_z.text())], dtype=float)
-        self.procedure_settings['distance_to_target'] = float(self.dist_to_target.text())
-        self.procedure_settings['e'] = np.array([float(self.e_x.text()),
+        self.procedure_settings["distance_to_target"] = float(self.dist_to_target.text())
+        self.procedure_settings["e"] = np.array([float(self.e_x.text()),
                                                  float(self.e_y.text()),
                                                  float(self.e_z.text())], dtype=float)
-        self.procedure_settings['electrode_config'] = self.electrode_combo.currentText()
-        self.procedure_settings['entry'] = np.array([float(self.entry_x.text()),
+        self.procedure_settings["electrode_config"] = self.electrode_combo.currentText()
+        self.procedure_settings["entry"] = np.array([float(self.entry_x.text()),
                                                      float(self.entry_y.text()),
                                                      float(self.entry_z.text())], dtype=float)
-        self.procedure_settings['medication_status'] = self.medic_combo.currentText()
-        self.procedure_settings['target_name'] = self.target_name.text()
-        self.procedure_settings['recording_config'] = self.rec_combo.currentText()
-        self.procedure_settings['target'] = np.array([float(self.target_x.text()),
+        self.procedure_settings["medication_status"] = self.medic_combo.currentText()
+        self.procedure_settings["target_name"] = self.target_name.text()
+        self.procedure_settings["recording_config"] = self.rec_combo.currentText()
+        self.procedure_settings["target"] = np.array([float(self.target_x.text()),
                                                      float(self.target_y.text()),
                                                      float(self.target_z.text())], dtype=float)
-        self.procedure_settings['offset_direction'] = self.offset_direction_combo.currentText()
-        self.procedure_settings['offset_size'] = float(self.offset_size.text())
-
-
-# class BufferWidget(QWidget):
-#     def __init__(self, buffer_settings):
-#         super(BufferWidget, self).__init__()
-#
-#         # Settings
-#         self.buffer_settings = buffer_settings
-#         # Fill in missing values with defaults.
-#         buffer_defaults = {
-#             "buffer_length": "{:.3f}".format(BUFFERLENGTH),
-#             "sample_length": "{:.3f}".format(SAMPLELENGTH),
-#             "delay_buffer": "{:.3f}".format(DELAYBUFFER),
-#             "overwrite_depth": OVERWRITEDEPTH,
-#             "electrode_settings": {}
-#         }
-#         for k, def_v in buffer_defaults.items():
-#             self.buffer_settings[k] = self.buffer_settings.get(k, def_v)
-#
-#         # Create widgets and populate with values from settings.
-#         self.buffer_widgets = {}
-#         buffer_layout = QGridLayout(self)
-#         row = -1
-#         if 'electrode_settings' in self.buffer_settings.keys():
-#             for label, sett in self.buffer_settings['electrode_settings'].items():
-#                 row += 1
-#                 buffer_layout.addWidget(QLabel(label), row, 0, 1, 1)
-#                 self.buffer_widgets[label] = {}
-#                 self.buffer_widgets[label]['chk_threshold'] = QCheckBox("Threshold")
-#                 self.buffer_widgets[label]['chk_threshold'].setChecked(bool(sett['threshold']))
-#                 self.buffer_widgets[label]['edit_validity'] = QLineEdit()
-#                 self.buffer_widgets[label]['edit_validity'].setText(str(sett['validity']))
-#
-#                 buffer_layout.addWidget(self.buffer_widgets[label]['chk_threshold'], row, 1, 1, 1)
-#                 buffer_layout.addWidget(QLabel('Validity Threshold (%)'), row, 2, 1, 1)
-#                 buffer_layout.addWidget(self.buffer_widgets[label]['edit_validity'], row, 3, 1, 1)
-#
-#             row += 1
-#             buffer_layout.addWidget(QLabel("Depth buffer size (s): "), row, 0, 1, 1)
-#             self.edit_buffer_length = QLineEdit(self.buffer_settings['buffer_length'])
-#             self.edit_buffer_length.setInputMask("0.000")
-#             self.edit_buffer_length.setFixedWidth(40)
-#             buffer_layout.addWidget(self.edit_buffer_length, row, 1, 1, 1)
-#
-#             row += 1
-#             buffer_layout.addWidget(QLabel("Depth samples size (s): "), row, 0, 1, 1)
-#             self.edit_sample_length = QLineEdit(self.buffer_settings['sample_length'])
-#             self.edit_sample_length.setInputMask("0.000")
-#             self.edit_sample_length.setFixedWidth(40)
-#             buffer_layout.addWidget(self.edit_sample_length, row, 1, 1, 1)
-#
-#             row += 1
-#             buffer_layout.addWidget(QLabel("Delay depth recording (s): "), row, 0, 1, 1)
-#             self.delay_buffer = QLineEdit(self.buffer_settings['delay_buffer'])
-#             self.delay_buffer.setInputMask("0.000")
-#             self.delay_buffer.setFixedWidth(40)
-#             buffer_layout.addWidget(self.delay_buffer, row, 1, 1, 1)
-#
-#             row += 1
-#             self.overwrite_depth = QCheckBox("Overwrite depth values")
-#             self.overwrite_depth.setChecked(self.buffer_settings['overwrite_depth'])
-#             buffer_layout.addWidget(self.overwrite_depth, row, 0, 1, 1)
-#
-#     def to_dict(self):
-#         # convert all fields to dictionary and return it
-#         self.buffer_settings['buffer_length'] = self.edit_buffer_length.text()
-#         self.buffer_settings['sample_length'] = self.edit_sample_length.text()
-#         self.buffer_settings['delay_buffer'] = self.delay_buffer.text()
-#         self.buffer_settings['overwrite_depth'] = self.overwrite_depth.isChecked()
-#
-#         for key, value in self.buffer_widgets.items():
-#             self.buffer_settings['electrode_settings'][key] = {}
-#             self.buffer_settings['electrode_settings'][key]['threshold'] = value['chk_threshold'].isChecked()
-#             self.buffer_settings['electrode_settings'][key]['validity'] = float(value['edit_validity'].text())
-#
-#
-# class FeaturesWidget(QWidget):
-#     def __init__(self, features_settings):
-#         super(FeaturesWidget, self).__init__()
-#
-#         # Settings
-#         self.feature_categories = DBWrapper().all_features.keys()
-#         self.features_settings = features_settings
-#         if not self.features_settings:
-#             self.features_settings = {}
-#
-#             # Check if default values are defined
-#             for cat in self.feature_categories:
-#                 # defaults to true, compute all features
-#                 self.features_settings[cat] = True
-#
-#         self.features_widgets = {}
-#
-#         features_layout = QGridLayout(self)
-#
-#         # Add an option to toggle all features
-#         self.all_features = QCheckBox('All')
-#         self.all_features.setChecked(False)
-#         self.all_features.clicked.connect(self.toggle_all)
-#         features_layout.addWidget(self.all_features, 0, 0, 1, 1)
-#         for idx, (label, sett) in enumerate(self.features_settings.items()):
-#             self.features_widgets[label] = QCheckBox(label)
-#             self.features_widgets[label].setChecked(sett)
-#             self.features_widgets[label].clicked.connect(self.toggle)
-#             features_layout.addWidget(self.features_widgets[label], idx+1, 0, 1, 1)
-#
-#     def toggle_all(self):
-#         for label, sett in self.features_widgets.items():
-#             self.features_widgets[label].setChecked(self.all_features.isChecked())
-#
-#     def toggle(self):
-#         if any([not x.isChecked() for x in self.features_widgets.values()]):
-#             self.all_features.setChecked(False)
-#
-#     def to_dict(self):
-#         for key, value in self.features_widgets.items():
-#             self.features_settings[key] = value.isChecked()
+        self.procedure_settings["offset_direction"] = self.offset_direction_combo.currentText()
+        self.procedure_settings["offset_size"] = float(self.offset_size.text())
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, subject_settings, procedure_settings,
-                 # buffer_settings, features_settings,
-                 parent=None):
+    def __init__(self, subject_settings: dict, procedure_settings: dict, parent=None):
         super(SettingsDialog, self).__init__(parent)
         self.setWindowTitle("Enter settings.")
 
-        # settings dicts
+        # settings dicts - we will mutate the input dictionaries
         self.subject_settings = subject_settings
         self.procedure_settings = procedure_settings
-        # self.buffer_settings = buffer_settings
-        # self.features_settings = features_settings
 
         # Widgets to show/edit parameters.
         self.settings_layout = QVBoxLayout(self)
@@ -464,22 +335,16 @@ class SettingsDialog(QDialog):
         self.proc_widget = ProcedureWidget(self.procedure_settings)
         tab_widget.addTab(self.proc_widget, 'Procedure')
 
-        # self.buff_widget = BufferWidget(self.buffer_settings)
-        # tab_widget.addTab(self.buff_widget, 'Buffer')
-        #
-        # self.feat_widget = FeaturesWidget(self.features_settings)
-        # tab_widget.addTab(self.feat_widget, 'Features')
-
         self.settings_layout.addWidget(tab_widget)
 
         # signals
         self.subject_widget.subject_change.connect(self.proc_widget.change_subject)
 
         # update procedures when re-opening settings window
-        if 'subject_id' not in self.subject_settings.keys():
+        if "subject_id" not in self.subject_settings.keys():
             self.subject_widget.check_subject()
-        elif self.subject_settings['subject_id'] not in [None, '']:
-            self.proc_widget.change_subject(self.subject_settings['subject_id'], block=True)
+        elif self.subject_settings["subject_id"] not in [None, ""]:
+            self.proc_widget.change_subject(self.subject_settings["subject_id"], block=True)
 
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
@@ -492,5 +357,3 @@ class SettingsDialog(QDialog):
     def update_settings(self):
         self.subject_widget.to_dict()
         self.proc_widget.to_dict()
-        # self.buff_widget.to_dict()
-        # self.feat_widget.to_dict()

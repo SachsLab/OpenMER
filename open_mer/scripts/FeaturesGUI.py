@@ -1,12 +1,11 @@
 import sys
-import argparse
 from qtpy import QtCore, QtWidgets
 from open_mer.dbsgui.features import FeaturesGUI
 
 
-def main(**kwargs):
+def main():
     app = QtWidgets.QApplication(sys.argv)
-    window = FeaturesGUI(**kwargs)
+    window = FeaturesGUI()
     window.show()
     timer = QtCore.QTimer()
     timer.timeout.connect(window.update)
@@ -17,8 +16,4 @@ def main(**kwargs):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog="FeaturesGUI",
-                                     description="Visualize MER trajectory segments and features.")
-    parser.add_argument('-i', '--ini_file', nargs='?', help="Path to ini settings file.")
-    args = parser.parse_args()
-    main(**args.__dict__)
+    main()

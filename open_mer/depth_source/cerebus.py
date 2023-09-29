@@ -1,4 +1,3 @@
-from qtpy import QtCore
 from .base import MerDepthSource
 try:
     from cerebuswrapper import CbSdkConnection
@@ -8,8 +7,8 @@ except ModuleNotFoundError as e:
 
 class CBSDKPlayback(MerDepthSource):
 
-    def __init__(self, scoped_settings: QtCore.QSettings):
-        super().__init__(scoped_settings)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def do_open(self):
         CbSdkConnection().connect()
@@ -23,7 +22,7 @@ class CBSDKPlayback(MerDepthSource):
     def do_close(self):
         CbSdkConnection().disconnect()
 
-    def update(self):
+    def update(self) -> None | float:
         cbsdk_conn = CbSdkConnection()
         if cbsdk_conn.is_connected:
             comments = cbsdk_conn.get_comments()

@@ -48,7 +48,7 @@ In your WinPython Command Prompt, try the following commands first. If they fail
 python.exe -m pip install --upgrade pip
 # macOS developers: use `mamba` instead of `pip` for the next 1 line only.
 pip install Django quantities numpy scipy Cython pyFFTW mysqlclient
-pip install pylsl pyaudio PySide6 qtpy pyzmq pyqtgraph
+pip install pylsl pyaudio PySide6 qtpy pyzmq pyqtgraph pyserial
 pip install git+https://github.com/NeuralEnsemble/python-neo.git
 pip install git+https://github.com/SachsLab/pytf.git
 pip install git+https://github.com/SachsLab/mspacman.git

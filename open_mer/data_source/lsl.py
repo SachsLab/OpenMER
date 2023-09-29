@@ -1,7 +1,9 @@
 from typing import Union, Tuple
+
 from qtpy import QtCore
 import numpy as np
 import pylsl
+
 from .interface import IDataSource
 
 

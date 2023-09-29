@@ -1,7 +1,8 @@
 from pathlib import Path
+
 from qtpy import QtCore
+
 from .interface import IDataSource
-from ..settings import parse_ini_try_numeric
 try:
     from cerebuswrapper import CbSdkConnection
 except ModuleNotFoundError as e:

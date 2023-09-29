@@ -94,15 +94,15 @@ class BasePlotWidget(QWidget):
         [x.setSymbolSize(6) for x in self.plot.curves]
 
     def configure_plot(self):
-        self.plot.setTitle(title=self.plot_config['title'], **{'color': 'w', 'size': '16pt'})
+        self.plot.setTitle(title=self.plot_config["title"], **{"color": "w", "size": "16pt"})
         self.plot.hideButtons()
 
-        if self.plot_config['image_plot'] and False:
+        if False and self.plot_config["image_plot"]:
             self.img = pg.ImageItem()
             self.plot.addItem(self.img)
 
-            pos = np.array(self.plot_config['c_lim'])
-            # color = np.array([[0, 0, 0, 255], self.plot_config['pen_color'].getRgb()], dtype=np.ubyte)
+            pos = np.array(self.plot_config["c_lim"])
+            # color = np.array([[0, 0, 0, 255], self.plot_config["pen_color"].getRgb()], dtype=np.ubyte)
             # c_map = pg.ColorMap(pos, color)
             # lut = c_map.getLookupTable(pos[0], pos[1], 1024)
 
@@ -116,7 +116,7 @@ class BasePlotWidget(QWidget):
             self.img.scale(1/1000, 1)
             self.img.setPos(DEPTHRANGE[0], 0)
 
-        if self.plot_config['marker_line'] is not None:
+        if self.plot_config["marker_line"] is not None:
             self.plot.addItem(pg.InfiniteLine(angle=0 if self.plot_config['swap_xy'] else 90,
                                               pos=self.plot_config['marker_line'],
                                               movable=False,
@@ -127,25 +127,25 @@ class BasePlotWidget(QWidget):
         self.plot.scene().sigMouseClicked.connect(self.mouse_clicked)
         self.plot.vb.installEventFilter(self)
 
-        if self.plot_config['x_range']:
-            self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1], padding=0)
-        if self.plot_config['y_range']:
-            self.plot.setYRange(self.plot_config['y_range'][0], self.plot_config['y_range'][1], padding=0)
-        self.plot.setLabel('bottom', self.plot_config['x_label'])
-        self.plot.setLabel('left', self.plot_config['y_label'])
-        if not self.plot_config['x_axis']:
-            self.plot.hideAxis('bottom')
-        if not self.plot_config['y_axis']:
-            self.plot.hideAxis('left')
+        if self.plot_config["x_range"]:
+            self.plot.setXRange(self.plot_config["x_range"][0], self.plot_config["x_range"][1], padding=0)
+        if self.plot_config["y_range"]:
+            self.plot.setYRange(self.plot_config["y_range"][0], self.plot_config["y_range"][1], padding=0)
+        self.plot.setLabel("bottom", self.plot_config["x_label"])
+        self.plot.setLabel("left", self.plot_config["y_label"])
+        if not self.plot_config["x_axis"]:
+            self.plot.hideAxis("bottom")
+        if not self.plot_config["y_axis"]:
+            self.plot.hideAxis("left")
         font = QFont()
         font.setPixelSize(20)
         font.setBold(True)
 
-        self.plot.getAxis('bottom').setStyle(showValues=self.plot_config['x_ticks'],
+        self.plot.getAxis('bottom').setStyle(showValues=self.plot_config["x_ticks"],
                                              tickFont=font, tickTextOffset=10)
         self.plot.getAxis('bottom').setTextPen((255, 255, 255, 255))
 
-        self.plot.getAxis('left').setStyle(showValues=self.plot_config['y_ticks'],
+        self.plot.getAxis('left').setStyle(showValues=self.plot_config["y_ticks"],
                                            tickFont=font)
         self.plot.getAxis('left').setTextPen((255, 255, 255, 255))
         if self.plot_config['y_tick_labels']:
@@ -243,23 +243,23 @@ class BasePlotWidget(QWidget):
             if self.plot_config['auto_scale']:
                 self.plot.autoRange(padding=0.05, items=self.plot.dataItems)
                 if self.plot_config['x_range']:
-                    self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1],
+                    self.plot.setXRange(self.plot_config["x_range"][0], self.plot_config["x_range"][1],
                                         padding=0)
             else:
-                if self.plot_config['x_range']:
-                    self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1], padding=0)
-                if self.plot_config['y_range']:
-                    self.plot.setYRange(self.plot_config['y_range'][0], self.plot_config['y_range'][1], padding=0)
+                if self.plot_config["x_range"]:
+                    self.plot.setXRange(self.plot_config["x_range"][0], self.plot_config["x_range"][1], padding=0)
+                if self.plot_config["y_range"]:
+                    self.plot.setYRange(self.plot_config["y_range"][0], self.plot_config["y_range"][1], padding=0)
 
     def update_plot(self, all_data):
         if all_data is not None:
             # all_data is a dict {datum_id: [depth, np array of data]}
             for idx, data in all_data.items():
                 # append data
-                x = data[self.plot_config['x_name']] if self.plot_config['x_name'] in data else None
+                x = data[self.plot_config["x_name"]] if self.plot_config["x_name"] in data else None
 
-                if x not in [None, ''] and self.plot_config['y_name'] in data:
-                    y = data[self.plot_config['y_name']]
+                if x not in [None, ''] and self.plot_config["y_name"] in data:
+                    y = data[self.plot_config["y_name"]]
 
                     # if depth data was overwritten, we need to delete previous points and errorbars
                     if x in self.data.keys():
@@ -275,34 +275,34 @@ class BasePlotWidget(QWidget):
                     self.data[x] = y
 
                     if y[2]:
-                        symbol_brush = self.plot_config['pen_color']
+                        symbol_brush = self.plot_config["pen_color"]
                     else:
                         symbol_brush = None
 
                     # post_processing receives the entire feature value array, typically:
                     # [x, y, valid].
                     # should return an array with values to plot
-                    if self.plot_config['post_processing'] and not self.plot_config['error_bars']:
-                        y = self.plot_config['post_processing'](x, y)
-                    elif self.plot_config['post_processing'] and self.plot_config['error_bars']:
-                        y, eb = self.plot_config['post_processing'](x, y)
-                        self.plot.addItem(pg.ErrorBarItem(x=[x], y=y, height=eb, pen=self.plot_config['pen_color']))
+                    if self.plot_config["post_processing"] and not self.plot_config["error_bars"]:
+                        y = self.plot_config["post_processing"](x, y)
+                    elif self.plot_config["post_processing"] and self.plot_config["error_bars"]:
+                        y, eb = self.plot_config["post_processing"](x, y)
+                        self.plot.addItem(pg.ErrorBarItem(x=[x], y=y, height=eb, pen=self.plot_config["pen_color"]))
                     else:
                         y = y[1]
 
-                    if not self.plot_config['image_plot']:
+                    if not self.plot_config["image_plot"]:
                         # make sure x is a list the same size as y
                         x = [x] * len(y)
 
                         self.plot.plot(x=x, y=y, symbol='o', symbolSize=6, pen=None,
-                                       symbolBrush=symbol_brush, symbolPen=self.plot_config['pen_color'])
+                                       symbolBrush=symbol_brush, symbolPen=self.plot_config["pen_color"])
                     else:
                         self.img.setImage(y, autoLevels=False)
 
                     if self.plot_config['auto_scale']:
                         self.plot.autoRange(padding=0.05, items=self.plot.dataItems)
-                        if self.plot_config['x_range']:
-                            self.plot.setXRange(self.plot_config['x_range'][0], self.plot_config['x_range'][1],
+                        if self.plot_config["x_range"]:
+                            self.plot.setXRange(self.plot_config["x_range"][0], self.plot_config["x_range"][1],
                                                 padding=0)
                         # self.plot.enableAutoRange(axis=pg.ViewBox.YAxis)
 
@@ -330,7 +330,6 @@ class RawPlots(QWidget):
         super(RawPlots, self).__init__(*args, **kwargs)
 
         self.plot_config = plot_config
-        self.pen_color = QColor(pen_colors[self.plot_config['color_iterator']])
 
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
@@ -339,7 +338,7 @@ class RawPlots(QWidget):
 
         # create GLW for the depth plot
         depth_sett = {**DEPTH,
-                      'pen_color': self.pen_color}
+                      'pen_color': self.plot_config["pen_color"]}
         self.depth_plot = BasePlotWidget(depth_sett)
         self.layout.addWidget(self.depth_plot, 0, 0, NPLOTSRAW, 1)
 
@@ -380,7 +379,7 @@ class RawPlots(QWidget):
                     'x_axis': False,  # Is Visible
                     'y_axis': False,
                     'x_range': [self.plot_config["x_start"], self.plot_config["x_stop"]],  # self.plot_config['x_range'],  # None for auto-scale, list otherwise
-                    'y_range': [-self.plot_config['y_range'], self.plot_config['y_range']],
+                    'y_range': [-self.plot_config["y_range"], self.plot_config["y_range"]],
                     'auto_scale': False,
                     'interactive': False,
                     'marker_line': None,
@@ -433,9 +432,9 @@ class RawPlots(QWidget):
                         self.depth_pdi[depth_data[0]] = depth_data[1]
 
                 # plot depth
-                symbol_brush = self.pen_color if depth_data[2] else None
+                symbol_brush = self.plot_config["pen_color"] if depth_data[2] else None
                 self.depth_plot.plot.plot(x=[0], y=[depth_data[0]], symbol='o', symbolBrush=symbol_brush,
-                                          symbolPen=self.pen_color, symbolSize=6)
+                                          symbolPen=self.plot_config["pen_color"], symbolSize=6)
 
                 if new_depth == DEPTHRANGE[0] and new_depth > depth_data[0]:
                     new_depth = depth_data[0]
@@ -464,7 +463,7 @@ class RawPlots(QWidget):
                 to_plot = self.depth_pdi[all_depths[idx]]  # data
                 if len(self.data_figures[-plot_idx].plot.dataItems) == 0:
                     self.data_figures[-plot_idx].plot.addItem(pg.PlotDataItem(to_plot,
-                                                              pen=self.pen_color,
+                                                              pen=self.plot_config["pen_color"],
                                                               autoDownsample=True))
                 else:
                     self.data_figures[-plot_idx].plot.dataItems[0].setData(to_plot)
@@ -475,7 +474,7 @@ class RawPlots(QWidget):
                 if len(self.data_figures[-plot_idx].plot.dataItems) > 0:
                     self.data_figures[-plot_idx].plot.dataItems[0].setData([0])
 
-            self.data_figures[-plot_idx].plot.setYRange(-self.plot_config['y_range'], self.plot_config['y_range'])
+            self.data_figures[-plot_idx].plot.setYRange(-self.plot_config["y_range"], self.plot_config["y_range"])
 
             idx -= 1
             plot_idx += 1
@@ -506,8 +505,6 @@ class STNPlots(QWidget):
         super(STNPlots, self).__init__(*args, **kwargs)
         self.plot_config = plot_config
 
-        pen_color = QColor(pen_colors[plot_config['color_iterator']])
-
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -516,7 +513,7 @@ class STNPlots(QWidget):
         rms_sett = {**FEAT_VS_DEPTH,
                     'title': 'Noise RMS (' + u'\u03BC' + 'V)',
                     'y_name': 'NoiseRMS',
-                    'pen_color': pen_color}
+                    'pen_color': self.plot_config["pen_color"]}
         self.rms_plot = BasePlotWidget(rms_sett)
         self.layout.addWidget(self.rms_plot, 0, 0, 1, 1)
 
@@ -524,7 +521,7 @@ class STNPlots(QWidget):
                      'title': 'Beta power (dB)',
                      'y_name': 'BetaPower',
                      'post_processing': self.beta_process,
-                     'pen_color': pen_color}
+                     'pen_color': self.plot_config["pen_color"]}
         self.bp_plot = BasePlotWidget(beta_sett)
         self.layout.addWidget(self.bp_plot, 1, 0, 1, 1)
         # https://gist.github.com/beniwohli/765262
@@ -535,7 +532,7 @@ class STNPlots(QWidget):
                     'x_ticks': True,
                     'post_processing': self.pac_process,
                     'error_bars': True,
-                    'pen_color': pen_color}
+                    'pen_color': self.plot_config["pen_color"]}
         self.pac_plot = BasePlotWidget(pac_sett)
         self.layout.addWidget(self.pac_plot, 2, 0, 1, 1)
 
@@ -568,7 +565,6 @@ class LFPPlots(QWidget):
         super(LFPPlots, self).__init__(*args, **kwargs)
 
         self.plot_config = plot_config
-        self.pen_color = QColor(pen_colors[self.plot_config['color_iterator']])
 
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
@@ -584,7 +580,7 @@ class LFPPlots(QWidget):
                     'y_tick_labels': [[(1, 4), (6, 8), (11, 16), (16, 32), (21, 64), (26, 128), (31, 256)]],
                     'c_lim': [50, 150],
                     'post_processing': self.spectrum_process,
-                    'pen_color': self.pen_color
+                    'pen_color': self.plot_config["pen_color"]
                     }
         self.spectro_plot = BasePlotWidget(pwr_sett)
         self.layout.addWidget(self.spectro_plot, 0, 0, 1, 1)
@@ -594,7 +590,7 @@ class LFPPlots(QWidget):
                      'title': 'Beta power (dB)',
                      'y_name': 'LFPSpectrumAndEpisodes',
                      'post_processing': self.beta_process,
-                     'pen_color': self.pen_color}
+                     'pen_color': self.plot_config["pen_color"]}
         self.bp_plot = BasePlotWidget(beta_sett)
         self.layout.addWidget(self.bp_plot, 1, 0, 1, 1)
 
@@ -607,7 +603,7 @@ class LFPPlots(QWidget):
                     'y_tick_labels': [[(1, 4), (6, 8), (11, 16), (16, 32), (21, 64)]],
                     'c_lim': [0, 1],
                     'post_processing': self.episodes_process,
-                    'pen_color': self.pen_color
+                    'pen_color': self.plot_config["pen_color"]
                     }
         self.episodes_plot = BasePlotWidget(pep_sett)
         self.layout.addWidget(self.episodes_plot, 2, 0, 1, 1)
@@ -618,7 +614,7 @@ class LFPPlots(QWidget):
                         'title': 'Beta episodes',
                         'y_name': 'LFPSpectrumAndEpisodes',
                         'post_processing': self.beta_ep_process,
-                        'pen_color': self.pen_color}
+                        'pen_color': self.plot_config["pen_color"]}
         self.b_ep_plot = BasePlotWidget(beta_ep_sett)
         self.layout.addWidget(self.b_ep_plot, 3, 0, 1, 1)
 
@@ -754,7 +750,6 @@ class SpikePlots(QWidget):
         super(SpikePlots, self).__init__(*args, **kwargs)
 
         self.plot_config = plot_config
-        self.pen_color = QColor(pen_colors[self.plot_config['color_iterator']])
 
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
@@ -765,7 +760,7 @@ class SpikePlots(QWidget):
                     'title': 'Noise RMS (' + u'\u03BC' + 'V)',
                     'y_name': 'DBSSpikeFeatures',
                     'post_processing': lambda x,y : [y[1][0]],
-                    'pen_color': self.pen_color}
+                    'pen_color': self.plot_config["pen_color"]}
 
         self.rms_plot = BasePlotWidget(rms_sett)
         self.layout.addWidget(self.rms_plot, 0, 0, 1, 1)
@@ -775,7 +770,7 @@ class SpikePlots(QWidget):
                      'title': 'Rate (Hz)',
                      'y_name': 'DBSSpikeFeatures',
                      'post_processing': lambda x, y: [y[1][1]],
-                     'pen_color': self.pen_color}
+                     'pen_color': self.plot_config["pen_color"]}
 
         self.rate_plot = BasePlotWidget(rate_sett)
         self.layout.addWidget(self.rate_plot, 1, 0, 1, 1)
@@ -785,7 +780,7 @@ class SpikePlots(QWidget):
                       'title': 'Burst Index',
                       'y_name': 'DBSSpikeFeatures',
                       'post_processing': lambda x, y: [y[1][2]],
-                      'pen_color': self.pen_color}
+                      'pen_color': self.plot_config["pen_color"]}
 
         self.burst_plot = BasePlotWidget(burst_sett)
         self.layout.addWidget(self.burst_plot, 2, 0, 1, 1)
@@ -796,7 +791,7 @@ class SpikePlots(QWidget):
                    'x_ticks': True,
                    'y_name': 'DBSSpikeFeatures',
                    'post_processing': lambda x, y: [y[1][3]],
-                   'pen_color': self.pen_color}
+                   'pen_color': self.plot_config["pen_color"]}
 
         self.ff_plot = BasePlotWidget(ff_sett)
         self.layout.addWidget(self.ff_plot, 3, 0, 1, 1)
@@ -829,8 +824,6 @@ class MappingPlots(QWidget):
         super(MappingPlots, self).__init__(*args, **kwargs)
         self.plot_config = plot_config
 
-        pen_color = QColor(pen_colors[plot_config['color_iterator']])
-
         # Create and add GraphicsLayoutWidget
         self.layout = QGridLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -843,7 +836,7 @@ class MappingPlots(QWidget):
                     'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
                     'auto_scale': False,
                     'post_processing': self.fill_empty,
-                    'pen_color': pen_color}
+                    'pen_color': self.plot_config["pen_color"]}
         self.kin_plot = BasePlotWidget(kin_sett)
         self.add_dashed_lines(self.kin_plot.plot)
         self.layout.addWidget(self.kin_plot, 0, 0, 1, 1)
@@ -855,7 +848,7 @@ class MappingPlots(QWidget):
                      'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
                      'auto_scale': False,
                      'post_processing': self.fill_empty,
-                     'pen_color': pen_color}
+                     'pen_color': self.plot_config["pen_color"]}
         self.tact_plot = BasePlotWidget(tact_sett)
         self.add_dashed_lines(self.tact_plot.plot)
         self.layout.addWidget(self.tact_plot, 1, 0, 1, 1)
@@ -867,7 +860,7 @@ class MappingPlots(QWidget):
                        'y_tick_labels': [[(0, "No"), (1, "Un"), (2, "Fo"), (3, "Le"), (4, "Ha"), (5, "Ar"), (6, 'He')]],
                        'auto_scale': False,
                        'post_processing': self.fill_empty,
-                       'pen_color': pen_color}
+                       'pen_color': self.plot_config["pen_color"]}
         self.custom_plot = BasePlotWidget(custom_sett)
         self.add_dashed_lines(self.custom_plot.plot)
         self.layout.addWidget(self.custom_plot, 2, 0, 1, 1)

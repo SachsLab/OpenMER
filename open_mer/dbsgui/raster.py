@@ -187,7 +187,7 @@ class RasterGUI(CustomGUI):
     def __init__(self):
         self._plot_widget: RasterWidget | None = None  # This will get updated in super init but it helps type hints
         super(RasterGUI, self).__init__()
-        self.setWindowTitle('RasterGUI')
+        self.setWindowTitle("Raster")
 
     def parse_settings(self):
         super().parse_settings()

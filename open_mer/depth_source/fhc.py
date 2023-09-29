@@ -1,22 +1,17 @@
 import re
-
-from qtpy import QtCore
-import serial
-import serial.tools.list_ports
+# serial imports happen in methods
 from .base import MerDepthSource
-from ..settings import parse_ini_try_numeric
 
 
 class FHCSerial(MerDepthSource):
 
-    def __init__(self, scoped_settings: QtCore.QSettings):
-        scoped_settings.beginGroup("serial")
-        self._baudrate = parse_ini_try_numeric(scoped_settings, 'baudrate') or 19200
-        self._com_port = scoped_settings.value("com_port")
-        self.ser = serial.Serial(timeout=1)
+    def __init__(self, serial={"baudrate": 19200, "com_port": "COM5"}, **kwargs):
+        import serial as pyserial
+        self._baudrate = serial["baudrate"]
+        self._com_port = serial["com_port"]
+        self.ser = pyserial.Serial(timeout=1)
         self._is_v2 = False
-        scoped_settings.endGroup()
-        super().__init__(scoped_settings)
+        super().__init__(**kwargs)
 
     @property
     def is_v2(self):
@@ -29,8 +24,10 @@ class FHCSerial(MerDepthSource):
         self.offset = 60.00 if value else 0.00
 
     def do_open(self):
+        import serial as pyserial
+        from serial.tools import list_ports
         self.ser.baudrate = self._baudrate
-        for port, desc, hwid in sorted(serial.tools.list_ports.comports()):
+        for port, desc, hwid in sorted(list_ports.comports()):
             if port == self._com_port:
                 break
         else:
@@ -39,7 +36,7 @@ class FHCSerial(MerDepthSource):
         if not self.ser.is_open:
             self.ser.port = self._com_port
             try:
-                self.ser.open()  # TODO: Add error.
+                self.ser.open()  # TODO: Add error handling.
                 # Silence transmission temporarily
                 self.ser.write("AXON-\r".encode())
                 # Request version information.
@@ -56,7 +53,7 @@ class FHCSerial(MerDepthSource):
                 # Resume transmission.
                 self.ser.write("AXON+\r".encode())
                 _ = self.ser.readline()  # Clear out the first response to AXON+
-            except serial.serialutil.SerialException:
+            except pyserial.serialutil.SerialException:
                 print("Could not open serial port")
 
     def do_close(self):

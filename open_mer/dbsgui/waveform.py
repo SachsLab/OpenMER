@@ -148,7 +148,7 @@ class WaveformGUI(CustomGUI):
     def __init__(self):
         self._plot_widget: WaveformWidget | None = None  # This will get updated in super init but it helps type hints
         super().__init__()
-        self.setWindowTitle("WaveformGUI")
+        self.setWindowTitle("Waveform")
 
     def parse_settings(self):
         super().parse_settings()

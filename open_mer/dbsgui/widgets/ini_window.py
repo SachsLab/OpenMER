@@ -1,5 +1,6 @@
 from pathlib import Path
 import importlib.resources as pkg_resources
+
 from qtpy import QtWidgets, QtCore, QtGui
 
 
@@ -28,14 +29,14 @@ class IniWindow(QtWidgets.QMainWindow):
         # Infer paths to ini files
         root_pkg = __package__.split(".")[0]
         ini_name = type(self).__name__ + '.ini'
-        with pkg_resources.path(f"{root_pkg}.resources", "settings") as pkg_path:
-            pkg_path = pkg_path
+        with pkg_resources.path(f"{root_pkg}.resources", "settings") as res_settings_path:
+            res_settings_path = res_settings_path
         home_path = Path.home() / f".{root_pkg}"
 
         # Add paths to settings files in ascending priority
-        self._settings_paths.append(pkg_path / "Style.ini")
-        self._settings_paths.append(pkg_path / "IPC.ini")
-        self._settings_paths.append(pkg_path / ini_name)
+        self._settings_paths.append(res_settings_path / "Style.ini")
+        self._settings_paths.append(res_settings_path / "IPC.ini")
+        self._settings_paths.append(res_settings_path / ini_name)
         self._settings_paths.append(home_path / "Style.ini")
         self._settings_paths.append(home_path / "IPC.ini")
         self._settings_paths.append(home_path / ini_name)
