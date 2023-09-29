@@ -432,8 +432,8 @@ class SweepGUI(CustomGUI):
         topic_msg = "channel_select " + json.dumps({
             "channel": curr_channel,
             "label": self.audio["chan_label"] or "",
-            "range": self._plot_widget.plot_config["y_range"],
-            "highpass": self._plot_widget.plot_config["do_hp"]
+            "range": self._plot_widget._plot_config["y_range"],
+            "highpass": self._plot_widget._plot_config["do_hp"]
         })
         self._chanselect_sock.send_string(topic_msg)
 
@@ -486,13 +486,13 @@ class SweepGUI(CustomGUI):
     def _postproc_data(self, label, data, ch_state=None):
         # TODO: Store channel state and filter state in this class, not the plot widget
         ss_info = self._plot_widget.segmented_series[label]
-        gain = ch_state["gain"] if ch_state is not None and "gain" in ch_state else self._plot_widget.plot_config["unit_scaling"]
+        gain = ch_state["gain"] if ch_state is not None and "gain" in ch_state else self._plot_widget._plot_config["unit_scaling"]
         data = data * gain
-        if self._plot_widget.plot_config["do_hp"]:
+        if self._plot_widget._plot_config["do_hp"]:
             if ss_info["hp_zi"] is None:
-                ss_info["hp_zi"] = signal.sosfilt_zi(self._plot_widget.plot_config["hp_sos"])
-            data, ss_info["hp_zi"] = signal.sosfilt(self._plot_widget.plot_config["hp_sos"], data, zi=ss_info["hp_zi"])
-        if self._plot_widget.plot_config["do_ln"]:
+                ss_info["hp_zi"] = signal.sosfilt_zi(self._plot_widget._plot_config["hp_sos"])
+            data, ss_info["hp_zi"] = signal.sosfilt(self._plot_widget._plot_config["hp_sos"], data, zi=ss_info["hp_zi"])
+        if self._plot_widget._plot_config["do_ln"]:
             pass  # TODO: Line noise / comb filter
         return data
 
@@ -502,5 +502,5 @@ class SweepGUI(CustomGUI):
                 if self.audio["chan_label"] == label:
                     write_indices = (np.arange(data.shape[0]) + self.audio["write_ix"]) % self.audio["buffer"].shape[0]
                     self.audio["buffer"][write_indices] = (
-                            np.copy(data) * (2 ** 15 / self._plot_widget.plot_config["y_range"])).astype(np.int16)
+                            np.copy(data) * (2 ** 15 / self._plot_widget._plot_config["y_range"])).astype(np.int16)
                     self.audio["write_ix"] = (self.audio["write_ix"] + data.shape[0]) % self.audio["buffer"].shape[0]
