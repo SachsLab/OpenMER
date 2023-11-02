@@ -131,7 +131,9 @@ class ProcedureGUI(IniWindow):
             "subject": {**self._subject_settings, "birthday": self._subject_settings["birthday"].isoformat()},
             "recording": {"state": self._b_recording}
         }
-        self._procedure_sock.send_string("procedure_settings " + json.dumps(send_dict))
+        pub_string = "procedure_settings " + json.dumps(send_dict)
+        print(f"Publishing: {pub_string}")
+        self._procedure_sock.send_string(pub_string)
 
     def _do_modal_settings(self):
         win = SettingsDialog(self._subject_settings, self._procedure_settings)

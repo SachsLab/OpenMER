@@ -361,6 +361,7 @@ class FeaturesGUI(CustomGUI):
                 if procedure_id != self._db.current_procedure or len(self._chan_labels) == 0:
                     self._db.select_procedure(procedure_id)
                     self._chan_labels = self._db.list_channel_labels()
+                    print(f"Resetting features for procedure {procedure_id} with channels {self._chan_labels}")
                     self.try_reset_widget()
         except zmq.ZMQError:
             pass
