@@ -108,110 +108,108 @@ class ProcedureWidget(QWidget):
             self.update_settings_from_db(-1)
 
         self.proc_enums = DBWrapper().return_enums("procedure")
+        self._setup_ui()
+        self.update_proc_widgets_from_settings()
+
+    def _setup_ui(self):
         proc_layout = QGridLayout(self)
 
         row = 0
         proc_layout.addWidget(QLabel("Previous procedures: "), row, 0, 1, 1)
-        self.prev_proc = QComboBox()
-        self.prev_proc.setEnabled(True)
+
+        prev_proc = QComboBox()
+        prev_proc.setObjectName("procedure_QComboBox")
+        prev_proc.setEnabled(True)
+        proc_layout.addWidget(prev_proc, row, 1, 1, 3)
         self.check_all_procedures(None, False)
-        self.prev_proc.currentIndexChanged.connect(self.procedure_selection_change)
-        proc_layout.addWidget(self.prev_proc, row, 1, 1, 3)
+        prev_proc.currentIndexChanged.connect(self.procedure_selection_change)
 
         row += 1
         proc_layout.addWidget(QLabel("Target name: "), row, 0, 1, 1)
-        self.target_name = QLineEdit("")
-        proc_layout.addWidget(self.target_name, row, 1, 1, 3)
+        target_name = QLineEdit("")
+        target_name.setObjectName("targetName_QLineEdit")
+        proc_layout.addWidget(target_name, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Type: "), row, 0, 1, 1)
-        self.type_combo = self.combo_from_enum('type')
-        proc_layout.addWidget(self.type_combo, row, 1, 1, 3)
+        type_combo = self.combo_from_enum("type")
+        type_combo.setObjectName("type_QComboBox")
+        proc_layout.addWidget(type_combo, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Recording configuration: "), row, 0, 1, 1)
-        self.rec_combo = self.combo_from_enum('recording_config')
-        proc_layout.addWidget(self.rec_combo, row, 1, 1, 3)
+        rec_combo = self.combo_from_enum('recording_config')
+        rec_combo.setObjectName("recording_QComboBox")
+        proc_layout.addWidget(rec_combo, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Electrode configuration: "), row, 0, 1, 1)
-        self.electrode_combo = self.combo_from_enum('electrode_config')
-        proc_layout.addWidget(self.electrode_combo, row, 1, 1, 3)
+        electrode_combo = self.combo_from_enum("electrode_config")
+        electrode_combo.setObjectName("electrode_QComboBox")
+        proc_layout.addWidget(electrode_combo, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Distance to target: "), row, 0, 1, 1)
-        self.dist_to_target = self.coord_line_edit()
-        proc_layout.addWidget(self.dist_to_target, row, 1, 1, 1)
+        dist_to_target = self.coord_line_edit()
+        dist_to_target.setObjectName("distance_to_target_QLineEdit")
+        proc_layout.addWidget(dist_to_target, row, 1, 1, 1)
+
+        for field_name in ["Entry", "Target", "A", "E"]:
+            row += 1
+            proc_layout.addWidget(QLabel(f"{field_name} (x, y, z): "), row, 0, 1, 1)
+            for ix, d in enumerate(["x", "y", "z"]):
+                _le = self.coord_line_edit()
+                _le.setObjectName(f"{field_name.lower()}_{d}_QLineEdit")
+                proc_layout.addWidget(_le, row, ix + 1, 1, 1)
 
         row += 1
-        proc_layout.addWidget(QLabel("Entry (x, y, z): "), row, 0, 1, 1)
-        self.entry_x = self.coord_line_edit()
-        proc_layout.addWidget(self.entry_x, row, 1, 1, 1)
-        self.entry_y = self.coord_line_edit()
-        proc_layout.addWidget(self.entry_y, row, 2, 1, 1)
-        self.entry_z = self.coord_line_edit()
-        proc_layout.addWidget(self.entry_z, row, 3, 1, 1)
-
-        row += 1
-        proc_layout.addWidget(QLabel("Target (x, y, z): "), row, 0, 1, 1)
-        self.target_x = self.coord_line_edit()
-        proc_layout.addWidget(self.target_x, row, 1, 1, 1)
-        self.target_y = self.coord_line_edit()
-        proc_layout.addWidget(self.target_y, row, 2, 1, 1)
-        self.target_z = self.coord_line_edit()
-        proc_layout.addWidget(self.target_z, row, 3, 1, 1)
-
-        row += 1
-        self.comp_dist_to_target = QLabel("Computed distance: 0.000 mm; Difference: 0.000 mm")
-        proc_layout.addWidget(self.comp_dist_to_target, row, 0, 1, 2)
-
-        row += 1
-        proc_layout.addWidget(QLabel("A (x, y, z): "), row, 0, 1, 1)
-        self.a_x = self.coord_line_edit()
-        proc_layout.addWidget(self.a_x, row, 1, 1, 1)
-        self.a_y = self.coord_line_edit()
-        proc_layout.addWidget(self.a_y, row, 2, 1, 1)
-        self.a_z = self.coord_line_edit()
-        proc_layout.addWidget(self.a_z, row, 3, 1, 1)
-
-        row += 1
-        proc_layout.addWidget(QLabel("E (x, y, z): "), row, 0, 1, 1)
-        self.e_x = self.coord_line_edit()
-        proc_layout.addWidget(self.e_x, row, 1, 1, 1)
-        self.e_y = self.coord_line_edit()
-        proc_layout.addWidget(self.e_y, row, 2, 1, 1)
-        self.e_z = self.coord_line_edit()
-        proc_layout.addWidget(self.e_z, row, 3, 1, 1)
+        comp_dist_to_target = QLabel("Computed distance: 0.000 mm; Difference: 0.000 mm")
+        comp_dist_to_target.setObjectName("computed_QLabel")
+        proc_layout.addWidget(comp_dist_to_target, row, 0, 1, 2)
 
         row += 1
         proc_layout.addWidget(QLabel("Offset direction: "), row, 0, 1, 1)
-        self.offset_direction_combo = self.combo_from_enum('offset_direction')
-        proc_layout.addWidget(self.offset_direction_combo, row, 1, 1, 3)
+        offset_direction_combo = self.combo_from_enum('offset_direction')
+        offset_direction_combo.setObjectName("offset_direction_QComboBox")
+        proc_layout.addWidget(offset_direction_combo, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QLabel("Offset size: "), row, 0, 1, 1)
-        self.offset_size = self.coord_line_edit()
-        proc_layout.addWidget(self.offset_size, row, 1, 1, 1)
+        offset_size = self.coord_line_edit()
+        offset_size.setObjectName("offset_QLineEdit")
+        proc_layout.addWidget(offset_size, row, 1, 1, 1)
 
         row += 1
         proc_layout.addWidget(QLabel("Medication status: "), row, 0, 1, 1)
-        self.medic_combo = self.combo_from_enum('medication_status')
-        proc_layout.addWidget(self.medic_combo, row, 1, 1, 3)
+        medic_combo = self.combo_from_enum("medication_status")
+        medic_combo.setObjectName("medic_QComboBox")
+        proc_layout.addWidget(medic_combo, row, 1, 1, 3)
 
         row += 1
         proc_layout.addWidget(QWidget(), row, 1, 1, 3)
 
-        self.update_proc_widgets_from_settings()
-
     def check_all_procedures(self, subject_id, block):
-        self.prev_proc.blockSignals(block)
         self.all_procedures = DBWrapper().list_all_procedures(subject_id)
-        self.prev_proc.clear()
-        self.prev_proc.addItem('')
-        self.prev_proc.addItems(
-            [' '.join([x.target_name, x.recording_config, x.date.strftime('%Y-%m-%d')]) for x in self.all_procedures])
-        self.prev_proc.setCurrentIndex(0)
-        self.prev_proc.blockSignals(False)
+
+        prev_proc: QComboBox = self.findChild(QComboBox, name="procedure_QComboBox")
+        # Clear combobox and fill with a summary of each procedure
+        prev_proc.blockSignals(block)
+        prev_proc.clear()
+        prev_proc.addItem("")  # 0th item is always blank.
+        prev_proc.addItems([
+            " ".join([
+                str(x.procedure_id), x.target_name, x.recording_config, x.date.strftime('%Y-%m-%d')
+            ])
+            for x in self.all_procedures
+        ])
+        row_ix = 0
+        if "procedure_id" in self.procedure_settings and self.procedure_settings["procedure_id"] != -1:
+            known_ids = [_.procedure_id for _ in self.all_procedures]
+            if self.procedure_settings["procedure_id"] in known_ids:
+                row_ix = known_ids.index(self.procedure_settings["procedure_id"]) + 1
+                prev_proc.blockSignals(False)
+        prev_proc.setCurrentIndex(row_ix)
+        prev_proc.blockSignals(False)
 
     def combo_from_enum(self, enum_name):
         combo = QComboBox()
@@ -232,21 +230,31 @@ class ProcedureWidget(QWidget):
         return line
 
     def update_dist_to_target(self, new_string):
+
         if new_string not in ["-", ".", "", "-."]:
-            ddt = np.sqrt((float(self.target_x.text()) - float(self.entry_x.text()))**2 +
-                          (float(self.target_y.text()) - float(self.entry_y.text()))**2 +
-                          (float(self.target_z.text()) - float(self.entry_z.text()))**2)
-            diff = float(self.dist_to_target.text()) - ddt
-            self.comp_dist_to_target.setText(
+            vals = np.array([
+                [
+                    float(self.findChild(QLineEdit, f"{fn}_{d}_QLineEdit").text())
+                    for fn in ["target", "entry"]
+                ]
+                for d in ["x", "y", "z"]
+            ])
+            ddt = np.sqrt(np.sum((vals[:, 0] - vals[:, 1]) ** 2))
+
+            dist_to_target: QLineEdit = self.findChild(QLineEdit, "distance_to_target_QLineEdit")
+            diff = float(dist_to_target.text()) - ddt
+
+            self.findChild(QLabel, "computed_QLabel").setText(
                 "Computed distance: {:.3f} mm; Difference: {:.3f} mm".format(ddt, diff))
 
     def change_subject(self, sub_id, block=False):
         self.check_all_procedures(sub_id, block)
 
     def procedure_selection_change(self):
+        prev_proc = self.findChild(QComboBox, name="procedure_QComboBox")
         id = -1
-        if self.prev_proc.currentIndex() > 0:
-            ix = self.prev_proc.currentIndex() - 1  # -1 because first entry is always blank.
+        if prev_proc.currentIndex() > 0:
+            ix = prev_proc.currentIndex() - 1  # -1 because first entry is always blank.
             id = self.all_procedures[ix].procedure_id
         self.update_settings_from_db(id)
         self.update_proc_widgets_from_settings()
@@ -256,95 +264,105 @@ class ProcedureWidget(QWidget):
         self.procedure_settings.update(res_dict)
 
     def update_proc_widgets_from_settings(self):
-        self.target_name.setText(self.procedure_settings.get("target_name", ""))
-        self.type_combo.setCurrentText(self.procedure_settings.get("type", ""))
-        self.rec_combo.setCurrentText(self.procedure_settings.get("recording_config", ""))
-        self.electrode_combo.setCurrentText(self.procedure_settings.get("electrode_config", ""))
-        self.medic_combo.setCurrentText(self.procedure_settings.get("medication_status", ""))
-        self.offset_size.setText(str(self.procedure_settings.get("offset_size", None)))
-        self.offset_direction_combo.setCurrentText(self.procedure_settings.get("offset_direction", ""))
-        entry = self.procedure_settings.get("entry", None)
-        if entry is None:
-            entry = [0., 0., 0.]
-        self.entry_x.setText(str(entry[0]))
-        self.entry_y.setText(str(entry[1]))
-        self.entry_z.setText(str(entry[2]))
-        target = self.procedure_settings.get("target", None)
-        if target is None:
-            target = [0., 0., 0.]
-        self.target_x.setText(str(target[0]))
-        self.target_y.setText(str(target[1]))
-        self.target_z.setText(str(target[2]))
-        ddt = self.procedure_settings.get("distance_to_target", None)
-        if ddt is None:
-            ddt = 0.000
-        self.dist_to_target.setText(str(ddt))
+        target_name: QLineEdit = self.findChild(QLineEdit, name="targetName_QLineEdit")
+        target_name.setText(self.procedure_settings.get("target_name", ""))
+
+        type_combo: QComboBox = self.findChild(QComboBox, "type_QComboBox")
+        type_combo.setCurrentText(self.procedure_settings.get("type", ""))
+
+        rec_combo: QComboBox = self.findChild(QComboBox, "recording_QComboBox")
+        rec_combo.setCurrentText(self.procedure_settings.get("recording_config", ""))
+
+        electrode_combo: QComboBox = self.findChild(QComboBox, "electrode_QComboBox")
+        electrode_combo.setCurrentText(self.procedure_settings.get("electrode_config", ""))
+
+        medic_combo: QComboBox = self.findChild(QComboBox, name="medic_QComboBox")
+        medic_combo.setCurrentText(self.procedure_settings.get("medication_status", ""))
+
+        offset_size: QLineEdit = self.findChild(QLineEdit, name="offset_QLineEdit")
+        offset_size.setText(str(self.procedure_settings.get("offset_size", None)))
+
+        offset_direction: QComboBox = self.findChild(QComboBox, name="offset_direction_QComboBox")
+        offset_direction.setCurrentText(self.procedure_settings.get("offset_direction", ""))
+
+        for field_name in ["entry", "target", "a", "e"]:
+            field_value = self.procedure_settings.get(field_name, None)
+            if field_value is None:
+                field_value = [0., 0., 0.]
+            for d, v in zip(["x", "y", "z"], field_value):
+                _txt: QLineEdit = self.findChild(QLineEdit, f"{field_name}_{d}_QLineEdit")
+                _txt.setText(str(v))
+
+        dtt = self.procedure_settings.get("distance_to_target", None)
+        if dtt is None:
+            dtt = 0.000
+        dtt_edit: QLineEdit = self.findChild(QLineEdit, "distance_to_target_QLineEdit")
+        dtt_edit.setText(str(dtt))
         # self.update_dist_to_target()
-        a = self.procedure_settings.get("a", None)
-        if a is None:
-            a = [0., 0., 0.]
-        self.a_x.setText(str(a[0]))
-        self.a_y.setText(str(a[1]))
-        self.a_z.setText(str(a[2]))
-        e = self.procedure_settings.get("e", None)
-        if e is None:
-            e = [0., 0., 0.]
-        self.e_x.setText(str(e[0]))
-        self.e_y.setText(str(e[1]))
-        self.e_z.setText(str(e[2]))
 
     def to_dict(self):
-        self.procedure_settings["type"] = self.type_combo.currentText()
-        self.procedure_settings["a"] = np.array([float(self.a_x.text()),
-                                                 float(self.a_y.text()),
-                                                 float(self.a_z.text())], dtype=float)
-        self.procedure_settings["distance_to_target"] = float(self.dist_to_target.text())
-        self.procedure_settings["e"] = np.array([float(self.e_x.text()),
-                                                 float(self.e_y.text()),
-                                                 float(self.e_z.text())], dtype=float)
-        self.procedure_settings["electrode_config"] = self.electrode_combo.currentText()
-        self.procedure_settings["entry"] = np.array([float(self.entry_x.text()),
-                                                     float(self.entry_y.text()),
-                                                     float(self.entry_z.text())], dtype=float)
-        self.procedure_settings["medication_status"] = self.medic_combo.currentText()
-        self.procedure_settings["target_name"] = self.target_name.text()
-        self.procedure_settings["recording_config"] = self.rec_combo.currentText()
-        self.procedure_settings["target"] = np.array([float(self.target_x.text()),
-                                                     float(self.target_y.text()),
-                                                     float(self.target_z.text())], dtype=float)
-        self.procedure_settings["offset_direction"] = self.offset_direction_combo.currentText()
-        self.procedure_settings["offset_size"] = float(self.offset_size.text())
+        type_combo = self.findChild(QComboBox, name="type_QComboBox")
+        self.procedure_settings["type"] = type_combo.currentText()
+
+        for field in ["entry", "target", "a", "e"]:
+            vals = np.array([
+                float(self.findChild(QLineEdit, name=f"{field}_{dim}_QLineEdit").text())
+                for dim in ["x", "y", "z"]
+            ], dtype=float)
+            self.procedure_settings[field] = vals
+
+        dist_to_target: QLineEdit = self.findChild(QLineEdit, "distance_to_target_QLineEdit")
+        self.procedure_settings["distance_to_target"] = float(dist_to_target.text())
+
+        electrode_combo: QComboBox = self.findChild(QComboBox, name="electrode_QComboBox")
+        self.procedure_settings["electrode_config"] = electrode_combo.currentText()
+
+        medic_combo: QComboBox = self.findChild(QComboBox, name="medic_QComboBox")
+        self.procedure_settings["medication_status"] = medic_combo.currentText()
+
+        target_name: QLineEdit = self.findChild(QLineEdit, name="targetName_QLineEdit")
+        self.procedure_settings["target_name"] = target_name.text()
+
+        rec_combo: QComboBox = self.findChild(QComboBox, name="recording_QComboBox")
+        self.procedure_settings["recording_config"] = rec_combo.currentText()
+
+        offset_direction_combo: QComboBox = self.findChild(QComboBox, "offset_direction_QComboBox")
+        self.procedure_settings["offset_direction"] = offset_direction_combo.currentText()
+
+        offset_size: QLineEdit = self.findChild(QLineEdit, name="offset_QLineEdit")
+        self.procedure_settings["offset_size"] = float(offset_size.text())
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, subject_settings: dict, procedure_settings: dict, parent=None):
+    def __init__(
+            self,
+            subject_settings: dict,  # Will be mutated by SubjectWidget!
+            procedure_settings: dict,  # Will be mutated by ProcedureWidget!
+            parent=None
+    ):
         super(SettingsDialog, self).__init__(parent)
         self.setWindowTitle("Enter settings.")
 
-        # settings dicts - we will mutate the input dictionaries
-        self.subject_settings = subject_settings
-        self.procedure_settings = procedure_settings
-
         # Widgets to show/edit parameters.
-        self.settings_layout = QVBoxLayout(self)
+        dialog_layout = QVBoxLayout(self)
 
         tab_widget = QTabWidget(self)
-        self.subject_widget = SubjectWidget(self.subject_settings)
+        self.subject_widget = SubjectWidget(subject_settings)
         tab_widget.addTab(self.subject_widget, 'Subject')
 
-        self.proc_widget = ProcedureWidget(self.procedure_settings)
+        self.proc_widget = ProcedureWidget(procedure_settings)
         tab_widget.addTab(self.proc_widget, 'Procedure')
 
-        self.settings_layout.addWidget(tab_widget)
+        dialog_layout.addWidget(tab_widget)
 
         # signals
         self.subject_widget.subject_change.connect(self.proc_widget.change_subject)
 
         # update procedures when re-opening settings window
-        if "subject_id" not in self.subject_settings.keys():
+        if "subject_id" not in subject_settings.keys():
             self.subject_widget.check_subject()
-        elif self.subject_settings["subject_id"] not in [None, ""]:
-            self.proc_widget.change_subject(self.subject_settings["subject_id"], block=True)
+        elif subject_settings["subject_id"] not in [None, ""]:
+            self.proc_widget.change_subject(subject_settings["subject_id"], block=True)
 
         # OK and Cancel buttons
         buttons = QDialogButtonBox(
@@ -352,7 +370,9 @@ class SettingsDialog(QDialog):
             Qt.Horizontal, self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        self.settings_layout.addWidget(buttons, alignment=Qt.AlignHCenter)
+        dialog_layout.addWidget(buttons, alignment=Qt.AlignHCenter)
+
+        self.setLayout(dialog_layout)
 
     def update_settings(self):
         self.subject_widget.to_dict()
