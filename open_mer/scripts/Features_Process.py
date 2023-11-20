@@ -20,11 +20,9 @@ class FeaturesWorker:
         self._setup_ipc()
 
         self.procedure_id = None
-        self.all_datum_ids = []
-        self.gt = 0  # fetch datum ids greater than this value
+        self.last_datum_id = 0  # fetch datum ids greater than this value
 
-        feat_list = [v[0] for k, v in feature_settings.items() if v[1]]
-        self.reset_features(feat_list)
+        self._select_latest_procedure()
 
         self.is_running = True
 
@@ -35,6 +33,18 @@ class FeaturesWorker:
         self._ctrl_sock = self._ipc_context.socket(zmq.SUB)
         self._ctrl_sock.connect(f"tcp://localhost:{self._ipc_settings['procedure_settings']}")
         self._ctrl_sock.setsockopt_string(zmq.SUBSCRIBE, "procedure_settings")
+
+    def _select_latest_procedure(self):
+        # Get the 0th subject and the -1th procedure for that subject
+        sub_id = list(self.db_wrapper.list_all_subjects())[0]
+        subj_details = self.db_wrapper.load_subject_details(sub_id)
+        self.db_wrapper.select_subject(subj_details["subject_id"])
+        proc = list(self.db_wrapper.list_all_procedures(subj_details["subject_id"]))[-1]
+        sett_dict = {
+            "procedure": {"procedure_id": proc.procedure_id},
+            "features": [v[0] for k, v in self._feature_settings.items() if v[1]]
+        }
+        self.process_settings(sett_dict)
 
     def process_settings(self, sett_dict):
         # process inputs
@@ -56,8 +66,7 @@ class FeaturesWorker:
 
     def reset_datum(self):
         # we will list all datum for the subject and all feature types that match the settings
-        self.all_datum_ids = []
-        self.gt = 0
+        self.last_datum_id = 0
 
     def run_forever(self):
         while self.is_running:
@@ -71,20 +80,15 @@ class FeaturesWorker:
             except zmq.ZMQError:
                 pass
 
-            new_datum = self.db_wrapper.list_all_datum_ids(gt=self.gt)
+            new_data = list(self.db_wrapper.list_all_datum_ids(gt=self.last_datum_id))
 
-            if len(new_datum) > 0:
-                self.all_datum_ids += new_datum
-
-            if len(self.all_datum_ids) > 0:
+            while len(new_data) > 0:
+                print(f"Calculating features for {len(new_data)} remaining segments...")
                 # get oldest data and check if all features have been computed
-                # in case we're stuck with a datum whose feature can't compute, we
-                # want to keep the largest datum id.
-                self.gt = max(self.all_datum_ids + [self.gt])
-                d_id = self.all_datum_ids.pop(0)
-                if not self.db_wrapper.check_and_compute_features(d_id):
-                    # re append at the end of the list?
-                    self.all_datum_ids.append(d_id)
+                d_id = new_data.pop(0)
+                if self.db_wrapper.check_and_compute_features(d_id):
+                    # If process was successful then update last_datum_id
+                    self.last_datum_id = max(d_id, self.last_datum_id)
             time.sleep(0.25)  # test to slow down process to decrease HDD load
             # time.sleep(0.1)
 
