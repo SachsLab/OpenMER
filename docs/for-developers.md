@@ -1,8 +1,10 @@
 ## Repository Organization
 
-* Library and Application code in the /neuroport_dbs folder
-* Unit tests in the /tests folder. Note this uses the pytest framework and conventions.
+* Library and Application code in the /open_mer folder
+  * Entry points in /open_mer/scripts
+* TODO: Unit tests in the /tests folder.
 * Documentation in the /docs folder
+* Scratch scripts in /scripts
 
 ## Maintaining the Documentation
 
@@ -37,7 +39,7 @@ TODO
 
 ## Interprocess Communication
 
-This section is referring to communication among the applications within the OpenMER suite, including mysqld and ~8 Python applications. This section is not referring to communication to/from the data sources.
+This section is referring to communication among the applications within the OpenMER suite, including mysqld and ~8 Python applications. Communication to/from the data sources is out-of-scope in this section.
 
 The applications all run independently of each other, but most of them work better in combination. To communicate information between applications we use [ZeroMQ](https://zeromq.org/).
 
@@ -51,9 +53,9 @@ The applications all run independently of each other, but most of them work bett
 
 We also have one LSL stream coming from the DepthGUI. Old version of the SERF Depth_Process might still be using it but they should be migrated. 
 
-| Stream Name     | Stream Type | Content                 | Inlets                   |
-|-----------------|-------------|-------------------------|--------------------------|
-| electrode_depth | depth       | 1 float32 of elec depth | old Depth_Process (SERF) |
+| Stream Name     | Stream Type | Content                 | Inlets                     |
+|-----------------|-------------|-------------------------|----------------------------|
+| electrode_depth | depth       | 1 float32 of elec depth | *old* Depth_Process (SERF) |
 
 ## Development Environment
 
