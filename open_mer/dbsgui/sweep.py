@@ -88,6 +88,11 @@ class SweepWidget(CustomWidget):
         range_edit.setMinimumHeight(23)
         range_edit.setMaximumWidth(80)
         cntrl_layout.addWidget(range_edit)
+        # Disabled button for status
+        snippet_pb = QtWidgets.QPushButton("snippet")
+        snippet_pb.setObjectName("snippet_PushButton")
+        snippet_pb.setEnabled(False)
+        cntrl_layout.addWidget(snippet_pb)
         # buttons for audio monitoring
         cntrl_layout.addStretch(1)
         cntrl_layout.addWidget(QtWidgets.QLabel("Monitor: "))
@@ -409,14 +414,20 @@ class SweepGUI(CustomGUI):
             settings.endGroup()
 
     def _setup_ipc(self):
-        self._chanselect_context = zmq.Context()
-        self._chanselect_sock = self._chanselect_context.socket(zmq.PUB)
+        self._sock_context = zmq.Context()
+        
+        self._chanselect_sock = self._sock_context.socket(zmq.PUB)
         self._chanselect_sock.bind(f"tcp://*:{self._ipc_settings['channel_select']}")
 
+        self._snippet_sock = self._sock_context.socket(zmq.SUB)
+        self._snippet_sock.connect(f"tcp://localhost:{self._ipc_settings['snippet_status']}")
+        self._snippet_sock.setsockopt_string(zmq.SUBSCRIBE, "snippet_status")
+
     def _cleanup_ipc(self):
-        self._chanselect_sock.setsockopt(zmq.LINGER, 0)
-        self._chanselect_sock.close()
-        self._chanselect_context.term()
+        for _sock in [self._chanselect_sock, self._snippet_sock]:
+            _sock.setsockopt(zmq.LINGER, 0)
+            _sock.close()
+        self._sock_context.term()
 
     def try_reset_widget(self):
         super().try_reset_widget()
@@ -482,6 +493,18 @@ class SweepGUI(CustomGUI):
                 proc_data = self._postproc_data(chan_state["name"], data, ch_state=chan_state)
                 self._sonify_data(chan_state["name"], proc_data)
                 self._plot_widget.update(chan_state["name"], proc_data, ch_state=chan_state)
+
+        try:
+            received_msg = self._snippet_sock.recv_string(flags=zmq.NOBLOCK)[len("snippet_status") + 1:]
+            # startup, refresh (ignore), notrecording, recording, accumulating, done
+            new_colour = {"accumulating": "red", "done": "blue"}.get(received_msg, "yellow")
+            pb: QtWidgets.QPushButton = self._plot_widget.findChild(QtWidgets.QPushButton, "snippet_PushButton")
+            pb.setStyleSheet("QPushButton { color: white; "
+                             f"background-color : {new_colour}; "
+                             f"border-color : {new_colour}; "
+                             "border-width: 2px}")
+        except zmq.ZMQError:
+            pass
 
     def _postproc_data(self, label, data, ch_state=None):
         # TODO: Store channel state and filter state in this class, not the plot widget
