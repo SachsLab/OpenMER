@@ -203,7 +203,7 @@ class DepthGUI(IniWindow):
             if not cbsdk_conn.is_connected:
                 cbsdk_conn.connect()
                 cbsdk_conn.cbsdk_config = {'reset': True, 'get_events': False, 'get_comments': False}
-            if not cbsdk_conn.is_connected:
+            if cbsdk_conn.is_connected:
                 cbsdk_conn.set_comments("DTT:" + self.display_string)
 
         # Push to LSL
