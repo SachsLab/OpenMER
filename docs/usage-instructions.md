@@ -44,12 +44,6 @@ It is very important to modify the [DepthGUI settings](settings.md#depthguiini) 
 
 ## Procedure
 
-## Features
-
-Click connect, OK, Add Plot
-
-Then you're presented with a settings window. 
-
 * Under the Subject tab:
     * Type a patient Id or select from the drop-down list if resuming a previously-stored patient.
     * Enter the remaining information.
@@ -64,6 +58,9 @@ Then you're presented with a settings window.
     * If you use an offset adapter you can specify the direction (A to H) and the offset size in mm.
         
 * Click OK to start the GUI
+
+## Features
+
 * Click on the "Record" button.
     * Note: To change the default recording path, edit `WPy64-3850\python-3.8.5.amd64\Lib\site-packages\neuroport_dbs\settings\defaults.py` and change the `BASEPATH` value. (We hope to make this easier via a config file in the future.)
 * After a new depth is entered and the depth remains constant for 4-8 seconds (depending on signal quality), a segment will be added to the database.
