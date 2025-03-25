@@ -1,8 +1,10 @@
 import json
+
+import keyboard
 import numpy as np
 from scipy import signal
 import pyaudio
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 import pyqtgraph as pg
 import zmq
 
@@ -27,12 +29,19 @@ class SweepWidget(CustomWidget):
         self._monitor_group = None  # QtWidgets.QButtonGroup(parent=self)
         self._plot_config = {}
         self.segmented_series = {}  # Will contain one array of curves for each line/channel label.
+        self._key_queue: int = 0
 
         super().__init__(*args, theme=theme, plot=plot)
 
         self.refresh_axes()  # Even though super __init__ calls this, extra refresh is intentional
         self.chanselect_updated.emit()
 
+        keyboard.add_hotkey("right", lambda: self._indirect_trigger(QtCore.Qt.Key_Right))
+        keyboard.add_hotkey("left", lambda: self._indirect_trigger(QtCore.Qt.Key_Left))
+
+    def _indirect_trigger(self, key: int):
+        self._key_queue = key
+    
     def _parse_config(self, theme={}, plot={}, alt_loc=False):
         super()._parse_config(theme=theme)
 
@@ -57,25 +66,30 @@ class SweepWidget(CustomWidget):
         self._plot_config["spk_aud"] = bool(plot.get('spk_aud', True))
         self._plot_config["lock_threshold"] = bool(plot.get('lock_threshold', False))
 
-    def keyPressEvent(self, e):
+    def handle_key_event(self, key):
         valid_keys = [QtCore.Qt.Key_0, QtCore.Qt.Key_1, QtCore.Qt.Key_2, QtCore.Qt.Key_3, QtCore.Qt.Key_4,
                       QtCore.Qt.Key_5, QtCore.Qt.Key_6, QtCore.Qt.Key_7, QtCore.Qt.Key_8,
                       QtCore.Qt.Key_9][:len(self.chan_states) + 1]
         current_button_id = self._monitor_group.checkedId()
         new_button_id = None
-        if e.key() == QtCore.Qt.Key_Left:
+        if key == QtCore.Qt.Key_Left:
             new_button_id = (current_button_id - 1) % (len(self.chan_states) + 1)
-        elif e.key() == QtCore.Qt.Key_Right:
+        elif key == QtCore.Qt.Key_Right:
             new_button_id = (current_button_id + 1) % (len(self.chan_states) + 1)
-        elif e.key() == QtCore.Qt.Key_Space:
+        elif key == QtCore.Qt.Key_Space:
             new_button_id = 0
-        elif e.key() in valid_keys:
-            new_button_id = valid_keys.index(e.key())
+        elif key in valid_keys:
+            new_button_id = valid_keys.index(key)
 
         if new_button_id is not None:
             button = self._monitor_group.button(new_button_id)
             button.setChecked(True)
             self.on_monitor_group_clicked(button)
+
+    def keyPressEvent(self, e):
+        # Ignore 'left' and 'right' because those are handled by global `keyboard` module.
+        if e.key() not in [QtCore.Qt.Key_Left, QtCore.Qt.Key_Right]:
+            self.handle_key_event(e.key())
 
     def create_control_panel(self):
         # Create control panel
@@ -322,6 +336,10 @@ class SweepWidget(CustomWidget):
         :param data: Replace data in the segmented series with these data
         :return:
         """
+        if self._key_queue != 0:
+            self.handle_key_event(self._key_queue)
+            self._key_queue = 0
+
         ss_info = self.segmented_series[line_label]
         n_in = data.shape[0]
 
