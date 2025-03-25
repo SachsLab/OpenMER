@@ -1,4 +1,4 @@
-from qtpy import QtCore, QtWidgets
+from qtpy import QtCore, QtWidgets, QtGui
 import zmq
 from .widgets.ini_window import IniWindow
 from ..depth_source import CBSDKPlayback
@@ -153,13 +153,19 @@ class DepthGUI(IniWindow):
         lcd_frame.setLayout(lcd_layout)
 
         # RAW reading from DDU
-        raw_ddu_lcd = QtWidgets.QLCDNumber()
+        # raw_ddu_lcd = QtWidgets.QLCDNumber()
+        raw_ddu_lcd = QtWidgets.QDoubleSpinBox()
         raw_ddu_lcd.setObjectName("raw_ddu_LCD")
-        raw_ddu_lcd.setDigitCount(7)
-        raw_ddu_lcd.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        raw_ddu_lcd.setSmallDecimalPoint(True)
+        # raw_ddu_lcd.setDigitCount(7)
+        # raw_ddu_lcd.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        # raw_ddu_lcd.setSmallDecimalPoint(True)
         raw_ddu_lcd.setFixedHeight(50)
-        raw_ddu_lcd.display("{0:.3f}".format(0))
+        # raw_ddu_lcd.display("{0:.3f}".format(0))
+        font = QtGui.QFont()
+        font.setPointSize(20)
+        raw_ddu_lcd.setFont(font)
+        raw_ddu_lcd.setDecimals(2)
+        raw_ddu_lcd.setSingleStep(0.1)
         lcd_layout.addWidget(raw_ddu_lcd, 0, 3, 2, 3)
 
         offset_lcd = MyLCD()
@@ -176,24 +182,29 @@ class DepthGUI(IniWindow):
         self.plot_widget.setLayout(v_layout)
 
     def update(self):
+        # Find widgets
+        # raw_ddu_lcd: QtWidgets.QLCDNumber = self.findChild(QtWidgets.QLCDNumber, "raw_ddu_LCD")
+        raw_ddu_lcd: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "raw_ddu_LCD")
+        offset_lcd: MyLCD = self.findChild(MyLCD, "offset_LCD")
+        dtt_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "DTT_doubleSpinBox")
+        offset_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "offset_doubleSpinBox")
+
         value = self._depth_source.update()
         if value is not None:
-            # Find widgets
-            raw_ddu_lcd: QtWidgets.QLCDNumber = self.findChild(QtWidgets.QLCDNumber, "raw_ddu_LCD")
-            offset_lcd: MyLCD = self.findChild(MyLCD, "offset_LCD")
-            dtt_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "DTT_doubleSpinBox")
-            offset_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "offset_doubleSpinBox")
-
             # Update displays for raw and corrected values
-            raw_ddu_lcd.display("{0:.3f}".format(value))
-            value += dtt_spinbox.value() + offset_spinbox.value()
-            display_string = "{0:.3f}".format(value)
-            offset_lcd.display(display_string)
+            # raw_ddu_lcd.display("{0:.3f}".format(value))
+            raw_ddu_lcd.setValue(value)
+        else:
+            value = raw_ddu_lcd.value()
 
-            # If value is new, store and publish
-            if display_string != self.display_string:
-                self.display_string = display_string
-                self.publish()
+        value += dtt_spinbox.value() + offset_spinbox.value()
+        display_string = "{0:.3f}".format(value)
+        offset_lcd.display(display_string)
+
+        # If value is new, store and publish
+        if display_string != self.display_string:
+            self.display_string = display_string
+            self.publish()
 
     def publish(self):
         # Push to NSP (only if this is not NSP playback)
