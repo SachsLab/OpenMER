@@ -2,6 +2,7 @@ from qtpy import QtCore, QtWidgets, QtGui
 import zmq
 from .widgets.ini_window import IniWindow
 from ..depth_source import CBSDKPlayback
+import serial
 try:
     from cerebuswrapper import CbSdkConnection
 except ModuleNotFoundError as e:
@@ -164,7 +165,7 @@ class DepthGUI(IniWindow):
         font = QtGui.QFont()
         font.setPointSize(20)
         raw_ddu_lcd.setFont(font)
-        raw_ddu_lcd.setDecimals(2)
+        raw_ddu_lcd.setDecimals(3)
         raw_ddu_lcd.setSingleStep(0.1)
         lcd_layout.addWidget(raw_ddu_lcd, 0, 3, 2, 3)
 
@@ -189,7 +190,12 @@ class DepthGUI(IniWindow):
         dtt_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "DTT_doubleSpinBox")
         offset_spinbox: QtWidgets.QDoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, "offset_doubleSpinBox")
 
-        value = self._depth_source.update()
+        value = None
+        try:
+            value = self._depth_source.update()
+        except serial.serialutil.SerialException:
+            pass
+
         if value is not None:
             # Update displays for raw and corrected values
             # raw_ddu_lcd.display("{0:.3f}".format(value))
