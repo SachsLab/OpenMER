@@ -174,8 +174,6 @@ class WaveformGUI(CustomGUI):
                     self._theme_settings[k] = settings.value(k, type=t)
             settings.endGroup()
 
-        super().parse_settings()
-
     def do_plot_update(self):
         for label in self._plot_widget.wf_info:
             this_info = self._plot_widget.wf_info[label]
