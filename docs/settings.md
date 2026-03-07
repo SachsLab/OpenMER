@@ -4,11 +4,11 @@ Our settings use the QSettings ini format.
 
 ## Modifying Settings
 
-The default settings are contained in files located within the open_mer Python package.
+The default settings are contained in files located within the open_mer Python package (under `src/open_mer/resources/settings`).
 
 The user must copy these files into their home directory then modify them there.
-Copy all .ini files from `<distribution>\<python>\<python-3.x.x.y>\Lib\site-packages\open_mer\resources\settings` to %HOME%\.open_mer\.
-This can be done by running `python -m open_mer.scripts.ResetUserSettings`.
+Copy all .ini files from the package's `resources/settings` directory to `%HOME%\.open_mer\` (Windows) or `~/.open_mer/` (macOS/Linux).
+This can be done by running `uv run python -m open_mer.scripts.ResetUserSettings` (development) or `python -m open_mer.scripts.ResetUserSettings` (distribution).
 
 > Warning: The ResetUserSettings script will wipe out any previously modified settings in the user's home directory.
 

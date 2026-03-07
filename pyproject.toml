@@ -1,3 +1,77 @@
+[project]
+name = "open-mer"
+description = "Tools for deep brain stimulation (DBS) surgery intraoperative mapping with microelectrode recording (MER)"
+authors = [
+  { name = "Chadwick Boulay", email = "chboulay@ohri.ca" },
+]
+license = "Apache-2.0"
+readme = "docs/README.md"
+requires-python = ">=3.10"
+dynamic = ["version"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "django",
+  "mspacman",
+  "mysqlclient",
+  "neo",
+  "numpy",
+  "pyfftw",
+  "pylsl",
+  "pyqtgraph",
+  "pyserial",
+  "pyside6",
+  "pytf",
+  "pyzmq",
+  "qtpy",
+  "quantities",
+  "scipy",
+  "serf",
+  "typer",
+]
+
+[project.urls]
+Homepage = "https://github.com/SachsLab/OpenMER"
+"Bug Tracker" = "https://github.com/SachsLab/OpenMER/issues"
+
+[project.gui-scripts]
+dbs-sweep = "open_mer.scripts.SweepGUI:main"
+dbs-waveform = "open_mer.scripts.WaveformGUI:main"
+dbs-raster = "open_mer.scripts.RasterGUI:main"
+dbs-procedure = "open_mer.scripts.ProcedureGUI:main"
+dbs-features = "open_mer.scripts.FeaturesGUI:main"
+dbs-mapping = "open_mer.scripts.MappingGUI:main"
+dbs-comments = "open_mer.scripts.CommentsGUI:main"
+dbs-ddu = "open_mer.scripts.DepthGUI:main"
+dbs-meracquire = "open_mer.scripts.Segments_Process:main"
+dbs-procfeatures = "open_mer.scripts.Features_Process:main"
+
+[dependency-groups]
+dev = [
+  { include-group = "test" },
+]
+test = [
+  "pytest>=8.0.0",
+]
+
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/open_mer/__version__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/open_mer"]
+
+[tool.uv.sources]
+neo = { git = "https://github.com/NeuralEnsemble/python-neo.git" }
+pytf = { git = "https://github.com/SachsLab/pytf.git" }
+mspacman = { git = "https://github.com/SachsLab/mspacman.git" }
+serf = { git = "https://github.com/cboulay/SERF.git", subdirectory = "python" }

@@ -1,7 +1,7 @@
 ## Repository Organization
 
-* `/open_mer`: Library and Application code
-  * `/open_mer/scripts`: Entry points 
+* `/src/open_mer`: Library and Application code
+  * `/src/open_mer/scripts`: Entry points
 * `/tests` TODO: Unit tests
 * `/docs`: Documentation
 * `/scripts`: Scratch scripts
@@ -94,13 +94,25 @@ TODO: More instructions needed.
 
 ### Dependencies
 
-We assume you know how to work with conda / mamba environments and that you have a MySQL database server running and configured to your liking.
+This project is managed with [uv](https://docs.astral.sh/uv/).
 
-* Create an `openmer` conda environment.
-* Install the Python packages from the [table](preparing-distribution.md#required-python-packages).
+#### System prerequisites
+
+* **macOS**: `mysqlclient` requires MySQL C libraries. Install them with:
+  ```
+  brew install mysql-client pkg-config
+  ```
+* **Windows**: See the [Preparing Distribution](preparing-distribution.md) docs for MySQL setup.
+* **All platforms**: A MySQL database server must be running and configured. See [Preparing Distribution](preparing-distribution.md#mysql) for details.
+
+#### Setting up a development environment
+
+```
+git clone https://github.com/SachsLab/OpenMER.git
+cd OpenMER
+uv sync
+```
+
+This will create a `.venv` virtual environment and install all dependencies (including git-based ones defined in `pyproject.toml`).
+
 * Adapt the instructions at [Segmented Electrophys Recordings and Features Database (SERF)](https://github.com/cboulay/SERF) to prepare the database server for your development environment.
-
-## Future goal - installable package
-
--[] Refactor this repo to exist only as a library
--[] Create a new repo for entry points, leveraging above library, create installer using [fman build system](https://build-system.fman.io/)

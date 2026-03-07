@@ -34,7 +34,7 @@ Create a folder somewhere you have write access. The location should have at lea
     start "" "%WINPYDIR%\Scripts\dbs-features.exe" /command:%1 /B
     ```
   
-> Note: Check OpenMER/setup.cfg `[options.entry_points]` for the correct names of the exe files.
+> Note: Check `[project.gui-scripts]` in `pyproject.toml` for the correct names of the exe files.
 
 ### Required Python Packages
 

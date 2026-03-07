@@ -1,9 +1,9 @@
-site_name: NeuroportDBS
-site_url: https://SachsLab.github.io/NeuroportDBS/
+site_name: OpenMER
+site_url: https://SachsLab.github.io/OpenMER/
 site_author: Chadwick Boulay
 
-repo_name: SachsLab/NeuroportDBS
-repo_url: https://github.com/SachsLab/NeuroportDBS
+repo_name: SachsLab/OpenMER
+repo_url: https://github.com/SachsLab/OpenMER
 
 theme:
   name: "material"
